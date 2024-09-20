@@ -1,0 +1,6 @@
+{
+    "port": 27182,
+    "files": {
+        "example": "/path/to/file",
+    }
+}
