@@ -199,9 +199,10 @@ func main() {
         add(instructionPath, name, filepath)
         fmt.Println("Done.")
     case "addrandom", "random", "add_random":
-        name = generateRandomSubdomain(random_subdomain_length)
-        fmt.Printf("Random subdomain: %s\n", name)
-        fmt.Printf("Adding %s with file path %s...\n", name, filepath)
+        var rname string = ""
+        rname = generateRandomSubdomain(random_subdomain_length)
+        fmt.Printf("Random subdomain: %s\n", rname)
+        fmt.Printf("Adding %s with file path %s...\n", rname, name)
         add(instructionPath, name, filepath)
         fmt.Println("Done.")
     default:
