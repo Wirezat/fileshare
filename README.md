@@ -17,8 +17,8 @@ The Json interface is now added, use it via
 go run fileshare.go <functionality> <subdomain> <filepath> although not all parameters are needed all the time
 
 functions:
-list
-del <subdomain>
-add <subdomain> <path/to/file>
-addrandom <path/to/file>
-  add random adds a random subdomain for more private data
+ - list
+ - del <subdomain>
+ - add <subdomain> <path/to/file>
+ - addrandom <path/to/file>
+   - add random adds a random subdomain for more private data
