@@ -203,7 +203,7 @@ func main() {
         rname = generateRandomSubdomain(random_subdomain_length)
         fmt.Printf("Random subdomain: %s\n", rname)
         fmt.Printf("Adding %s with file path %s...\n", rname, name)
-        add(instructionPath, name, filepath)
+        add(instructionPath, rname, name)
         fmt.Println("Done.")
     default:
         fmt.Printf("Unknown command: %s\n", tool)
