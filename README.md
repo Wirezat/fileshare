@@ -2,13 +2,13 @@
 A simple go program that reads files from a json and hosts them under a link
 ***
 ## Installation:
-To install fileshare, just use the installer by downloading the release folder and executing it [`sudo bash install`]
-To uninstall fileshare, you can use the uninstaller with [`sudo bash uninstall`]
+To install fileshare, just use the installer by downloading the release folder and executing it `sudo bash install`
+To uninstall fileshare, you can use the uninstaller with `sudo bash uninstall`
 
 ***
 ## Usage:
 use the program as 
-fileshare <functionality> <subdomain> <filepath> although not all parameters are needed all the time
+`fileshare <functionality> <subdomain> <filepath>` although not all parameters are needed all the time
 
 functions:
  - list
