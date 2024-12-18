@@ -3,6 +3,7 @@ A simple go program that reads files from a json and hosts them under a link
 ***
 ## Installation:
 To install fileshare, just use the installer by downloading the release folder and executing it with: `sudo bash install`
+
 To uninstall fileshare, you can use the uninstaller with: `sudo bash uninstall`
 
 ***
