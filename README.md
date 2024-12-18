@@ -20,7 +20,7 @@ functions:
  - addrandom <path/to/file>
    - adds a file under a random subdomain for more private data
 
-For example "`sharefile path/to/file example`"  
+For example "`sharefile add path/to/file example`"  
 will host the file under http://localhost:port/example
 
 this link will just lead directly to the file so any device can easily download your files.
