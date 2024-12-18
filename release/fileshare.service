@@ -1,0 +1,23 @@
+[Unit]
+
+Description=File Sharing Service
+
+After=network.target
+
+
+[Service]
+ExecStartPre=/bin/sh -c "export PATH=/opt/fileshare:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+ExecStart=/opt/fileshare/fileshare-backend start
+
+WorkingDirectory=/opt/fileshare
+
+Restart=on-failure
+
+User=root
+
+Group=wheel
+
+[Install]
+
+WantedBy=multi-user.target
