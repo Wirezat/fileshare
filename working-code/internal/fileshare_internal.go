@@ -8,17 +8,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
-var mu sync.RWMutex
 var instructionpath string = "./data.json"
-var fileMap map[string]string
 
 type JsonData struct {
 	Port  int               `json:"port"`
 	Files map[string]string `json:"files"`
 }
+
 type FileInfo struct {
 	Name  string
 	Path  string
@@ -33,23 +31,27 @@ type PageData struct {
 	HasParentDir bool
 }
 
+// Zentrale, kompakte Fehlerbehandlung
+func handleError(response http.ResponseWriter, err error, statusCode int) {
+	if err != nil {
+		http.Error(response, http.StatusText(statusCode), statusCode)
+	}
+}
+
 func loadConfig() (JsonData, error) {
-	var jsonData JsonData
 	file, err := os.Open(instructionpath)
 	if err != nil {
-		return jsonData, fmt.Errorf("error opening file: %v", err)
+		return JsonData{}, err
 	}
 	defer file.Close()
 
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&jsonData)
-	if err != nil {
-		return jsonData, fmt.Errorf("error decoding JSON: %v", err)
+	var jsonData JsonData
+	if err := json.NewDecoder(file).Decode(&jsonData); err != nil {
+		return jsonData, err
 	}
 
 	for name, path := range jsonData.Files {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			fmt.Printf("Warning: File or Directory %s does not exist at path: %s\n", name, path)
 			delete(jsonData.Files, name)
 		}
 	}
@@ -57,155 +59,93 @@ func loadConfig() (JsonData, error) {
 }
 
 func fileShareHandler(response http.ResponseWriter, request *http.Request) {
-	// Konfiguration bei jedem Aufruf neu laden
+	// Konfiguration laden
 	jsonData, err := loadConfig()
 	if err != nil {
-		fmt.Println("Error loading config:", err)
-		http.Error(response, "Internal Server Error", http.StatusInternalServerError)
+		handleError(response, err, http.StatusInternalServerError)
 		return
 	}
 
-	// Aktualisiere die fileMap
-	mu.Lock()
-	fileMap = jsonData.Files
-	mu.Unlock()
+	// Extrahiere den Pfad und entferne führenden Slash
+	subdomains := strings.Split(strings.TrimPrefix(request.URL.Path, "/"), "/")
 
-	// Extrahiere den Pfad der Anfrage
-	path := request.URL.Path
+	// Holen der Datei/Verzeichnis-Info aus der fileMap
+	if filePath, ok := jsonData.Files[subdomains[0]]; ok {
+		remainingPath := filepath.Join(filePath, filepath.Join(subdomains[1:]...))
 
-	// Entferne den führenden Slash, falls vorhanden
-	if len(path) > 0 && path[0] == '/' {
-		path = path[1:]
-	}
-
-	// Teile den Pfad in Teile (Subdomains)
-	subdomains := strings.Split(path, "/")
-
-	// Suche nach dem ersten Element in der fileMap
-	mu.RLock()
-	filePath, ok := fileMap[subdomains[0]]
-	mu.RUnlock()
-
-	// Wenn der erste Subdomain-Schlüssel nicht gefunden wurde
-	if !ok {
-		fmt.Printf("Subdomain %s nicht gefunden\n", subdomains[0])
-		http.NotFound(response, request)
-		return
-	}
-
-	// Der erste Subdomain-Schlüssel wurde gefunden
-	fmt.Println("File or directory found:", filePath)
-
-	// Entferne das erste Element der Subdomain-Liste und baue den Rest des Pfads
-	remainingPath := filepath.Join(filePath, filepath.Join(subdomains[1:]...))
-
-	// Verarbeite den verbleibenden Pfad
-	fileInfo, err := os.Stat(remainingPath)
-	if err != nil {
-		fmt.Println("Error accessing file or directory:", err)
-		http.Error(response, "Error accessing file or directory", http.StatusInternalServerError)
-		return
-	}
-
-	// Wenn es sich um ein Verzeichnis handelt, den Inhalt des Verzeichnisses auflisten
-	if fileInfo.IsDir() {
-		fmt.Println("Serving directory:", remainingPath)
-		serveDirectory(response, remainingPath, subdomains[0], filePath)
+		// Verarbeite Datei oder Verzeichnis
+		if fileInfo, err := os.Stat(remainingPath); err == nil {
+			if fileInfo.IsDir() {
+				serveDirectory(response, remainingPath, subdomains[0], filePath)
+			} else {
+				http.ServeFile(response, request, remainingPath)
+			}
+		} else {
+			handleError(response, err, http.StatusInternalServerError)
+		}
 	} else {
-		fmt.Println("Serving file:", remainingPath)
-		// Wenn es sich um eine Datei handelt, die Datei an den Client senden
-		http.ServeFile(response, request, remainingPath)
+		http.NotFound(response, request)
 	}
 }
 
 func serveDirectory(response http.ResponseWriter, dirPath, subdomain, basePath string) {
-	// Verzeichnisinhalt abrufen
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
-		http.Error(response, "Fehler beim Lesen des Verzeichnisses", http.StatusInternalServerError)
+		handleError(response, err, http.StatusInternalServerError)
 		return
 	}
 
-	var filteredFiles []os.DirEntry
+	fileInfos := make([]FileInfo, 0, len(files))
 	for _, file := range files {
-		if !strings.HasPrefix(file.Name(), ".") { // Ignoriere Dateien/Ordner, die mit einem Punkt beginnen
-			filteredFiles = append(filteredFiles, file)
+		if strings.HasPrefix(file.Name(), ".") {
+			continue
 		}
-	}
-
-	// Vorbereiten der Dateiinformationen
-	var fileInfos []FileInfo
-	for _, file := range filteredFiles {
 		fileInfos = append(fileInfos, FileInfo{
 			Name:  file.Name(),
-			Path:  strings.TrimPrefix(filepath.Join(dirPath, file.Name()), basePath),
+			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), file.Name()),
 			IsDir: file.IsDir(),
 		})
 	}
 
-	// Berechnung des übergeordneten Verzeichnisses für die Rückwärtsnavigation
-	var parentDir string
-	var hasParentDir bool
+	parentDir := "/"
 	if dirPath != basePath {
-		parentDir = filepath.Dir(dirPath)
-		parentDir = strings.TrimPrefix(parentDir, basePath)
-		if parentDir == "" {
-			parentDir = "/"
-		}
-		hasParentDir = true
+		parentDir = filepath.Join("/", strings.TrimPrefix(filepath.Dir(dirPath), basePath))
 	}
 
-	// PageData für Template füllen
-	pageData := PageData{
-		Subdomain:    subdomain,
-		DirPath:      strings.TrimPrefix(dirPath, basePath), // Nur den relativen Pfad ab basePath anzeigen
-		Files:        fileInfos,
-		ParentDir:    parentDir,
-		HasParentDir: hasParentDir,
-	}
-
-	// Template-Funktionen registrieren
-	funcMap := template.FuncMap{
+	t, err := template.New("directory").Funcs(template.FuncMap{
 		"getFileExtension": func(filename string) string {
-			return strings.ToLower(filepath.Ext(filename)) // Dateiendung in Kleinbuchstaben zurückgeben
+			return strings.ToLower(filepath.Ext(filename))
 		},
-	}
-
-	// Template parsen
-	t, err := template.New("directory").Funcs(funcMap).ParseFiles("template.html")
+	}).ParseFiles("template.html")
 	if err != nil {
-		http.Error(response, "Fehler beim Laden des Templates", http.StatusInternalServerError)
+		handleError(response, err, http.StatusInternalServerError)
 		return
 	}
 
-	// Template ausführen und an ResponseWriter senden
-	response.Header().Set("Content-Type", "text/html; charset=utf-8")
-	err = t.Execute(response, pageData)
-	if err != nil {
-		fmt.Println("Render-Fehler:", err)
-		http.Error(response, "Fehler beim Rendern der Seite", http.StatusInternalServerError)
+	if err := t.Execute(response, PageData{
+		Subdomain:    subdomain,
+		DirPath:      filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),
+		Files:        fileInfos,
+		ParentDir:    parentDir,
+		HasParentDir: dirPath != basePath,
+	}); err != nil {
+		handleError(response, err, http.StatusInternalServerError)
 	}
 }
 
 func starthttp(port int) {
 	http.HandleFunc("/", fileShareHandler)
 	fmt.Printf("Serving at http://localhost:%d\n", port)
-	address := fmt.Sprintf(":%d", port)
-	if err := http.ListenAndServe(address, nil); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
 }
 
 func main() {
-	jsonData, err := loadConfig()
-	if err != nil {
+	if jsonData, err := loadConfig(); err != nil {
 		fmt.Println(err)
 		return
+	} else {
+		starthttp(jsonData.Port)
 	}
-
-	mu.Lock()
-	fileMap = jsonData.Files
-	mu.Unlock()
-
-	starthttp(jsonData.Port)
 }
