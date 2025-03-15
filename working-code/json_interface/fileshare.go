@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 )
 
 var instructionPath string = "/opt/fileshare/data.json"
@@ -189,9 +190,14 @@ func printTooltips() {
 	fmt.Println("Usage: <command> [<name>] [<filepath>]")
 	fmt.Println("Commands:\n" +
 		" list                   -> lists all shared files with their path and domains\n" +
+		" 	alternative inputs: l\n" +
 		" add <subdomain> <filepath> -> shares a file under given subdomain\n" +
+		"\n" +
 		" addrandom <filepath>   -> shares a file under a random automatically generated subdomain\n" +
+		" 	alternative inputs:, random, add_random, addr\n" +
 		" delete <subdomain>     -> stops sharing the file connected to the subdomain\n" +
+		" 	alternative inputs: del, remove, rm\n" +
+		"\n" +
 		" edit <old subdomain> <new subdomain> -> changes the subdomain of an already shared file")
 }
 
@@ -205,48 +211,52 @@ func main() {
 
 	var tool string
 	var subdomain string
-	var filepath string
-
+	var givenPath string
 	// Der erste Parameter ist der Befehl
 	// Zweiter Parameter als Name der Subdomain
 	// Dritter Parameter als Dateipfad der Datei
-	args := append(os.Args[1:], "", "") // Zwei leere Strings anhängen
-	tool, subdomain, filepath = args[0], args[1], args[2]
+	args := append(os.Args[1:], "", "")
+	tool, subdomain, givenPath = args[0], args[1], args[2]
 
 	switch tool {
-	case "list":
+	case "list", "l":
 		fmt.Println("Listing all file paths and their domains...")
 		list(instructionPath)
 		fmt.Println("Done.")
 
-	case "delete", "del":
+	case "delete", "del", "remove", "rm":
 		isParamGiven(subdomain)
 		fmt.Printf("Deleting %s...\n", subdomain)
 		del(instructionPath, subdomain)
 		fmt.Println("Done.")
 
 	case "add":
+		// Der zu Teilende Pfad wird im falle eines Relativen Pfades in einen Absoluten konvertiert.
+		filepath, _ := filepath.Abs(givenPath)
+
 		isParamGiven(subdomain)
 		isParamGiven(filepath)
 		fmt.Printf("Adding %s with file path %s...\n", subdomain, filepath)
 		add(instructionPath, subdomain, filepath)
 		fmt.Println("Done.")
 
-	case "addrandom", "random", "add_random":
+	case "addrandom", "random", "add_random", "addr":
 		//subdomain hier als Dateipfad, um Argumente besser zu nutzen
-		var filepathForRandom = subdomain
+		// Der zu Teilende Pfad wird im falle eines Relativen Pfades in einen Absoluten konvertiert.
+		filepath, _ := filepath.Abs(subdomain)
+
 		var rSubdomain string = ""
 		rSubdomain = generateRandomSubdomain(random_subdomain_length)
 		fmt.Printf("Random subdomain: %s\n", rSubdomain)
-		fmt.Printf("Adding %s with file path %s...\n", rSubdomain, filepathForRandom)
-		add(instructionPath, rSubdomain, filepathForRandom)
+		fmt.Printf("Adding %s with file path %s...\n", rSubdomain, filepath)
+		add(instructionPath, rSubdomain, filepath)
 		fmt.Println("Done.")
 
 	case "edit":
 		//filepath hier als neue subdomain um Argumente besser zu machen
-		var newSubdomain string = filepath
+		var newSubdomain string = givenPath
 		isParamGiven(subdomain)
-		isParamGiven(filepath)
+		isParamGiven(givenPath)
 		edit(subdomain, newSubdomain)
 
 	default:

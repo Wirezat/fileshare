@@ -1,1 +1,1 @@
-GOOS=linux GOARCH=amd64 go build -o fileshare-internal.go fileshare.go
+GOOS=linux GOARCH=amd64 go build -o fileshare-backend fileshare.go
