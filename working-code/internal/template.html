@@ -1,160 +1,358 @@
 {{define "directory"}}
 <!DOCTYPE html>
 <html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Index of {{.Subdomain}} - {{.DirPath}}</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Index of {{.Subdomain}}-{{.DirPath}}</title>
     <style>
-        /* Grundlegende Reset und globale Stile */
-        html, body {
-            height: 100%;
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
-            color: #333;
-        }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f6f9;
+        color: #495057;
+        line-height: 1.6;
+        overflow-x: hidden;
+      }
 
-        /* Header-Styling */
+      header {
+        background-color: #ffc107;
+        color: white;
+        padding: 15px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 1000;
+      }
+
+      h1 {
+        font-size: 1.2rem;
+        margin: 0;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 30px;
+        margin-top: var(60px);
+        background-color: white;
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+      }
+
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1rem;
+        margin-bottom: 20px;
+        padding: 12px;
+        background-color: #e9ecef;
+        border-radius: 8px;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 1200px;
+        text-align: left;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+      }
+
+      .breadcrumb .button {
+        display: inline-block;
+        white-space: nowrap;
+        padding: 4px 8px;
+        font-size: 1rem;
+        text-decoration: none;
+        background-color: #ffc107;
+        color: white;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        box-sizing: border-box;
+        width: auto;
+        max-width: 200px;
+      }
+
+      .breadcrumb a {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+
+      ul {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 10px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        width: 100%;
+      }
+
+      li {
+        margin: 5px 0;
+        padding: 10px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        transition: transform 0.2s ease, background-color 0.3s ease;
+      }
+
+      li:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+      }
+
+      li a {
+        text-decoration: none;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1rem;
+      }
+
+      .media-container {
+        position: relative;
+        display: block;
+        width: 100%;
+      }
+
+      img,
+      video,
+      audio {
+        border-radius: 8px;
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        color: white;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        font-size: 1.2rem;
+      }
+
+      .media-container:hover .overlay {
+        display: flex;
+      }
+
+      .download-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-size: 1rem;
+        transition: background-color 0.3s ease, transform 0.3s ease;
+      }
+
+      .download-button:hover {
+        background-color: rgba(0, 0, 0, 0.9);
+        transform: translateY(-3px);
+      }
+
+      @media (max-width: 768px) {
         header {
-            background-color: #343a40;
-            color: white;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          position: flex;
         }
-
+        .breadcrumb .button {
+          padding: 4px 8px;
+        }
         h1 {
-            font-size: 2.5rem;
-            margin: 0;
-            font-weight: 600;
+          font-size: 1.5rem;
         }
-
-        /* Container für Hauptinhalt */
         .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 20px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+          padding: 20px;
         }
-
-        /* Breadcrumb-Navigation */
-        .breadcrumb {
-            font-size: 1rem;
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #e9ecef;
-            border-radius: 5px;
-        }
-
-        .breadcrumb a {
-            color: #007bff;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .breadcrumb a:hover {
-            text-decoration: underline;
-        }
-
-        /* Liste von Dateien und Ordnern */
         ul {
-            list-style: none;
-            padding-left: 0;
+          grid-template-columns: repeat(2, 1fr);
         }
-
-        li {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 5px;
-            transition: background-color 0.3s ease;
-        }
-
-        li:hover {
-            background-color: #f8f9fa;
-        }
-
-        li a {
-            text-decoration: none;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1rem;
-        }
-
-        /* Knopf für Rückwärtsnavigation */
-        .button {
-            display: inline-block;
-            padding: 8px 16px;
-            background-color: #6c757d;
-            color: white;
-            border-radius: 5px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: background-color 0.3s ease;
-        }
-
-        .button:hover {
-            background-color: #5a6268;
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2rem;
-            }
-
-            .container {
-                padding: 15px;
-            }
-
-            li a {
-                font-size: 0.9rem;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+
+  <body>
     <header>
-        <h1>Index of {{.Subdomain}} - {{.DirPath}}</h1>
+      <h1>Index of {{.Subdomain}}{{.DirPath}}</h1>
     </header>
     <div class="container">
-        <div class="breadcrumb">
-            {{if .HasParentDir}}
-                <a href="/{{.Subdomain}}{{.ParentDir}}" class="button">📂 [..]</a> &gt;
-            {{end}}
-            <span>Verzeichnis: {{.DirPath}}</span>
-        </div>
-        <ul>
-            {{range .Files}}
-                <li class="{{if .IsDir}}folder{{else}}file{{end}}">
-                    <a href="/{{$.Subdomain}}{{.Path}}{{if .IsDir}}/{{end}}">
-                        {{if .IsDir}}
-                            📁 {{.Name}}/
-                        {{else}}
-                            {{$ext := getFileExtension .Name}}
-                            {{if eq $ext ".jpg" "jpeg" ".png" ".gif" ".bmp" ".svg"}}
-                                🖼️ {{.Name}} <!-- Bild -->
-                            {{else if eq $ext ".pdf" ".doc" ".docx" ".xls" ".xlsx" ".ppt" ".pptx" ".txt"}}
-                                📄 {{.Name}} <!-- Dokument -->
-                            {{else if eq $ext ".mp4" ".mkv" ".avi" ".mov" ".wmv"}}
-                                🎥 {{.Name}} <!-- Video -->
-                            {{else if eq $ext ".mp3" ".wav" ".flac" ".aac"}}
-                                🎵 {{.Name}} <!-- Audio -->
-                            {{else if eq $ext ".zip" ".rar" ".7z" ".tar" ".gz"}}
-                                📦 {{.Name}} <!-- Archiv -->
-                            {{else}}
-                                📄 {{.Name}} <!-- Andere Dateien -->
-                            {{end}}
-                        {{end}}
-                    </a>
-                </li>
-            {{end}}
-        </ul>
+      <div class="breadcrumb">
+        {{if .HasParentDir}}
+        <a href="/{{.Subdomain}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
+        {{end}}
+        <span>Verzeichnis: {{.Subdomain}} {{.DirPath}}</span>
+      </div>
+      <ul>
+        <!-- Ordner -->
+        {{range .Files}} {{if .IsDir}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}">
+            <span class="file-icon">📁</span> {{.Name}}/
+          </a>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Archiv -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".zip"
+        ".rar" ".7z" ".tar" ".gz"}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}" download>
+            <span class="file-icon">📦</span> {{.Name}}
+          </a>
+        </li>
+        {{end}} {{end}}
+
+        <!-- PDF -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".pdf"}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}">
+            <span class="file-icon">📄</span> {{.Name}}
+          </a>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Word-Dokumente -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
+        ".doc") (eq $ext ".docx")}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}">
+            <span class="file-icon">📑</span> {{.Name}}
+          </a>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Excel-Dateien -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
+        ".xls") (eq $ext ".xlsx")}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}">
+            <span class="file-icon">📊</span> {{.Name}}
+          </a>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Textdateien -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".txt"}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}">
+            <span class="file-icon">📝</span> {{.Name}}
+          </a>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Bilddateien -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
+        ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
+        <li class="file media-container">
+          <img src="/{{$.Subdomain}}{{.Path}}" alt="{{.Name}}" />
+          <p>{{.Name}}</p>
+          <div class="overlay">
+            <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button"
+              >📷 Download</a
+            >
+          </div>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Audio-Dateien -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
+        ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
+        <li class="file media-container">
+          <audio controls style="width: 100%; display: block">
+            <source src="/{{$.Subdomain}}{{.Path}}" />
+            Dein Browser unterstützt dieses Audioformat nicht.
+          </audio>
+          <p>{{.Name}}</p>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Video-Dateien -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
+        ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext
+        ".wmv")}}
+        <li class="file media-container">
+          <video controls style="max-width: 100%; height: auto; display: block">
+            <source src="/{{$.Subdomain}}{{.Path}}" />
+            Dein Browser unterstützt dieses Videoformat nicht.
+          </video>
+          <p>{{.Name}}</p>
+          <div class="overlay">
+            <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button"
+              >🎥 Download</a
+            >
+          </div>
+        </li>
+        {{end}} {{end}}
+
+        <!-- Unbekannte Dateitypen -->
+        {{range .Files}} {{$ext := getFileExtension .Name}} {{if not .IsDir}}
+        {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq
+        $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq
+        $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq
+        $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq
+        $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext
+        ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext
+        ".gz"))}}
+        <li class="file">
+          <a href="/{{$.Subdomain}}{{.Path}}">
+            <span class="file-icon">📎</span> {{.Name}}
+          </a>
+        </li>
+        {{end}} {{end}} {{end}}
+      </ul>
     </div>
-</body>
+
+    <script>
+      document.querySelectorAll(".media-container").forEach((container) => {
+        const overlay = container.querySelector(".overlay");
+
+        container.addEventListener("mouseenter", function () {
+          overlay.style.display = "flex";
+        });
+
+        container.addEventListener("mouseleave", function () {
+          overlay.style.display = "none";
+        });
+
+        overlay.addEventListener("click", function (event) {
+          event.stopPropagation();
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const header = document.querySelector("header");
+        const container = document.querySelector(".container");
+        container.style.marginTop = `${header.offsetHeight + 10}px`;
+      });
+    </script>
+  </body>
 </html>
 {{end}}
