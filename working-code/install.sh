@@ -40,6 +40,7 @@ cp fileshare-interface /opt/fileshare || { echo "Error moving fileshare-interfac
 cp data.json /opt/fileshare || { echo "Error moving data.json"; exit 1; }
 cp fileshare-run.sh /opt/fileshare || { echo "Error moving fileshare-run.sh"; exit 1; }
 cp fileshare.service /etc/systemd/system || { echo "Error moving fileshare.service"; exit 1; }
+cp template.html /opt/fileshare/template.html || { echo "Error moving template.html"; exit 1; }
 
 # Alle Dateien im Verzeichnis /opt/fileshare ausführbar machen
 chmod +x /opt/fileshare/* || { echo "Error setting execute permissions on files"; exit 1; }
