@@ -13,10 +13,10 @@
         --main-color: #ffc107;
         --main-color-text: white;
         --container-background: white;
-        --container-background-accent: #fff5cc; /* vorher: #e9ecef */
-        --container-text: #4a4a4a; /* vorher: #495057 */
-        --overlay-background: rgba(0, 0, 0, 0.2); /* neue Variable */
-        --overlay-hover-background: rgba(0, 0, 0, 0.4); /* neue Variable */
+        --container-background-accent: #fff5cc;
+        --container-text: #4a4a4a;
+        --overlay-background: rgba(0, 0, 0, 0.2);
+        --overlay-hover-background: rgba(0, 0, 0, 0.4);
         --button-background: rgba(0, 0, 0, 0.7);
         --button-hover-background: rgba(0, 0, 0, 0.9);
         --box-shadow-main: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -119,7 +119,7 @@
 
       ul {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        grid-template-columns: repeat(5, minmax(200px, 1fr));
         list-style: none;
         margin: 0;
         justify-items: center;
@@ -134,6 +134,10 @@
         border: 1px solid var(--container-text);
         background-color: var(--container-background);
         transition: transform 0.2s ease, background-color 0.3s ease;
+        position: relative;
+        display: block;
+        width: 100%;
+        overflow: hidden;
       }
 
       li:hover {
@@ -148,13 +152,6 @@
         align-items: center;
         gap: 12px;
         font-size: 1rem;
-      }
-
-      .media-container {
-        position: relative;
-        display: block;
-        width: 100%;
-        overflow: hidden;
       }
 
       img,
@@ -256,217 +253,164 @@
         color: var(--main-color); /* Hover-Effekt für den Schließen-Button */
       }
 
-      @media (max-width: 768px) {
-        header {
-          position: flex;
-        }
+      /* 🖥️ Mittlere Bildschirme (z. B. Laptop, max. 1024px) */
+@media (max-width: 1024px) {
+  ul {
+    grid-template-columns: repeat(4, 1fr); /* 4 Spalten */
+  }
+}
 
-        .breadcrumb .button {
-          padding: 4px 8px;
-        }
+/* 📱 Größere Tablets (z. B. iPad Querformat, max. 900px) */
+@media (max-width: 900px) {
+  ul {
+    grid-template-columns: repeat(3, 1fr); /* 3 Spalten */
+  }
+}
 
-        h1 {
-          font-size: 1.5rem;
-        }
+/* 📱 Kleinere Tablets (z. B. iPad Hochformat, max. 768px) */
+@media (max-width: 768px) {
+  header {
+    position: flex;
+  }
 
-        .container {
-          padding: 5px;
-        }
+  .breadcrumb .button {
+    padding: 4px 8px;
+  }
 
-        ul {
-          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-          justify-items: center;
-          gap: 1px 25px;
-          padding: 5px;
-          margin: 5px;
-        }
-      }
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .container {
+    padding: 5px;
+  }
+
+  ul {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    justify-items: center;
+    gap: 1px 25px;
+    padding: 5px;
+    margin: 5px;
+  }
+  ul {
+    grid-template-columns: repeat(2, 1fr); /* 2 Spalten */
+  }
+}
     </style>
   </head>
 
-  <body>
-    <header>
-      <h1>Index of {{.Subdomain}}{{.DirPath}}</h1>
-    </header>
-    <div class="container">
-      <div class="breadcrumb">
-        {{if .HasParentDir}}
-        <a href="/{{.Subdomain}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
-        {{end}}
-        <span>Verzeichnis: {{.Subdomain}}{{.DirPath}}</span>
-        <a
-          href="#"
-          class="button zip-download-button"
-          onclick="downloadAsZip(event)"
-        >
-        📦 ZIP
-        </a>
-      </div>
-      <ul>
-        <!-- Lightbox Viewer -->
-        <div id="lightbox" class="lightbox">
-          <span class="close">&times;</span>
-          <img
-            id="lightbox-img"
-            class="lightbox-content"
-            src=""
-            alt="Vergrößertes Bild"
-            style="display: none"
-          />
-          <video
-            id="lightbox-video"
-            class="lightbox-content"
-            controls
-            style="display: none"
-          >
-            <source src="" type="video/mp4" />
-            Dein Browser unterstützt dieses Videoformat nicht.
-          </video>
-          <audio
-            id="lightbox-audio"
-            class="lightbox-content"
-            controls
-            style="display: none"
-          >
-            <source src="" type="audio/mpeg" />
-            Dein Browser unterstützt dieses Audioformat nicht.
-          </audio>
-        </div>
-
-        <!-- Ordner -->
-        {{range .Files}} {{if .IsDir}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}">
-            <span class="file-icon">📁</span> {{.Name}}/
-          </a>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Archiv -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".zip"
-        ".rar" ".7z" ".tar" ".gz"}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}" download>
-            <span class="file-icon">📦</span> {{.Name}}
-          </a>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- PDF -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext
-        ".pdf"}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}">
-            <span class="file-icon">📄</span> {{.Name}}
-          </a>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Word-Dokumente -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-        ".doc") (eq $ext ".docx")}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}">
-            <span class="file-icon">📑</span> {{.Name}}
-          </a>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Excel-Dateien -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-        ".xls") (eq $ext ".xlsx")}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}">
-            <span class="file-icon">📊</span> {{.Name}}
-          </a>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Textdateien -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext
-        ".txt"}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}">
-            <span class="file-icon">📝</span> {{.Name}}
-          </a>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Bilddateien -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-        ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
-        <li class="file media-container">
-          <img data-src="/{{$.Subdomain}}{{.Path}}" alt="{{.Name}}" />
-          <p>{{.Name}}</p>
-          <div class="overlay">
-            <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button"
-              >📷 Download</a
-            >
-          </div>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Audio-Dateien -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-        ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
-        <li class="file media-container">
-          <audio controls preload="none" style="width: 100%; display: block">
-            <source src="/{{$.Subdomain}}{{.Path}}" />
-            Dein Browser unterstützt dieses Audioformat nicht.
-          </audio>
-          <p>{{.Name}}</p>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Video-Dateien -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-        ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext
-        ".wmv")}}
-        <li class="file media-container">
-          <video
-            controls
-            preload="none"
-            style="max-width: 100%; height: auto; display: block"
-          >
-            <source src="/{{$.Subdomain}}{{.Path}}" />
-            Dein Browser unterstützt dieses Videoformat nicht.
-          </video>
-          <p>{{.Name}}</p>
-          <div class="overlay">
-            <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button"
-              >🎥 Download</a
-            >
-          </div>
-        </li>
-        {{end}} {{end}}
-        <li class="line-break"></li>
-
-        <!-- Unbekannte Dateitypen -->
-        {{range .Files}} {{$ext := getFileExtension .Name}} {{if not .IsDir}}
-        {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq
-        $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq
-        $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq
-        $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq
-        $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext
-        ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext
-        ".gz"))}}
-        <li class="file">
-          <a href="/{{$.Subdomain}}{{.Path}}">
-            <span class="file-icon">📎</span> {{.Name}}
-          </a>
-        </li>
-        {{end}} {{end}} {{end}}
-      </ul>
+<body>
+  <header>
+    <h1>Index of {{.Subdomain}}{{.DirPath}}</h1>
+  </header>
+  <div class="container">
+    <div class="breadcrumb">
+      {{if .HasParentDir}}
+      <a href="/{{.Subdomain}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
+      {{end}}
+      <span>Verzeichnis: {{.Subdomain}}{{.DirPath}}</span>
+      <a href="#" class="button zip-download-button" onclick="downloadAsZip(event)">📦 ZIP</a>
     </div>
 
+    <!-- Lightbox Viewer -->
+    <div id="lightbox" class="lightbox">
+      <span class="close">&times;</span>
+      <img id="lightbox-img" class="lightbox-content" src="" alt="Vergrößertes Bild" style="display: none" />
+      <video id="lightbox-video" class="lightbox-content" controls style="display: none">
+        <source src="" type="video/mp4" />
+        Dein Browser unterstützt dieses Videoformat nicht.
+      </video>
+      <audio id="lightbox-audio" class="lightbox-content" controls style="display: none">
+        <source src="" type="audio/mpeg" />
+        Dein Browser unterstützt dieses Audioformat nicht.
+      </audio>
+    </div>
+
+    <ul>
+      <!-- Ordner -->
+      {{range .Files}} {{if .IsDir}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}">📁 {{.Name}}/</a></li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Archive -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".zip" ".rar" ".7z" ".tar" ".gz"}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}" download>📦 {{.Name}}</a></li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- PDFs -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".pdf"}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}">📄 {{.Name}}</a></li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Word-Dokumente -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".doc") (eq $ext ".docx")}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}">📑 {{.Name}}</a></li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Excel-Dateien -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".xls") (eq $ext ".xlsx")}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}">📊 {{.Name}}</a></li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Textdateien -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".txt"}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}">📝 {{.Name}}</a></li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Bilder -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
+      <li class="lazy media-container">
+        <img data-src="/{{$.Subdomain}}{{.Path}}" alt="{{.Name}}" />
+        <p>{{.Name}}</p>
+        <div class="overlay">
+          <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button">📷 Download</a>
+        </div>
+      </li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Audio-Dateien -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
+      <li class="media-container">
+        <audio controls preload="none" style="width: 100%; display: block">
+          <source src="/{{$.Subdomain}}{{.Path}}" />
+          Dein Browser unterstützt dieses Audioformat nicht.
+        </audio>
+        <p>{{.Name}}</p>
+      </li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Video-Dateien -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv")}}
+      <li class="media-container">
+        <video preload="metadata" style="max-width: 100%; height: auto; display: block">
+          <source src="/{{$.Subdomain}}{{.Path}}" />
+          Dein Browser unterstützt dieses Videoformat nicht.
+        </video>
+        <p>{{.Name}}</p>
+        <div class="overlay">
+          <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button">🎥 Download</a>
+        </div>
+      </li>
+      {{end}} {{end}}
+      <li class="line-break"></li>
+
+      <!-- Unbekannte Dateitypen -->
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if not .IsDir}}
+      {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext ".gz"))}}
+      <li><a href="/{{$.Subdomain}}{{.Path}}">📎 {{.Name}}</a></li>
+      {{end}} {{end}} {{end}}
+    </ul>
+  </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.min.js"></script>
     <script>
       // Konstanten für die Anzeigestile
       const DISPLAY_STYLES = {
@@ -475,22 +419,32 @@
         NONE: "none",
       };
 
+      // Globale Variable zur Verfolgung des Lightbox-Zustands
+      let isLightboxOpen = false;
+      let currentMediaIndex = 0;
+      const mediaElements = [];
+
       // Utility-Funktion zum Setzen der Anzeige von Elementen
       function setDisplay(element, displayStyle) {
         element.style.display = displayStyle;
       }
 
-      // Funktion zum Öffnen der Lightbox für Bild oder Video
+      // Lightbox Funktionen
       function openLightbox(mediaElement) {
+        isLightboxOpen = true;
         const lightbox = document.getElementById("lightbox");
         const lightboxImg = document.getElementById("lightbox-img");
         const lightboxVideo = document.getElementById("lightbox-video");
 
-        // Verstecke beide Medien in der Lightbox zu Beginn
+        // Verstecke beide Medien zu Beginn
         setDisplay(lightboxImg, DISPLAY_STYLES.NONE);
         setDisplay(lightboxVideo, DISPLAY_STYLES.NONE);
 
-        // Überprüfe, ob das angeklickte Element ein Bild oder ein Video ist
+        // Aktuellen Index finden
+        currentMediaIndex = mediaElements.findIndex(
+          (el) => el === mediaElement
+        );
+
         if (mediaElement.tagName === "IMG") {
           lightboxImg.src = mediaElement.src;
           setDisplay(lightboxImg, DISPLAY_STYLES.BLOCK);
@@ -499,131 +453,118 @@
           setDisplay(lightboxVideo, DISPLAY_STYLES.BLOCK);
         }
 
-        // Zeige die Lightbox an
         setDisplay(lightbox, DISPLAY_STYLES.BLOCK);
+        document.body.style.overflow = "hidden";
       }
 
-      // Funktion zum Schließen der Lightbox
       function closeLightbox() {
+        isLightboxOpen = false;
         const lightbox = document.getElementById("lightbox");
         const lightboxVideo = document.getElementById("lightbox-video");
 
         lightboxVideo.pause();
         setDisplay(lightbox, DISPLAY_STYLES.NONE);
+        document.body.style.overflow = "auto";
       }
 
-      // Funktion zum Hinzufügen von Event-Listenern für Media-Container
+      function navigateLightbox(direction) {
+        if (mediaElements.length === 0) return;
+
+        currentMediaIndex =
+          (currentMediaIndex + direction + mediaElements.length) %
+          mediaElements.length;
+        openLightbox(mediaElements[currentMediaIndex]);
+      }
+
+      // Media Container Setup
       function setupMediaContainer(container) {
         const overlay = container.querySelector(".overlay");
         const downloadButton = overlay.querySelector(".download-button");
-        const image = container.querySelector("img");
-        const video = container.querySelector("video");
+        const media = container.querySelector("img, video");
 
-        // Zeige Overlay bei Mouseenter und verstecke bei Mouseleave
-        container.addEventListener("mouseenter", () =>
-          setDisplay(overlay, DISPLAY_STYLES.FLEX)
-        );
-        container.addEventListener("mouseleave", () =>
-          setDisplay(overlay, DISPLAY_STYLES.NONE)
-        );
+        // Medien zur globalen Liste hinzufügen
+        if (media) mediaElements.push(media);
 
-        // Verhindere, dass der Klick auf den Download-Button das Bild blockiert
-        downloadButton.addEventListener("click", (event) =>
-          event.stopPropagation()
-        );
-
-        // Klick auf das Bild oder Video öffnet die Lightbox
-        container.addEventListener("click", () => {
-          if (image) {
-            openLightbox(image);
-          } else if (video) {
-            openLightbox(video);
-          }
+        container.addEventListener("mouseenter", () => {
+          setDisplay(overlay, DISPLAY_STYLES.FLEX);
         });
 
-        // Klick auf das Video öffnet ebenfalls die Lightbox
-        if (video) {
-          video.addEventListener("click", (event) => {
+        container.addEventListener("mouseleave", () => {
+          setDisplay(overlay, DISPLAY_STYLES.NONE);
+        });
+
+        downloadButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+
+        container.addEventListener("click", () => {
+          if (media) openLightbox(media);
+        });
+
+        if (media.tagName === "VIDEO") {
+          media.addEventListener("click", (event) => {
             event.stopPropagation();
-            openLightbox(video);
+            openLightbox(media);
           });
         }
       }
 
-      // Event-Listener für alle Media-Container (Bilder und Videos)
-      document
-        .querySelectorAll(".media-container")
-        .forEach(setupMediaContainer);
-
-      // Verhindere, dass der Klick auf den Download-Button die Lightbox öffnet
-      document.querySelectorAll(".download-button").forEach((button) => {
-        button.addEventListener("click", (event) => event.stopPropagation());
-      });
-
-      // Schließen der Lightbox
-      document.querySelector(".close").addEventListener("click", closeLightbox);
-      document.getElementById("lightbox").addEventListener("click", (event) => {
-        if (event.target === event.currentTarget) {
-          closeLightbox();
-        }
-      });
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          closeLightbox();
-        }
-      });
-
-      // Funktion zum Laden eines einzelnen Bildes
-      async function loadImage(img) {
-        img.src = img.getAttribute("data-src"); // Setze die "src"-Eigenschaft
-        await new Promise((resolve) => {
-          img.onload = resolve; // Warte, bis das Bild geladen ist
-        });
-        img.removeAttribute("data-src"); // Entferne das "data-src"-Attribut
-      }
-
-      // Funktion zum Laden aller sichtbaren Bilder nacheinander
-      async function loadVisibleImagesSequentially(entries) {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const img = entry.target;
-            await loadImage(img); // Lade das Bild und warte, bis es fertig ist
-            observer.unobserve(img); // Stoppe die Beobachtung nach dem Laden
-          }
-        }
-      }
-
-      // Intersection Observer initialisieren
-      const observer = new IntersectionObserver((entries) => {
-        loadVisibleImagesSequentially(entries);
-      });
-
-      // Alle Bilder mit "data-src" finden und beobachten
-      const images = document.querySelectorAll("img[data-src]");
-      images.forEach((img) => {
-        observer.observe(img); // Beobachte jedes Bild
-      });
-
       function downloadAsZip(event) {
-        event.preventDefault(); // Verhindert das Standardverhalten des Links
-
-        // Erstelle ein unsichtbares iframe, um den Download auszulösen
-        const iframe = document.createElement("iframe");
-        iframe.style.display = "none";
-        iframe.src = "?download=zip"; // Setze die Download-URL
-        document.body.appendChild(iframe);
-
-        // Entferne das iframe nach dem Download
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000); // Warte 1 Sekunde, bevor das iframe entfernt wird
+        event.preventDefault(); // Verhindert die Standardaktion des Links
+      
+        // Die aktuelle URL abrufen und "download=zip" als Parameter hinzufügen
+        const currentUrl = window.location.origin + window.location.pathname + "?download=zip";
+      
+        // Ein unsichtbares <a>-Element erstellen, um den Download auszulösen
+        const link = document.createElement("a");
+        link.href = currentUrl;
+        link.download = "archive.zip"; // Optionaler Dateiname (Browser entscheidet meist selbst)
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
+      
 
-      // Anpassung der Containerhöhe an den Header
+      // Initialisierung nach DOM-Load
       document.addEventListener("DOMContentLoaded", () => {
+        // Header-Höhe anpassen
         const header = document.querySelector("header");
-        const container = document.querySelector(".container");
-        container.style.marginTop = `${header.offsetHeight + 10}px`;
+        if (header) {
+          const container = document.querySelector(".container");
+          container.style.marginTop = `${header.offsetHeight + 10}px`;
+        }
+
+        // LazyLoad initialisieren
+        const lazyLoadInstance = new LazyLoad({
+          elements_selector:
+            ".media-container img[data-src]",
+          callback_enter: (el) => !isLightboxOpen,
+          load_delay: 300,
+        });
+
+        // Media Container initialisieren
+        document
+          .querySelectorAll(".media-container")
+          .forEach(setupMediaContainer);
+
+        // Event-Listener für Lightbox
+        document
+          .querySelector(".close")
+          ?.addEventListener("click", closeLightbox);
+        document
+          .getElementById("lightbox")
+          ?.addEventListener("click", (event) => {
+            if (event.target === event.currentTarget) closeLightbox();
+          });
+
+        // Tastatur-Shortcuts
+        document.addEventListener("keydown", (event) => {
+          if (isLightboxOpen) {
+            if (event.key === "Escape") closeLightbox();
+            if (event.key === "ArrowRight") navigateLightbox(1);
+            if (event.key === "ArrowLeft") navigateLightbox(-1);
+          }
+        });
       });
     </script>
   </body>
