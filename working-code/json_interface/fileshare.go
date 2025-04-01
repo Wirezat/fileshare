@@ -8,18 +8,19 @@ import (
 	"path/filepath"
 )
 
+// Neue Struktur für die Datei mit 'path' (keine 'data' mehr)
+type Sharedata struct {
+	Path string `json:"path"`
+}
+
+// Die JsonData Struktur mit einer neuen Files Map
+type JsonData struct {
+	Port  int                  `json:"port"`
+	Files map[string]Sharedata `json:"files"` // Map von Subdomain zu Sharedata
+}
+
 var instructionPath string = "/opt/fileshare/data.json"
 var random_subdomain_length int = 12
-
-type Sharedata struct {
-	Name string
-	Path string
-}
-
-type JsonData struct {
-	Port  int               `json:"port"`
-	Files map[string]string `json:"files"`
-}
 
 func generateRandomChar() rune {
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
@@ -51,7 +52,7 @@ func loadJsonData(filepath string, target interface{}) error {
 	// Ensure the Files map is initialized
 	if jsonData, ok := target.(*JsonData); ok {
 		if jsonData.Files == nil {
-			jsonData.Files = make(map[string]string)
+			jsonData.Files = make(map[string]Sharedata)
 		}
 	}
 
@@ -85,12 +86,12 @@ func list(path string) {
 		return
 	}
 
-	for name, path := range jsonData.Files {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			fmt.Printf("Filepath: %s; Subdomain: %s\n", path, name)
-			fmt.Printf("Warning: File %s does not exist at path %s\n", name, path)
+	for name, shareData := range jsonData.Files {
+		if _, err := os.Stat(shareData.Path); os.IsNotExist(err) {
+			fmt.Printf("Filepath: %s; Subdomain: %s\n", shareData.Path, name)
+			fmt.Printf("Warning: File %s does not exist at path %s\n", name, shareData.Path)
 		} else {
-			fmt.Printf("Filepath: %s; Subdomain: %s\n", path, name)
+			fmt.Printf("Filepath: %s; Subdomain: %s\n", shareData.Path, name)
 		}
 	}
 }
@@ -105,7 +106,7 @@ func del(path string, subdomain string) {
 
 	// Check if the subdomain exists
 	if _, exists := jsonData.Files[subdomain]; exists {
-		fmt.Printf("Deleting link %s to file: %s\n", subdomain, jsonData.Files[subdomain])
+		fmt.Printf("Deleting link %s to file: %s\n", subdomain, jsonData.Files[subdomain].Path)
 		delete(jsonData.Files, subdomain)
 
 		// Write the updated data back to the file
@@ -120,7 +121,7 @@ func del(path string, subdomain string) {
 	}
 }
 
-func add(path string, subdomain string, filepath string) {
+func add(path string, subdomain string, filePath string) {
 	var jsonData JsonData
 	err := loadJsonData(path, &jsonData)
 	if err != nil {
@@ -134,13 +135,15 @@ func add(path string, subdomain string, filepath string) {
 		return
 	}
 
-	if _, err := os.Stat(filepath); os.IsNotExist(err) {
-		fmt.Printf("Warning: File path %s does not exist.\n", filepath)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		fmt.Printf("Warning: File path %s does not exist.\n", filePath)
 		return
 	}
 
 	// Add the new subdomain and file path
-	jsonData.Files[subdomain] = filepath
+	jsonData.Files[subdomain] = Sharedata{
+		Path: filePath,
+	}
 
 	// Write the updated data back to the file
 	err = writeJsonData(path, &jsonData)
@@ -148,42 +151,42 @@ func add(path string, subdomain string, filepath string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Added subdomain %s with file path %s successfully.\n", subdomain, filepath)
+	fmt.Printf("Added subdomain %s with file path %s successfully.\n", subdomain, filePath)
 }
 
 func edit(subdomain string, newSubdomain string) {
-	getTuple(subdomain)
-	oldSubdomain, path, err := getTuple(subdomain)
+	oldSubdomain, shareData, err := getTuple(subdomain)
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Printf("Match found: Name: %s, Path: %s\n", oldSubdomain, path)
-		fmt.Printf("now changing: Old Subdomain %s to new subdomain %s\n", oldSubdomain, newSubdomain)
+		fmt.Printf("Match found: Subdomain: %s, Path: %s\n", oldSubdomain, shareData.Path)
+		fmt.Printf("Now changing: Old Subdomain %s to new subdomain %s\n", oldSubdomain, newSubdomain)
 	}
 	del(instructionPath, oldSubdomain)
-	add(instructionPath, newSubdomain, path)
-
+	add(instructionPath, newSubdomain, shareData.Path)
 }
+
+func getTuple(searchTerm string) (string, Sharedata, error) {
+	var jsonData JsonData
+	err := loadJsonData(instructionPath, &jsonData)
+	if err != nil {
+		return "", Sharedata{}, err
+	}
+
+	for name, shareData := range jsonData.Files {
+		if name == searchTerm || shareData.Path == searchTerm {
+			return name, shareData, nil
+		}
+	}
+	return "", Sharedata{}, fmt.Errorf("no match found for search term: %s", searchTerm)
+}
+
 func isParamGiven(param string) {
 	if param == "" {
 		fmt.Println("Error: Missing parameters for command.")
 		fmt.Println("Usage: <command> [<name>] [<filepath>]")
 		os.Exit(1)
 	}
-}
-func getTuple(searchTerm string) (string, string, error) {
-	var jsonData JsonData
-	err := loadJsonData(instructionPath, &jsonData)
-	if err != nil {
-		return "", "", err
-	}
-
-	for name, path := range jsonData.Files {
-		if name == searchTerm || path == searchTerm {
-			return name, path, nil
-		}
-	}
-	return "", "", fmt.Errorf("no match found for search term: %s", searchTerm)
 }
 
 func printTooltips() {
@@ -202,7 +205,6 @@ func printTooltips() {
 }
 
 func main() {
-
 	// Überprüfen, ob der Befehl angegeben ist
 	if len(os.Args) < 2 {
 		printTooltips()
@@ -231,7 +233,7 @@ func main() {
 		fmt.Println("Done.")
 
 	case "add":
-		// Der zu Teilende Pfad wird im falle eines Relativen Pfades in einen Absoluten konvertiert.
+		// Der zu Teilende Pfad wird im Falle eines Relativen Pfades in einen Absoluten konvertiert.
 		filepath, _ := filepath.Abs(givenPath)
 
 		isParamGiven(subdomain)
@@ -242,7 +244,7 @@ func main() {
 
 	case "addrandom", "random", "add_random", "addr":
 		//subdomain hier als Dateipfad, um Argumente besser zu nutzen
-		// Der zu Teilende Pfad wird im falle eines Relativen Pfades in einen Absoluten konvertiert.
+		// Der zu Teilende Pfad wird im Falle eines Relativen Pfades in einen Absoluten konvertiert.
 		filepath, _ := filepath.Abs(subdomain)
 
 		var rSubdomain string = ""
