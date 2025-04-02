@@ -2,37 +2,39 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 )
 
-// Neue Struktur für die Datei mit 'path' (keine 'data' mehr)
 type Sharedata struct {
-	Path string `json:"path"`
+	Path       string
+	UploadTime int64
+	Uses       int
+	Expiration int64
 }
 
 // Die JsonData Struktur mit einer neuen Files Map
 type JsonData struct {
 	Port  int                  `json:"port"`
-	Files map[string]Sharedata `json:"files"` // Map von Subdomain zu Sharedata
+	Files map[string]Sharedata `json:"files"` // Map von Subpath zu Sharedata
 }
 
 var instructionPath string = "/opt/fileshare/data.json"
-var random_subdomain_length int = 12
+var random_subpath_length int = 12
 
-func generateRandomChar() rune {
+func generateRandomSubpath(length int) string {
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
-	return rune(validChars[rand.Intn(len(validChars))])
-}
-
-func generateRandomSubdomain(length int) string {
-	subdomain := ""
+	subpath := ""
 	for i := 0; i < length; i++ {
-		subdomain += string(generateRandomChar())
+		subpath += string(validChars[rand.Intn(len(validChars))])
 	}
-	return subdomain
+	return subpath
 }
 
 func loadJsonData(filepath string, target interface{}) error {
@@ -79,6 +81,17 @@ func writeJsonData(filepath string, target interface{}) error {
 }
 
 func list(path string) {
+	const (
+		green     = "\033[32m"
+		red       = "\033[31m"
+		yellow    = "\033[33m"
+		blue      = "\033[34m"
+		cyan      = "\033[36m"
+		magenta   = "\033[35m"
+		reset     = "\033[0m"
+		underline = "\033[4m"
+	)
+
 	var jsonData JsonData
 	err := loadJsonData(path, &jsonData)
 	if err != nil {
@@ -86,17 +99,31 @@ func list(path string) {
 		return
 	}
 
+	// Ausgabe der Liste mit Formatierung
+	fmt.Printf("%s%sLIST OF SHARED FILES%s\n%s----------------------%s\n", cyan, underline, reset, cyan, reset)
+
 	for name, shareData := range jsonData.Files {
+		// Datei existiert?
 		if _, err := os.Stat(shareData.Path); os.IsNotExist(err) {
-			fmt.Printf("Filepath: %s; Subdomain: %s\n", shareData.Path, name)
-			fmt.Printf("Warning: File %s does not exist at path %s\n", name, shareData.Path)
+			// Datei nicht gefunden
+			fmt.Printf("%sSubpath:%s %s%s\n", yellow, reset, name, reset)
+			fmt.Printf("%sFilepath:%s %s%s\n", red, reset, shareData.Path, reset)
+			fmt.Printf("%sWarning: File %s does not exist at path %s%s\n", red, name, shareData.Path, reset)
 		} else {
-			fmt.Printf("Filepath: %s; Subdomain: %s\n", shareData.Path, name)
+			// Datei gefunden
+			fmt.Printf("%sSubpath:%s %s%s\n", green, reset, name, reset)
+			fmt.Printf("%sFilepath:%s %s%s\n", blue, reset, shareData.Path, reset)
 		}
+
+		// Ausgabe der ShareData in strukturiertem Format
+		fmt.Printf("%s  UploadTime:%s %d\n", cyan, reset, shareData.UploadTime)
+		fmt.Printf("%s  Uses:%s %d\n", cyan, reset, shareData.Uses)
+		fmt.Printf("%s  Expiration:%s %d\n", cyan, reset, shareData.Expiration)
+		fmt.Println()
 	}
 }
 
-func del(path string, subdomain string) {
+func del(path string, subpath string) {
 	var jsonData JsonData
 	err := loadJsonData(path, &jsonData)
 	if err != nil {
@@ -104,10 +131,10 @@ func del(path string, subdomain string) {
 		return
 	}
 
-	// Check if the subdomain exists
-	if _, exists := jsonData.Files[subdomain]; exists {
-		fmt.Printf("Deleting link %s to file: %s\n", subdomain, jsonData.Files[subdomain].Path)
-		delete(jsonData.Files, subdomain)
+	// Check if the subpath exists
+	if _, exists := jsonData.Files[subpath]; exists {
+		fmt.Printf("Deleting link %s to file: %s\n", subpath, jsonData.Files[subpath].Path)
+		delete(jsonData.Files, subpath)
 
 		// Write the updated data back to the file
 		err := writeJsonData(path, &jsonData)
@@ -115,13 +142,13 @@ func del(path string, subdomain string) {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("Subdomain deleted successfully.")
+		fmt.Println("Subpath deleted successfully.")
 	} else {
-		fmt.Printf("Subdomain %s not found.\n", subdomain)
+		fmt.Printf("Subpath %s not found.\n", subpath)
 	}
 }
 
-func add(path string, subdomain string, filePath string) {
+func add(path string, subpath string, filePath string, uses int, expiration int64) {
 	var jsonData JsonData
 	err := loadJsonData(path, &jsonData)
 	if err != nil {
@@ -129,9 +156,9 @@ func add(path string, subdomain string, filePath string) {
 		return
 	}
 
-	// Check if the subdomain already exists
-	if _, exists := jsonData.Files[subdomain]; exists {
-		fmt.Printf("Subdomain %s already exists.\n", subdomain)
+	// Check if the subpath already exists
+	if _, exists := jsonData.Files[subpath]; exists {
+		fmt.Printf("Subpath %s already exists.\n", subpath)
 		return
 	}
 
@@ -140,9 +167,12 @@ func add(path string, subdomain string, filePath string) {
 		return
 	}
 
-	// Add the new subdomain and file path
-	jsonData.Files[subdomain] = Sharedata{
-		Path: filePath,
+	// Add the new subpath and file path
+	jsonData.Files[subpath] = Sharedata{
+		Path:       filePath,
+		UploadTime: time.Now().Unix(),
+		Uses:       uses,
+		Expiration: expiration,
 	}
 
 	// Write the updated data back to the file
@@ -151,118 +181,159 @@ func add(path string, subdomain string, filePath string) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Added subdomain %s with file path %s successfully.\n", subdomain, filePath)
+	fmt.Printf("Added subpath %s with file path %s successfully.\n", subpath, filePath)
 }
 
-func edit(subdomain string, newSubdomain string) {
-	oldSubdomain, shareData, err := getTuple(subdomain)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Printf("Match found: Subdomain: %s, Path: %s\n", oldSubdomain, shareData.Path)
-		fmt.Printf("Now changing: Old Subdomain %s to new subdomain %s\n", oldSubdomain, newSubdomain)
-	}
-	del(instructionPath, oldSubdomain)
-	add(instructionPath, newSubdomain, shareData.Path)
-}
-
-func getTuple(searchTerm string) (string, Sharedata, error) {
+func edit(subpath, newSubpath string) {
 	var jsonData JsonData
-	err := loadJsonData(instructionPath, &jsonData)
+	if err := loadJsonData(instructionPath, &jsonData); err != nil {
+		fmt.Println(err)
+		return
+	}
+	if shareData, ok := jsonData.Files[subpath]; ok {
+		fmt.Printf("Match found: Subpath: %s, Path: %s\nNow changing: Old Subpath %s to new subpath %s\n", subpath, shareData.Path, subpath, newSubpath)
+		add(instructionPath, newSubpath, shareData.Path, shareData.Uses, shareData.Expiration)
+		del(instructionPath, subpath)
+		fmt.Println("Successfully changed subpath.")
+	} else {
+		fmt.Printf("No match found for subpath: %s\n", subpath)
+	}
+}
+
+func calculateExpirationTime(duration string) (int64, error) {
+	if duration == "" {
+		return 0, nil
+	}
+
+	num, err := strconv.Atoi(strings.TrimRight(duration, "hdwmy"))
 	if err != nil {
-		return "", Sharedata{}, err
+		return 0, fmt.Errorf("invalid duration format: %v", err)
 	}
 
-	for name, shareData := range jsonData.Files {
-		if name == searchTerm || shareData.Path == searchTerm {
-			return name, shareData, nil
+	unit := duration[len(duration)-1:]
+	now := time.Now()
+
+	switch unit {
+	case "h":
+		return now.Add(time.Duration(num) * time.Hour).Unix(), nil
+	case "d":
+		return now.AddDate(0, 0, num).Unix(), nil
+	case "w":
+		return now.AddDate(0, 0, num*7).Unix(), nil
+	case "m":
+		return now.AddDate(0, num, 0).Unix(), nil
+	case "y":
+		return now.AddDate(num, 0, 0).Unix(), nil
+	default:
+		return 0, fmt.Errorf("invalid unit in duration: %s", unit)
+	}
+}
+
+func printTooltips(command string) {
+	const (
+		green     = "\033[32m"
+		yellow    = "\033[33m"
+		cyan      = "\033[36m"
+		reset     = "\033[0m"
+		magenta   = "\033[35m"
+		underline = "\033[4m"
+	)
+
+	helpText := map[string]string{
+		"list": fmt.Sprintf("%s%sLIST COMMAND%s\n%s----------------------%s\n%slist, l%s\n    → %sDisplays all shared files along with their assigned subpaths.%s",
+			cyan, underline, reset, cyan, reset, green, reset, reset, reset),
+
+		"add": fmt.Sprintf("%s%sADD COMMAND%s\n%s----------------------%s\n%sadd%s -subpath=<subpath> -file=<file> [-use-expiration=<num>] [-time-expiration=<xxh/d/w/m/y>]%s\n    → %sCreates a new share for the specified file under the given subpath.%s\n      (%ssubpath%s = desired share name, %sfile%s = path to the file on the system, %suse-expiration%s = max uses, %stime-expiration%s = time limit)",
+			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset, yellow, reset, yellow, reset, yellow, reset),
+
+		"addrandom": fmt.Sprintf("%s%sADDRANDOM COMMAND%s\n%s----------------------------%s\n%saddrandom, random, add_random, addr%s -file=<file> [-use-expiration=<num>] [-time-expiration=<xxh/d/w/m/y>]%s\n    → %sCreates a new share for the specified file with a randomly generated subpath.%s\n      (%sfile%s = path to the file on the system, %suse-expiration%s = max uses, %stime-expiration%s = time limit)",
+			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset, yellow, reset, yellow, reset),
+
+		"delete": fmt.Sprintf("%s%sDELETE COMMAND%s\n%s----------------------%s\n%sdelete, del, remove, rm%s -subpath=<subpath>%s\n    → %sRemoves an existing share.%s\n      (%ssubpath%s = existing share name)",
+			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset),
+
+		"edit": fmt.Sprintf("%s%sEDIT COMMAND%s\n%s----------------------%s\n%sedit%s -subpath=<old_subpath> -file=<new_subpath>%s\n    → %sChanges the subpath of an existing share.%s\n      (%sold_subpath%s = current share name, %snew_subpath%s = new share name)",
+			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset, yellow, reset),
+	}
+
+	if command == "" || helpText[command] == "" {
+		fmt.Printf("%s╔══════════════════════════════╗%s\n", magenta, reset)
+		fmt.Printf("%s║    %sAVAILABLE COMMANDS%s        ║%s\n", magenta, green, magenta, reset)
+		fmt.Printf("%s╚══════════════════════════════╝%s\n", magenta, reset)
+		for _, text := range helpText {
+			fmt.Printf("\n%s\n", text)
 		}
-	}
-	return "", Sharedata{}, fmt.Errorf("no match found for search term: %s", searchTerm)
-}
-
-func isParamGiven(param string) {
-	if param == "" {
-		fmt.Println("Error: Missing parameters for command.")
-		fmt.Println("Usage: <command> [<name>] [<filepath>]")
-		os.Exit(1)
-	}
-}
-
-func printTooltips() {
-	fmt.Println("Usage: <command> [<name>] [<filepath>]")
-	fmt.Println("Commands:\n" +
-		" list                   -> lists all shared files with their path and domains\n" +
-		" 	alternative inputs: l\n" +
-		" add <subdomain> <filepath> -> shares a file under given subdomain\n" +
-		"\n" +
-		" addrandom <filepath>   -> shares a file under a random automatically generated subdomain\n" +
-		" 	alternative inputs:, random, add_random, addr\n" +
-		" delete <subdomain>     -> stops sharing the file connected to the subdomain\n" +
-		" 	alternative inputs: del, remove, rm\n" +
-		"\n" +
-		" edit <old subdomain> <new subdomain> -> changes the subdomain of an already shared file")
-}
-
-func main() {
-	// Überprüfen, ob der Befehl angegeben ist
-	if len(os.Args) < 2 {
-		printTooltips()
 		return
 	}
 
-	var tool string
-	var subdomain string
-	var givenPath string
-	// Der erste Parameter ist der Befehl
-	// Zweiter Parameter als Name der Subdomain
-	// Dritter Parameter als Dateipfad der Datei
-	args := append(os.Args[1:], "", "")
-	tool, subdomain, givenPath = args[0], args[1], args[2]
+	fmt.Println(helpText[command])
+}
 
-	switch tool {
+func main() {
+	if len(os.Args) < 2 {
+		printTooltips("")
+		return
+	}
+	old_subpath := flag.String("old_subpath", "", "The subpath (share name), that was used before edit")
+	new_subpath := flag.String("new_subpath", "", "The subpath (share name) to be used after edit")
+	subpath := flag.String("subpath", "", "The subpath (share name) to be used")
+	file := flag.String("file", "", "The path to the file to be used")
+	uses := flag.Int("use-expiration", -1, "Optional: amount of times a link can be used (note: not useful for sharing folders, since they make a request for every file opened)")
+	duration := flag.String("time-expiration", "", "Optional: amount of time, a link can be used <xx><h/d/w/m/y>")
+	flag.CommandLine.Parse(os.Args[2:])
+	expiration, err := calculateExpirationTime(*duration)
+	if err != nil {
+		fmt.Println("Error calculating expiration:", err)
+		return
+	}
+
+	switch os.Args[1] {
 	case "list", "l":
 		fmt.Println("Listing all file paths and their domains...")
 		list(instructionPath)
 		fmt.Println("Done.")
 
 	case "delete", "del", "remove", "rm":
-		isParamGiven(subdomain)
-		fmt.Printf("Deleting %s...\n", subdomain)
-		del(instructionPath, subdomain)
+		if *subpath == "" {
+			printTooltips("delete")
+			return
+		}
+		fmt.Printf("Deleting share %s...\n", *subpath)
+		del(instructionPath, *subpath)
 		fmt.Println("Done.")
 
 	case "add":
-		// Der zu Teilende Pfad wird im Falle eines Relativen Pfades in einen Absoluten konvertiert.
-		filepath, _ := filepath.Abs(givenPath)
-
-		isParamGiven(subdomain)
-		isParamGiven(filepath)
-		fmt.Printf("Adding %s with file path %s...\n", subdomain, filepath)
-		add(instructionPath, subdomain, filepath)
+		if *subpath == "" || *file == "" {
+			printTooltips("add")
+			return
+		}
+		absPath, _ := filepath.Abs(*file)
+		fmt.Printf("Adding share %s with file path %s...\n", *subpath, absPath)
+		add(instructionPath, *subpath, absPath, *uses, expiration)
 		fmt.Println("Done.")
 
 	case "addrandom", "random", "add_random", "addr":
-		//subdomain hier als Dateipfad, um Argumente besser zu nutzen
-		// Der zu Teilende Pfad wird im Falle eines Relativen Pfades in einen Absoluten konvertiert.
-		filepath, _ := filepath.Abs(subdomain)
-
-		var rSubdomain string = ""
-		rSubdomain = generateRandomSubdomain(random_subdomain_length)
-		fmt.Printf("Random subdomain: %s\n", rSubdomain)
-		fmt.Printf("Adding %s with file path %s...\n", rSubdomain, filepath)
-		add(instructionPath, rSubdomain, filepath)
+		if *file == "" {
+			printTooltips("addrandom")
+			return
+		}
+		absPath, _ := filepath.Abs(*file)
+		randomSubpath := generateRandomSubpath(random_subpath_length)
+		fmt.Printf("Random subpath: %s\n", randomSubpath)
+		fmt.Printf("Adding share %s with file path %s...\n", randomSubpath, absPath)
+		add(instructionPath, randomSubpath, absPath, *uses, expiration)
 		fmt.Println("Done.")
 
 	case "edit":
-		//filepath hier als neue subdomain um Argumente besser zu machen
-		var newSubdomain string = givenPath
-		isParamGiven(subdomain)
-		isParamGiven(givenPath)
-		edit(subdomain, newSubdomain)
+		if *old_subpath == "" || *new_subpath == "" {
+			printTooltips("edit")
+			return
+		}
+		fmt.Printf("Editing: changing %s to %s...\n", *old_subpath, *new_subpath)
+		edit(*old_subpath, *new_subpath)
 
 	default:
-		fmt.Printf("Unknown command: %s\n", tool)
-		printTooltips()
+		fmt.Printf("Unknown command: %s\n", os.Args[1])
+		printTooltips("")
 	}
 }

@@ -4,8 +4,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{.Subdomain}}-{{.DirPath}}</title>
-    <meta property="og:title" content="{{.Subdomain}}-{{.DirPath}}" />
+    <title>{{.Subpath}}-{{.DirPath}}</title>
+    <meta property="og:title" content="{{.Subpath}}-{{.DirPath}}" />
     <meta property="og:type" content="website" />
 
     <style>
@@ -301,14 +301,15 @@
 
 <body>
   <header>
-    <h1>Index of {{.Subdomain}}{{.DirPath}}</h1>
+    <h1>Index of {{.Subpath}}{{.DirPath}}</h1>
+    Uploaded: <span id="upload-time" data-timestamp="{{.UploadTime}}"></span>
   </header>
   <div class="container">
     <div class="breadcrumb">
       {{if .HasParentDir}}
-      <a href="/{{.Subdomain}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
+      <a href="/{{.Subpath}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
       {{end}}
-      <span>Verzeichnis: {{.Subdomain}}{{.DirPath}}</span>
+      <span>Verzeichnis: {{.Subpath}}{{.DirPath}}</span>
       <a href="#" class="button zip-download-button" onclick="downloadAsZip(event)">📦 ZIP</a>
     </div>
 
@@ -329,47 +330,47 @@
     <ul>
       <!-- Ordner -->
       {{range .Files}} {{if .IsDir}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}">📁 {{.Name}}/</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}">📁 {{.Name}}/</a></li>
       {{end}} {{end}}
       <li class="line-break"></li>
 
       <!-- Archive -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".zip" ".rar" ".7z" ".tar" ".gz"}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}" download>📦 {{.Name}}</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}" download>📦 {{.Name}}</a></li>
       {{end}} {{end}}
       <li class="line-break"></li>
 
       <!-- PDFs -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".pdf"}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}">📄 {{.Name}}</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}">📄 {{.Name}}</a></li>
       {{end}} {{end}}
       <li class="line-break"></li>
 
       <!-- Word-Dokumente -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".doc") (eq $ext ".docx")}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}">📑 {{.Name}}</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}">📑 {{.Name}}</a></li>
       {{end}} {{end}}
       <li class="line-break"></li>
 
       <!-- Excel-Dateien -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".xls") (eq $ext ".xlsx")}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}">📊 {{.Name}}</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}">📊 {{.Name}}</a></li>
       {{end}} {{end}}
       <li class="line-break"></li>
 
       <!-- Textdateien -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".txt"}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}">📝 {{.Name}}</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}">📝 {{.Name}}</a></li>
       {{end}} {{end}}
       <li class="line-break"></li>
 
       <!-- Bilder -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
       <li class="lazy media-container">
-        <img data-src="/{{$.Subdomain}}{{.Path}}" alt="{{.Name}}" />
+        <img data-src="/{{$.Subpath}}{{.Path}}" alt="{{.Name}}" />
         <p>{{.Name}}</p>
         <div class="overlay">
-          <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button">📷 Download</a>
+          <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">📷 Download</a>
         </div>
       </li>
       {{end}} {{end}}
@@ -379,7 +380,7 @@
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
       <li class="media-container">
         <audio controls preload="none" style="width: 100%; display: block">
-          <source src="/{{$.Subdomain}}{{.Path}}" />
+          <source src="/{{$.Subpath}}{{.Path}}" />
           Dein Browser unterstützt dieses Audioformat nicht.
         </audio>
         <p>{{.Name}}</p>
@@ -391,12 +392,12 @@
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv")}}
       <li class="media-container">
         <video preload="metadata" style="max-width: 100%; height: auto; display: block">
-          <source src="/{{$.Subdomain}}{{.Path}}" />
+          <source src="/{{$.Subpath}}{{.Path}}" />
           Dein Browser unterstützt dieses Videoformat nicht.
         </video>
         <p>{{.Name}}</p>
         <div class="overlay">
-          <a href="/{{$.Subdomain}}{{.Path}}" download class="download-button">🎥 Download</a>
+          <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">🎥 Download</a>
         </div>
       </li>
       {{end}} {{end}}
@@ -405,7 +406,7 @@
       <!-- Unbekannte Dateitypen -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if not .IsDir}}
       {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext ".gz"))}}
-      <li><a href="/{{$.Subdomain}}{{.Path}}">📎 {{.Name}}</a></li>
+      <li><a href="/{{$.Subpath}}{{.Path}}">📎 {{.Name}}</a></li>
       {{end}} {{end}} {{end}}
     </ul>
   </div>
@@ -566,6 +567,28 @@
           }
         });
       });
+
+      function formatTimestamp(timestamp) {
+        const date = new Date(Number(timestamp) * 1000);
+        const userLocale = navigator.language || "en-US";
+
+        return date.toLocaleString(userLocale, {
+            weekday: "long",
+            year: "2-digit",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    }
+
+    // Timestamp aus dem HTML-Element holen und umwandeln
+    const uploadTimeElement = document.getElementById("upload-time");
+    const timestamp = uploadTimeElement.dataset.timestamp;
+    
+    if (timestamp) {
+        uploadTimeElement.innerText = formatTimestamp(timestamp);
+    }
     </script>
   </body>
 </html>

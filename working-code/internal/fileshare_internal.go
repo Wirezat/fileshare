@@ -21,30 +21,29 @@ const (
 type FileInfo struct {
 	Name  string // Name der Datei oder des Verzeichnisses
 	Path  string // Pfad zur Datei relativ zum Basisverzeichnis
-	IsDir bool   // Gibt an, ob es sich um ein Verzeichnis handelt
+	IsDir bool
 }
 
 // PageData enthält alle notwendigen Daten, die zum Rendern einer Seite erforderlich sind.
 type PageData struct {
-	Subdomain    string     // Subdomain, die als Root für das Dateisystem dient
-	DirPath      string     // Aktueller Pfad des Verzeichnisses
-	Files        []FileInfo // Liste von Dateien und Verzeichnissen im aktuellen Verzeichnis
-	ParentDir    string     // Pfad zum Elternverzeichnis
-	HasParentDir bool       // Flag, das angibt, ob ein Elternverzeichnis vorhanden ist
+	Subpath      string // Angeforderter Subpfad
+	UploadTime   int64
+	DirPath      string // Aktueller Pfad des Verzeichnisses
+	Files        []FileInfo
+	ParentDir    string
+	HasParentDir bool
 }
 
-// FileMeta enthält die Metadaten für jede Datei, einschließlich des Pfades und zusätzlicher Daten.
-type FileMeta struct {
-	Path  string `json:"path"`  // Pfad zur Datei oder Verzeichnis
-	Data1 string `json:"data1"` // Beispiel für zusätzliche Daten
-	Data2 string `json:"data2"` // Beispiel für zusätzliche Daten
-	// Weitere Datenfelder können hier hinzugefügt werden
+// FileData Enthält die Daten des Json eintrags zu jedem Subpath
+type FileData struct {
+	Path       string
+	UploadTime int64
 }
 
 // JsonData enthält die Konfigurationseinstellungen aus der JSON-Datei.
 type JsonData struct {
 	Port  int                 `json:"port"`  // Port, auf dem der Server läuft
-	Files map[string]FileMeta `json:"files"` // Zuordnungen von Subdomains zu Dateimetadaten
+	Files map[string]FileData `json:"files"` // Zuordnungen von Subpfaden zu Dateimetadaten
 }
 
 // loadConfig lädt die Konfiguration aus der JSON-Datei und gibt sie als JsonData zurück.
@@ -62,12 +61,13 @@ func loadConfig() (JsonData, error) {
 	return config, nil
 }
 
-// handleError behandelt Fehler, indem sie eine HTTP-Fehlermeldung sendet.
+// handleError behandelt Fehler, indem eine HTTP-Fehlermeldung gesendet wird.
 func handleError(w http.ResponseWriter, err error, statusCode int) {
 	http.Error(w, http.StatusText(statusCode), statusCode)
 }
 
-// fileShareHandler verarbeitet Anfragen für Dateien und Verzeichnisse und dient als zentrale Handler-Funktion.
+// fileShareHandler verarbeitet Anfragen für Dateien und Verzeichnisse.
+// Hier wird der erste Pfadabschnitt als Subpfad interpretiert, der zur Auswahl der entsprechenden Dateimetadaten genutzt wird.
 func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 	config, err := loadConfig()
 	if err != nil {
@@ -75,21 +75,21 @@ func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subdomainParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	if len(subdomainParts) == 0 {
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if len(pathParts) == 0 {
 		http.NotFound(w, r)
 		return
 	}
 
-	subdomain := subdomainParts[0]
-	fileMeta, exists := config.Files[subdomain]
+	subpath := pathParts[0]
+	FileData, exists := config.Files[subpath]
 	if !exists {
 		http.NotFound(w, r)
 		return
 	}
 
 	// Erstelle den vollständigen Pfad zur angeforderten Datei oder Verzeichnis
-	remainingPath := filepath.Join(fileMeta.Path, filepath.Join(subdomainParts[1:]...))
+	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
 	fileInfo, err := os.Stat(remainingPath)
 	if err != nil {
 		handleError(w, err, http.StatusInternalServerError)
@@ -97,21 +97,28 @@ func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if fileInfo.IsDir() {
-		serveDirectory(w, remainingPath, subdomain, fileMeta.Path, r)
+		serveDirectory(w, remainingPath, subpath, FileData.Path, FileData.UploadTime, r)
 	} else {
 		http.ServeFile(w, r, remainingPath)
 	}
 }
 
-// serveDirectory zeigt den Inhalt eines Verzeichnisses an oder erstellt einen ZIP-Download.
-func serveDirectory(w http.ResponseWriter, dirPath, subdomain, basePath string, r *http.Request) {
-	// Wenn die URL das "download"-Flag enthält, erstelle ein ZIP-Archiv des Verzeichnisses.
+// serveDirectory verarbeitet Anfragen für Verzeichnisse.
+// Es zeigt entweder eine HTML-Ansicht des Verzeichnisinhalts an oder bietet einen ZIP-Download an.
+// Parameter:
+//   - w: http.ResponseWriter zur Ausgabe der Antwort.
+//   - dirPath: Der absolute Pfad des angeforderten Verzeichnisses.
+//   - subpath: der subpath der Domain, unter der gehostet wird.
+//   - basePath: Das Wurzelverzeichnis, auf das sich subpath bezieht (inhalt der JSON:Path).
+//   - r: *http.Request mit der Client-Anfrage.
+func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, r *http.Request) {
+	// Prüfe, ob ein ZIP-Download angefordert wurde
 	if r.URL.Query().Get("download") == "zip" {
 		zipAndServe(w, dirPath)
 		return
 	}
 
-	// Erstelle eine Liste von Dateiinformationen (FileInfo) aus dem Verzeichnis.
+	// Lese die Verzeichnisinhalte
 	fileInfos, err := getFileInfos(dirPath, basePath)
 	if err != nil {
 		handleError(w, err, http.StatusInternalServerError)
@@ -124,7 +131,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subdomain, basePath string, 
 		parentDir = filepath.Join("/", strings.TrimPrefix(filepath.Dir(dirPath), basePath))
 	}
 
-	// Lade das HTML-Template und render es mit den entsprechenden Daten.
+	// Lade und parse das HTML-Template
 	t, err := template.New("directory").Funcs(template.FuncMap{
 		"getFileExtension": func(filename string) string {
 			return strings.ToLower(filepath.Ext(filename))
@@ -135,9 +142,10 @@ func serveDirectory(w http.ResponseWriter, dirPath, subdomain, basePath string, 
 		return
 	}
 
-	// Übergebe die Daten an das Template und rendere die Seite
+	// Render die HTML-Seite
 	if err := t.Execute(w, PageData{
-		Subdomain:    subdomain,
+		Subpath:      subpath,
+		UploadTime:   UploadTime,
 		DirPath:      filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),
 		Files:        fileInfos,
 		ParentDir:    parentDir,
@@ -148,6 +156,13 @@ func serveDirectory(w http.ResponseWriter, dirPath, subdomain, basePath string, 
 }
 
 // getFileInfos liest den Inhalt eines Verzeichnisses und gibt eine Liste von FileInfo zurück.
+// Parameter:
+//   - dirPath: Der absolute Pfad des zu durchsuchenden Verzeichnisses.
+//   - basePath: Der Basis-Pfad, relativ zu dem die zurückgegebenen Pfade berechnet werden.
+//
+// Rückgabe:
+//   - []FileInfo: Eine Liste von Datenstrukturen, welche jeweils Namen, relativen Pfad zum host verzeichnis und IsDir enthalten.
+//   - error: Ein Fehler, falls das Verzeichnis nicht gelesen werden kann.
 func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
