@@ -38,6 +38,8 @@ type PageData struct {
 type FileData struct {
 	Path       string
 	UploadTime int64
+	Uses       int
+	Expiration int64
 }
 
 // JsonData enthält die Konfigurationseinstellungen aus der JSON-Datei.
@@ -59,6 +61,21 @@ func loadConfig() (JsonData, error) {
 		return JsonData{}, fmt.Errorf("failed to decode config: %w", err)
 	}
 	return config, nil
+}
+
+func saveConfig(config JsonData) error {
+	file, err := os.Create(configFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open config file for writing: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // Schöne Formatierung für die JSON-Ausgabe
+	if err := encoder.Encode(config); err != nil {
+		return fmt.Errorf("failed to encode config: %w", err)
+	}
+	return nil
 }
 
 // handleError behandelt Fehler, indem eine HTTP-Fehlermeldung gesendet wird.
@@ -87,6 +104,16 @@ func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	if FileData.Uses == 0 || (FileData.Expiration != 0 && FileData.Expiration < FileData.UploadTime) {
+		delete(config.Files, subpath)
+		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+	} else if FileData.Uses > 0 {
+		fd := config.Files[subpath] // Extrahiere den Wert
+		fd.Uses--                   // Ändere den Wert
+		config.Files[subpath] = fd  // Setze den geänderten Wert wieder in die Map
+	}
+	saveConfig(config)
 
 	// Erstelle den vollständigen Pfad zur angeforderten Datei oder Verzeichnis
 	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
