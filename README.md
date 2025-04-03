@@ -10,15 +10,43 @@ will host the file under http://localhost:port/example
 this link will just lead directly to the file so any device can easily download your files.
 
 Note: This is a fun project and my first go project so it may be a bit rough. But it works and it will get better over time... I hope
-***
-## Update 1.1.0
 
-The Json interface is now added, use it via
-go run fileshare.go <functionality> <subdomain> <filepath> although not all parameters are needed all the time
+# Available Commands
 
-functions:
- - list
- - del <subdomain>
- - add <subdomain> <path/to/file>
- - addrandom <path/to/file>
-   - add random adds a random subdomain for more private data
+## LIST COMMAND
+### `list`, `l`
+Displays all shared files along with their assigned subpaths.
+
+---
+
+## ADD COMMAND
+### `add -subpath=<subpath> -file=<file> [-use-expiration=<num>] [-time-expiration=<xxh/d/w/m/y>]`
+Creates a new share for the specified file under the given subpath.
+- `subpath` = desired share name
+- `file` = path to the file on the system
+- `use-expiration` = max uses
+- `time-expiration` = time limit
+
+---
+
+## ADD RANDOM COMMAND
+### `addrandom`, `random`, `add_random`, `addr -file=<file> [-use-expiration=<num>] [-time-expiration=<xxh/d/w/m/y>]`
+Creates a new share for the specified file with a randomly generated subpath.
+- `file` = path to the file on the system
+- `use-expiration` = max uses
+- `time-expiration` = time limit
+
+---
+
+## DELETE COMMAND
+### `delete`, `del`, `remove`, `rm -subpath=<subpath>`
+Removes an existing share.
+- `subpath` = existing share name
+
+---
+
+## EDIT COMMAND
+### `edit -subpath=<old_subpath> -file=<new_subpath>`
+Changes the subpath of an existing share.
+- `old_subpath` = current share name
+- `new_subpath` = new share name
