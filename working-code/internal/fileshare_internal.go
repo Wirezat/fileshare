@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 const (
@@ -48,6 +50,12 @@ type JsonData struct {
 	Files map[string]FileData `json:"files"` // Zuordnungen von Subpfaden zu Dateimetadaten
 }
 
+// Für multithreaded zipping.
+type fileJob struct {
+	path    string
+	relPath string
+}
+
 // loadConfig lädt die Konfiguration aus der JSON-Datei und gibt sie als JsonData zurück.
 func loadConfig() (JsonData, error) {
 	file, err := os.Open(configFilePath)
@@ -78,17 +86,12 @@ func saveConfig(config JsonData) error {
 	return nil
 }
 
-// handleError behandelt Fehler, indem eine HTTP-Fehlermeldung gesendet wird.
-func handleError(w http.ResponseWriter, err error, statusCode int) {
-	http.Error(w, http.StatusText(statusCode), statusCode)
-}
-
 // fileShareHandler verarbeitet Anfragen für Dateien und Verzeichnisse.
 // Hier wird der erste Pfadabschnitt als Subpfad interpretiert, der zur Auswahl der entsprechenden Dateimetadaten genutzt wird.
 func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 	config, err := loadConfig()
 	if err != nil {
-		handleError(w, err, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error loading config: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -119,7 +122,7 @@ func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
 	fileInfo, err := os.Stat(remainingPath)
 	if err != nil {
-		handleError(w, err, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error accessing file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -148,7 +151,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 	// Lese die Verzeichnisinhalte
 	fileInfos, err := getFileInfos(dirPath, basePath)
 	if err != nil {
-		handleError(w, err, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error reading directory: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -165,7 +168,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		},
 	}).ParseFiles(templateFilePath)
 	if err != nil {
-		handleError(w, err, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error parsing template: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -178,7 +181,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		ParentDir:    parentDir,
 		HasParentDir: dirPath != basePath,
 	}); err != nil {
-		handleError(w, err, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error rendering template: %v", err), http.StatusInternalServerError)
 	}
 }
 
@@ -214,52 +217,69 @@ func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 }
 
 // zipAndServe erstellt ein ZIP-Archiv des angegebenen Verzeichnisses und sendet es an den Client.
+// Die Funktion nutzt mehrere Worker-Goroutinen, um die Dateien parallel zu komprimieren, und sendet das
+// komprimierte Archiv in Echtzeit an den Client, um Speicher zu sparen.
 func zipAndServe(w http.ResponseWriter, dirPath string) {
-	_, folderName := filepath.Split(filepath.Clean(dirPath))
-	zipFileName := folderName + ".zip"
-
-	// Setze die Header für den ZIP-Download
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipFileName))
-
-	// Erstelle einen neuen ZIP-Writer
-	zipWriter := zip.NewWriter(w)
-	defer zipWriter.Close()
-
-	// Durchlaufe das Verzeichnis und füge Dateien und Unterverzeichnisse zum ZIP hinzu
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, err := filepath.Rel(dirPath, path)
-		if err != nil || relPath == "." {
-			return err
-		}
-
-		// Füge Unterverzeichnisse zum ZIP hinzu
-		if info.IsDir() {
-			_, err := zipWriter.Create(relPath + "/")
-			return err
-		}
-
-		// Füge Dateien zum ZIP hinzu
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		zipFile, err := zipWriter.Create(relPath)
-		if err != nil {
-			return err
-		}
-
-		_, err = io.Copy(zipFile, file)
-		return err
-	})
-	if err != nil {
-		handleError(w, err, http.StatusInternalServerError)
+	numWorkers := runtime.NumCPU() - 1
+	if numWorkers < 1 {
+		numWorkers = 1
 	}
+
+	_, folderName := filepath.Split(filepath.Clean(dirPath))
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", folderName))
+
+	pr, pw := io.Pipe()
+	zipWriter := zip.NewWriter(pw)
+	var wg sync.WaitGroup
+	jobs := make(chan fileJob)
+
+	// Mutex für den sicheren Zugriff auf zipWriter
+	var zipMutex sync.Mutex
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				zipMutex.Lock()
+				file, err := os.Open(job.path)
+				if err == nil {
+					zipFile, err := zipWriter.Create(job.relPath)
+					if err == nil {
+						io.Copy(zipFile, file)
+					}
+					file.Close()
+				}
+				zipMutex.Unlock()
+			}
+		}()
+	}
+
+	var walkWG sync.WaitGroup
+	walkWG.Add(1)
+	go func() {
+		defer walkWG.Done()
+		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err == nil && path != dirPath {
+				relPath, err := filepath.Rel(dirPath, path)
+				if err == nil {
+					jobs <- fileJob{path, relPath}
+				}
+			}
+			return nil
+		})
+		close(jobs)
+	}()
+
+	go func() {
+		walkWG.Wait()
+		wg.Wait()
+		zipWriter.Close()
+		pw.Close()
+	}()
+
+	io.Copy(w, pr)
 }
 
 // startServer startet den HTTP-Server auf dem angegebenen Port.
