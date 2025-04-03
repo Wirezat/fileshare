@@ -2,16 +2,19 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -86,12 +89,107 @@ func saveConfig(config JsonData) error {
 	return nil
 }
 
+func logToFile(level, message string) {
+	logDir := "./logs"
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		os.Mkdir(logDir, 0755)
+	}
+
+	hour := time.Now().Format("2006-01-02-15")
+	logFile := filepath.Join(logDir, hour+".log")
+
+	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Error opening log file:", err)
+		return
+	}
+	defer file.Close()
+
+	logData := map[string]interface{}{
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"level":     level,
+		"message":   message,
+	}
+	logJSON, _ := json.Marshal(logData)
+	file.WriteString(string(logJSON) + "\n")
+}
+
+func logError(w http.ResponseWriter, r *http.Request, err error) {
+	logData := map[string]interface{}{
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"level":     "ERROR",
+		"request": map[string]string{
+			"method": r.Method,
+			"path":   r.URL.Path,
+		},
+		"error": err.Error(),
+		"response": map[string]interface{}{
+			"status_code": http.StatusInternalServerError,
+			"message":     "An error occurred while processing your request",
+		},
+	}
+	logJSON, _ := json.Marshal(logData)
+	logToFile("ERROR", string(logJSON))
+
+	http.Error(w, "An error occurred while processing your request", http.StatusInternalServerError)
+}
+
+func logInfo(message string) {
+	logToFile("INFO", message)
+}
+
+func logRequest(r *http.Request) {
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+
+	decodedURL, _ := url.QueryUnescape(r.URL.String())
+	headers := make(map[string]string)
+	for name, values := range r.Header {
+		headers[name] = strings.Join(values, ", ")
+	}
+
+	// Falls der Header "X-Forwarded-For" existiert, verwende ihn, andernfalls RemoteAddr
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP == "" {
+		clientIP = r.Header.Get("Cf-Connecting-Ip")
+	}
+	if clientIP == "" {
+		clientIP = r.RemoteAddr
+	}
+
+	logData := map[string]interface{}{
+		"timestamp": timestamp,
+		"level":     "REQUEST",
+		"method":    r.Method,
+		"url":       decodedURL,
+		"headers":   headers,
+		"client_ip": clientIP,
+	}
+
+	if r.Body != nil {
+		bodyBytes, _ := io.ReadAll(r.Body)
+		if len(bodyBytes) > 0 {
+			var bodyContent interface{}
+			if json.Valid(bodyBytes) {
+				json.Unmarshal(bodyBytes, &bodyContent)
+			} else {
+				bodyContent = string(bodyBytes)
+			}
+			logData["body"] = bodyContent
+		}
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
+	logJSON, _ := json.Marshal(logData)
+	logToFile("REQUEST", string(logJSON))
+}
+
 // fileShareHandler verarbeitet Anfragen für Dateien und Verzeichnisse.
 // Hier wird der erste Pfadabschnitt als Subpfad interpretiert, der zur Auswahl der entsprechenden Dateimetadaten genutzt wird.
 func fileShareHandler(w http.ResponseWriter, r *http.Request) {
+	logRequest(r)
 	config, err := loadConfig()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error loading config: %v", err), http.StatusInternalServerError)
+		logError(w, r, fmt.Errorf("failed to load config: %v", err))
 		return
 	}
 
@@ -122,7 +220,7 @@ func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
 	fileInfo, err := os.Stat(remainingPath)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error accessing file: %v", err), http.StatusInternalServerError)
+		logError(w, r, fmt.Errorf("error accessing file: %v", err))
 		return
 	}
 
@@ -151,7 +249,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 	// Lese die Verzeichnisinhalte
 	fileInfos, err := getFileInfos(dirPath, basePath)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error reading directory: %v", err), http.StatusInternalServerError)
+		logError(w, r, fmt.Errorf("error reading directory: %v", err))
 		return
 	}
 
@@ -168,7 +266,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		},
 	}).ParseFiles(templateFilePath)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error parsing template: %v", err), http.StatusInternalServerError)
+		logError(w, r, fmt.Errorf("error parsing template: %v", err))
 		return
 	}
 
@@ -181,7 +279,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		ParentDir:    parentDir,
 		HasParentDir: dirPath != basePath,
 	}); err != nil {
-		http.Error(w, fmt.Sprintf("Error rendering template: %v", err), http.StatusInternalServerError)
+		logError(w, r, fmt.Errorf("error rendering template: %v", err))
 	}
 }
 
@@ -282,12 +380,22 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	io.Copy(w, pr)
 }
 
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		fileShareHandler(w, r)
+	default:
+		w.Header().Set("Allow", "GET")
+		logError(w, r, fmt.Errorf("nicht unterstützte Methode: %s", r.Method))
+	}
+}
+
 // startServer startet den HTTP-Server auf dem angegebenen Port.
 func startServer(port int) {
-	http.HandleFunc("/", fileShareHandler)
-	fmt.Printf("Server läuft unter http://localhost:%d\n", port)
+	http.HandleFunc("/", handleRequest)
+	logInfo(fmt.Sprintf("Server läuft unter http://localhost:%d", port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-		fmt.Printf("Fehler beim Starten des Servers: %v\n", err)
+		logError(nil, nil, fmt.Errorf("fehler beim Starten des Servers: %v", err))
 	}
 }
 
@@ -295,7 +403,7 @@ func main() {
 	// Lade die Konfiguration und starte den Server.
 	config, err := loadConfig()
 	if err != nil {
-		fmt.Println("Fehler:", err)
+		logError(nil, nil, fmt.Errorf("fehler: %v", err))
 		return
 	}
 	startServer(config.Port)
