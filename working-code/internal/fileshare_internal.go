@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	configFilePath   = "./data.json"   // Pfad zur Konfigurationsdatei
-	templateFilePath = "template.html" // Pfad zur HTML-Template-Datei
+	configFilePath   = "./data.json"
+	templateFilePath = "template.html"
 )
 
+// #region various structs
 // FileInfo repräsentiert die Metadaten einer Datei oder eines Verzeichnisses.
 type FileInfo struct {
 	Name  string // Name der Datei oder des Verzeichnisses
@@ -62,7 +63,9 @@ type fileJob struct {
 	relPath string
 }
 
-// #region log and config functions
+// #endregion
+
+// #region log and config management functions
 func loadConfig() (JsonData, error) {
 	file, err := os.Open(configFilePath)
 	if err != nil {
@@ -141,8 +144,6 @@ func logInfo(message string) {
 	logToFile("INFO", message)
 }
 
-// #endregion
-
 // logRequest logs basic information about an incoming HTTP request,
 // including timestamp, method, requested URL, and client IP address.
 // It prefers proxy headers (X-Forwarded-For, Cf-Connecting-Ip) to determine the IP.
@@ -180,6 +181,8 @@ func logRequest(r *http.Request) {
 	// Write the log to file with a "REQUEST" prefix
 	logToFile("REQUEST", string(logJSON))
 }
+
+// #endregion
 
 // handleRequest processes requests for files and directories.
 // The first path segment is treated as a subpath to fetch the corresponding file metadata.
