@@ -23,18 +23,18 @@ const (
 )
 
 // #region various structs
-// FileInfo repräsentiert die Metadaten einer Datei oder eines Verzeichnisses.
+// FileInfo contains metadata for an item in a shared folder
 type FileInfo struct {
-	Name  string // Name der Datei oder des Verzeichnisses
-	Path  string // Pfad zur Datei relativ zum Basisverzeichnis
+	Name  string // Name of file or directory
+	Path  string // path of the requested item, relative to the path defined in the JSON
 	IsDir bool
 }
 
-// PageData enthält alle notwendigen Daten, die zum Rendern einer Seite erforderlich sind.
+// PageData contains all necessary files for loading the folder share html
 type PageData struct {
-	Subpath      string // Angeforderter Subpfad
+	Subpath      string // requested subpath
 	UploadTime   int64
-	DirPath      string // Aktueller Pfad des Verzeichnisses
+	DirPath      string // current requested path
 	Files        []FileInfo
 	ParentDir    string
 	HasParentDir bool
@@ -42,7 +42,7 @@ type PageData struct {
 	Expiration   int64
 }
 
-// FileData Enthält die Daten des Json eintrags zu jedem Subpath
+// FileData contains the details for the sharing configurations per file
 type FileData struct {
 	Path       string
 	UploadTime int64
@@ -51,10 +51,10 @@ type FileData struct {
 	AllowPost  bool
 }
 
-// JsonData enthält die Konfigurationseinstellungen aus der JSON-Datei.
+// JsonData contains the list of shared files and the port used by the program
 type JsonData struct {
-	Port  int                 `json:"port"`  // Port, auf dem der Server läuft
-	Files map[string]FileData `json:"files"` // Zuordnungen von Subpfaden zu Dateimetadaten
+	Port  int                 `json:"port"`  // Port used by the program
+	Files map[string]FileData `json:"files"` // Details for the sharing configurations per file
 }
 
 // for multithreaded zipping.
@@ -88,7 +88,8 @@ func saveConfig(config JsonData) error {
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ") // Schöne Formatierung für die JSON-Ausgabe
+	// formatting for JSON
+	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(config); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
 	}
@@ -270,22 +271,22 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// serveDirectory verarbeitet Anfragen für Verzeichnisse.
-// Es zeigt entweder eine HTML-Ansicht des Verzeichnisinhalts an oder bietet einen ZIP-Download an.
-// Parameter:
-//   - w: http.ResponseWriter zur Ausgabe der Antwort.
-//   - dirPath: Der absolute Pfad des angeforderten Verzeichnisses.
-//   - subpath: der subpath der Domain, unter der gehostet wird.
-//   - basePath: Das Wurzelverzeichnis, auf das sich subpath bezieht (inhalt der JSON:Path).
-//   - r: *http.Request mit der Client-Anfrage.
+// serveDirectory handles requests for directories.
+// It either displays an HTML view of the directory contents or offers a ZIP download.
+// Parameters:
+//   - w: http.ResponseWriter for writing the response.
+//   - dirPath: The absolute path of the requested directory.
+//   - subpath: The subpath of the domain under which the content is hosted.
+//   - basePath: The root directory that the subpath refers to (as defined in the JSON under "Path").
+//   - r: *http.Request containing the client request.
 func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, Expiration int64, Uses int, r *http.Request) {
-	// Prüfe, ob ein ZIP-Download angefordert wurde
+	// Check if a ZIP download has been requested.
 	if r.URL.Query().Get("download") == "zip" {
 		zipAndServe(w, dirPath)
 		return
 	}
 
-	// Lade und parse das HTML-Template
+	// load and parse the html template
 	t, err := template.New("directory").Funcs(template.FuncMap{
 		"getFileExtension": func(filename string) string { return strings.ToLower(filepath.Ext(filename)) },
 	}).ParseFiles(templateFilePath)
@@ -294,7 +295,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		return
 	}
 
-	// Render die HTML-Seite
+	// Render html page
 	if err := t.Execute(w, PageData{
 		Subpath:    subpath,
 		UploadTime: UploadTime,
@@ -314,14 +315,15 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 	}
 }
 
-// getFileInfos liest den Inhalt eines Verzeichnisses und gibt eine Liste von FileInfo zurück.
-// Parameter:
-//   - dirPath: Der absolute Pfad des zu durchsuchenden Verzeichnisses.
-//   - basePath: Der Basis-Pfad, relativ zu dem die zurückgegebenen Pfade berechnet werden.
+// getFileInfos reads the contents of a directory and returns a list of FileInfo.
+// Parameters:
+//   - dirPath: The absolute path of the directory to be scanned.
+//   - basePath: The base path used to compute the returned paths relative to it.
 //
-// Rückgabe:
-//   - []FileInfo: Eine Liste von Datenstrukturen, welche jeweils Namen, relativen Pfad zum host verzeichnis und IsDir enthalten.
-//   - error: Ein Fehler, falls das Verzeichnis nicht gelesen werden kann.
+// Returns:
+//   - []FileInfo: A list of data structures, each containing the name,
+//     relative path to the host directory [path listed in json], and IsDir status.
+//   - error: An error if the directory cannot be read.
 func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -329,12 +331,12 @@ func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 	}
 
 	var fileInfos []FileInfo
+	// skip hidden files
 	for _, file := range files {
-		if strings.HasPrefix(file.Name(), ".") { // Versteckte Dateien überspringen
+		if strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
 
-		// Füge die Dateiinformationen hinzu
 		fileInfos = append(fileInfos, FileInfo{
 			Name:  file.Name(),
 			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), file.Name()),
@@ -345,9 +347,12 @@ func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 	return fileInfos, nil
 }
 
-// zipAndServe erstellt ein ZIP-Archiv des angegebenen Verzeichnisses und sendet es an den Client.
-// Die Funktion nutzt mehrere Worker-Goroutinen, um die Dateien parallel zu komprimieren, und sendet das
-// komprimierte Archiv in Echtzeit an den Client, um Speicher zu sparen.
+// zipAndServe creates a ZIP archive of the specified directory and streams it to the client.
+// The function uses multiple worker goroutines to compress files in parallel and streams
+// the archive in real time to the client in order to save memory.
+// Parameters:
+//   - w: http.ResponseWriter used to stream the ZIP archive to the client.
+//   - dirPath: The absolute path of the directory to be zipped and served.
 func zipAndServe(w http.ResponseWriter, dirPath string) {
 	numWorkers := runtime.NumCPU() - 1
 	if numWorkers < 1 {
@@ -363,7 +368,7 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	var wg sync.WaitGroup
 	jobs := make(chan fileJob)
 
-	// Mutex für den sicheren Zugriff auf zipWriter
+	// Mutex for safe access to zipWriter.
 	var zipMutex sync.Mutex
 
 	for i := 0; i < numWorkers; i++ {
@@ -411,20 +416,22 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	io.Copy(w, pr)
 }
 
-// startServer startet den HTTP-Server auf dem angegebenen Port.
+// startServer starts the HTTP server on the specified port.
+// Parameters:
+//   - port: The port number on which the server should listen.
 func startServer(port int) {
 	http.HandleFunc("/", handleRequest)
-	logInfo(fmt.Sprintf("Server läuft unter http://localhost:%d", port))
+	logInfo(fmt.Sprintf("Server running at http://localhost:%d", port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-		logError(nil, nil, fmt.Errorf("fehler beim Starten des Servers: %v", err))
+		logError(nil, nil, fmt.Errorf("failed to start server: %v", err))
 	}
 }
 
 func main() {
-	// Lade die Konfiguration und starte den Server.
+	// load configuration and Start Server
 	config, err := loadConfig()
 	if err != nil {
-		logError(nil, nil, fmt.Errorf("fehler: %v", err))
+		logError(nil, nil, fmt.Errorf("error: %v", err))
 		return
 	}
 	startServer(config.Port)
