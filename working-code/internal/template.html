@@ -1,315 +1,346 @@
 {{define "directory"}}
 <!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{.Subpath}}-{{.DirPath}}</title>
-    <meta property="og:title" content="{{.Subpath}}-{{.DirPath}}" />
-    <meta property="og:type" content="website" />
 
-    <style>
-      :root {
-        --main-color: #ffc107;
-        --main-color-text: white;
-        --container-background: white;
-        --container-background-accent: #fff5cc;
-        --container-text: #4a4a4a;
-        --overlay-background: rgba(0, 0, 0, 0.2);
-        --overlay-hover-background: rgba(0, 0, 0, 0.4);
-        --button-background: rgba(0, 0, 0, 0.7);
-        --button-hover-background: rgba(0, 0, 0, 0.9);
-        --box-shadow-main: 0 4px 12px rgba(0, 0, 0, 0.5);
-        --box-shadow-container: 0 6px 18px rgba(0, 0, 0, 0.15);
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{.Subpath}}-{{.DirPath}}</title>
+  <meta property="og:title" content="{{.Subpath}}-{{.DirPath}}" />
+  <meta property="og:type" content="website" />
+
+  <style>
+    :root {
+      --main-color: #ffc107;
+      --main-color-text: white;
+      --container-background: white;
+      --container-background-accent: #fff5cc;
+      --container-text: #4a4a4a;
+      --overlay-background: rgba(0, 0, 0, 0.2);
+      --overlay-hover-background: rgba(0, 0, 0, 0.4);
+      --button-background: rgba(0, 0, 0, 0.7);
+      --button-hover-background: rgba(0, 0, 0, 0.9);
+      --box-shadow-main: 0 4px 12px rgba(0, 0, 0, 0.5);
+      --box-shadow-container: 0 6px 18px rgba(0, 0, 0, 0.15);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--container-background-accent);
+      color: var(--container-text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    header {
+      background-color: var(--main-color);
+      color: var(--main-color-text);
+      padding: 15px;
+      text-align: center;
+      box-shadow: var(--box-shadow-main);
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 1000;
+    }
+
+    .info-line {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      max-width: 100%;
+      margin: 0 auto 0 auto;
+      font-size: 0.95rem;
+      gap: 1rem;
+      padding: 0 1rem;
+      box-sizing: border-box;
+
+    }
+
+
+    h1 {
+      font-size: 1.2rem;
+      margin: 0;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 10px;
+      margin-top: 70px;
+      /* vorher: 60px */
+      background-color: var(--container-background);
+      border-radius: 12px;
+      box-shadow: var(--box-shadow-container);
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1rem;
+      margin-bottom: 20px;
+      padding: 12px;
+      background-color: var(--container-background-accent);
+      border-radius: 8px;
+      border: 1px solid var(--container-text);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 1200px;
+      text-align: left;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+    }
+
+    .breadcrumb .button {
+      display: inline-block;
+      white-space: nowrap;
+      padding: 4px 8px;
+      font-size: 1rem;
+      text-decoration: none;
+      background-color: var(--main-color);
+      color: var(--main-color-text);
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      box-sizing: border-box;
+      width: auto;
+      max-width: 200px;
+    }
+
+    .zip-download-button {
+      margin-left: auto;
+    }
+
+    .breadcrumb a {
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    ul {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(200px, 1fr));
+      list-style: none;
+      margin: 0;
+      justify-items: center;
+      gap: 1px 25px;
+      padding: 10px;
+    }
+
+    li {
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--container-text);
+      background-color: var(--container-background);
+      transition: transform 0.2s ease, background-color 0.3s ease;
+      position: relative;
+      display: block;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    li:hover {
+      overflow: hidden;
+      background-color: var(--container-background-accent);
+    }
+
+    li a {
+      text-decoration: none;
+      color: var(--container-text);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1rem;
+    }
+
+    img,
+    video,
+    audio {
+      border-radius: 8px;
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--overlay-background);
+      color: white;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-size: 1.2rem;
+      pointer-events: auto;
+    }
+
+    .media-container:hover .overlay {
+      display: flex;
+      pointer-events: none;
+      background: var(--overlay-hover-background);
+    }
+
+    .download-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: var(--button-background);
+      color: white;
+      padding: 8px 15px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-size: 1rem;
+      transition: background-color 0.3s ease, transform 0.3s ease;
+      pointer-events: auto;
+    }
+
+    .line-break {
+      grid-column: 1 / -1;
+      height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 0 !important;
+      gap: 0 !important;
+    }
+
+    .download-button:hover {
+      background-color: var(--button-hover-background);
+      transform: translateY(-3px);
+    }
+
+    /* Lightbox Styling */
+    .lightbox {
+      display: none;
+      /* Standardmäßig versteckt */
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.9);
+      /* Dunkler Hintergrund */
+      overflow: auto;
+    }
+
+    .lightbox-content {
+      display: block;
+      margin: auto;
+      max-width: 90%;
+      max-height: 80vh;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 8px;
+    }
+
+    .close {
+      position: absolute;
+      top: 20px;
+      right: 35px;
+      color: white;
+      font-size: 40px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: color 0.3s ease;
+    }
+
+    .close:hover {
+      color: var(--main-color);
+      /* Hover-Effekt für den Schließen-Button */
+    }
+
+    /* 🖥️ Mittlere Bildschirme (z. B. Laptop, max. 1024px) */
+    @media (max-width: 1024px) {
+      ul {
+        grid-template-columns: repeat(4, 1fr);
+        /* 4 Spalten */
       }
+    }
 
-      html,
-      body {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background-color: var(--container-background-accent);
-        color: var(--container-text);
-        line-height: 1.6;
-        overflow-x: hidden;
+    /* 📱 Größere Tablets (z. B. iPad Querformat, max. 900px) */
+    @media (max-width: 900px) {
+      ul {
+        grid-template-columns: repeat(3, 1fr);
+        /* 3 Spalten */
       }
+    }
 
+    /* 📱 Kleinere Tablets (z. B. iPad Hochformat, max. 768px) */
+    @media (max-width: 768px) {
       header {
-        background-color: var(--main-color);
-        color: var(--main-color-text);
-        padding: 15px;
-        text-align: center;
-        box-shadow: var(--box-shadow-main);
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        z-index: 1000;
-      }
-
-      h1 {
-        font-size: 1.2rem;
-        margin: 0;
-        font-weight: 700;
-        text-align: center;
-      }
-
-      .container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        max-width: 1200px;
-        margin: 20px auto;
-        padding: 10px;
-        margin-top: 70px; /* vorher: 60px */
-        background-color: var(--container-background);
-        border-radius: 12px;
-        box-shadow: var(--box-shadow-container);
-      }
-
-      .breadcrumb {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 1rem;
-        margin-bottom: 20px;
-        padding: 12px;
-        background-color: var(--container-background-accent);
-        border-radius: 8px;
-        border: 1px solid var(--container-text);
-        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-        width: 100%;
-        max-width: 1200px;
-        text-align: left;
-        margin-left: auto;
-        margin-right: auto;
-        box-sizing: border-box;
+        position: flex;
       }
 
       .breadcrumb .button {
-        display: inline-block;
-        white-space: nowrap;
         padding: 4px 8px;
-        font-size: 1rem;
-        text-decoration: none;
-        background-color: var(--main-color);
-        color: var(--main-color-text);
-        border-radius: 4px;
-        border: none;
-        cursor: pointer;
-        box-sizing: border-box;
-        width: auto;
-        max-width: 200px;
       }
 
-      .zip-download-button {
-        margin-left: auto;
+      h1 {
+        font-size: 1.5rem;
       }
 
-      .breadcrumb a {
-        text-decoration: none;
-        font-weight: 500;
-      }
-
-      .breadcrumb a:hover {
-        text-decoration: underline;
+      .container {
+        padding: 5px;
       }
 
       ul {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(200px, 1fr));
-        list-style: none;
-        margin: 0;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         justify-items: center;
         gap: 1px 25px;
-        padding: 10px;
+        padding: 5px;
+        margin: 5px;
       }
 
-      li {
-        margin: 5px 0;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid var(--container-text);
-        background-color: var(--container-background);
-        transition: transform 0.2s ease, background-color 0.3s ease;
-        position: relative;
-        display: block;
-        width: 100%;
-        overflow: hidden;
+      ul {
+        grid-template-columns: repeat(2, 1fr);
+        /* 2 Spalten */
       }
-
-      li:hover {
-        overflow: hidden;
-        background-color: var(--container-background-accent);
-      }
-
-      li a {
-        text-decoration: none;
-        color: var(--container-text);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 1rem;
-      }
-
-      img,
-      video,
-      audio {
-        border-radius: 8px;
-        max-width: 100%;
-        height: auto;
-        display: block;
-      }
-
-      .overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: var(--overlay-background);
-        color: white;
-        display: none;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        font-size: 1.2rem;
-        pointer-events: auto;
-      }
-
-      .media-container:hover .overlay {
-        display: flex;
-        pointer-events: none;
-        background: var(--overlay-hover-background);
-      }
-
-      .download-button {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background-color: var(--button-background);
-        color: white;
-        padding: 8px 15px;
-        border-radius: 5px;
-        text-decoration: none;
-        font-size: 1rem;
-        transition: background-color 0.3s ease, transform 0.3s ease;
-        pointer-events: auto;
-      }
-
-      .line-break {
-        grid-column: 1 / -1;
-        height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border: 0 !important;
-        gap: 0 !important;
-      }
-
-      .download-button:hover {
-        background-color: var(--button-hover-background);
-        transform: translateY(-3px);
-      }
-
-      /* Lightbox Styling */
-      .lightbox {
-        display: none; /* Standardmäßig versteckt */
-        position: fixed;
-        z-index: 1000;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.9); /* Dunkler Hintergrund */
-        overflow: auto;
-      }
-
-      .lightbox-content {
-        display: block;
-        margin: auto;
-        max-width: 90%;
-        max-height: 80vh;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        border-radius: 8px;
-      }
-
-      .close {
-        position: absolute;
-        top: 20px;
-        right: 35px;
-        color: white;
-        font-size: 40px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: color 0.3s ease;
-      }
-
-      .close:hover {
-        color: var(--main-color); /* Hover-Effekt für den Schließen-Button */
-      }
-
-      /* 🖥️ Mittlere Bildschirme (z. B. Laptop, max. 1024px) */
-@media (max-width: 1024px) {
-  ul {
-    grid-template-columns: repeat(4, 1fr); /* 4 Spalten */
-  }
-}
-
-/* 📱 Größere Tablets (z. B. iPad Querformat, max. 900px) */
-@media (max-width: 900px) {
-  ul {
-    grid-template-columns: repeat(3, 1fr); /* 3 Spalten */
-  }
-}
-
-/* 📱 Kleinere Tablets (z. B. iPad Hochformat, max. 768px) */
-@media (max-width: 768px) {
-  header {
-    position: flex;
-  }
-
-  .breadcrumb .button {
-    padding: 4px 8px;
-  }
-
-  h1 {
-    font-size: 1.5rem;
-  }
-
-  .container {
-    padding: 5px;
-  }
-
-  ul {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    justify-items: center;
-    gap: 1px 25px;
-    padding: 5px;
-    margin: 5px;
-  }
-  ul {
-    grid-template-columns: repeat(2, 1fr); /* 2 Spalten */
-  }
-}
-    </style>
-  </head>
+    }
+  </style>
+</head>
 
 <body>
   <header>
     <h1>Index of {{.Subpath}}{{.DirPath}}</h1>
-    Uploaded: <span id="upload-time" data-timestamp="{{.UploadTime}}"></span>
+    <div class="info-line">
+      <span><strong>Uploaded:</strong> <span id="upload-time" data-timestamp="{{.UploadTime}}"></span></span>
+      <span><strong>Expiration:</strong> {{if eq .Expiration 0}}<span>never</span>{{else}}<span id="time-left"
+          data-timestamp="{{.Expiration}}"></span>{{end}}</span>
+      <span><strong>Uses:</strong> {{if eq .Uses -1}}<span>Infinity</span>{{else}}<span id="uses"
+          data-uses="{{.Uses}}"></span>{{end}}</span>
+    </div>
   </header>
+
   <div class="container">
     <div class="breadcrumb">
       {{if .HasParentDir}}
       <a href="/{{.Subpath}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
       {{end}}
       <span>Verzeichnis: {{.Subpath}}{{.DirPath}}</span>
+      
       <a href="#" class="button zip-download-button" onclick="downloadAsZip(event)">📦 ZIP</a>
     </div>
 
@@ -365,7 +396,8 @@
       <li class="line-break"></li>
 
       <!-- Bilder -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png")
+      (eq $ext ".gif")}}
       <li class="lazy media-container">
         <img data-src="/{{$.Subpath}}{{.Path}}" alt="{{.Name}}" />
         <p>{{.Name}}</p>
@@ -377,7 +409,8 @@
       <li class="line-break"></li>
 
       <!-- Audio-Dateien -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac")
+      (eq $ext ".aac")}}
       <li class="media-container">
         <audio controls preload="none" style="width: 100%; display: block">
           <source src="/{{$.Subpath}}{{.Path}}" />
@@ -389,7 +422,8 @@
       <li class="line-break"></li>
 
       <!-- Video-Dateien -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv")}}
+      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq
+      $ext ".mkv") (eq $ext ".wmv")}}
       <li class="media-container">
         <video preload="metadata" style="max-width: 100%; height: auto; display: block">
           <source src="/{{$.Subpath}}{{.Path}}" />
@@ -405,191 +439,196 @@
 
       <!-- Unbekannte Dateitypen -->
       {{range .Files}} {{$ext := getFileExtension .Name}} {{if not .IsDir}}
-      {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext ".gz"))}}
+      {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq $ext ".xls") (eq $ext ".xlsx") (eq $ext
+      ".txt") (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq $ext ".wav") (eq
+      $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext
+      ".wmv") (eq $ext ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext ".gz"))}}
       <li><a href="/{{$.Subpath}}{{.Path}}">📎 {{.Name}}</a></li>
       {{end}} {{end}} {{end}}
     </ul>
   </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.min.js"></script>
-    <script>
-      // Konstanten für die Anzeigestile
-      const DISPLAY_STYLES = {
-        FLEX: "flex",
-        BLOCK: "block",
-        NONE: "none",
-      };
+  <script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.min.js"></script>
+  <script>
+    // Konstanten für die Anzeigestile
+    const DISPLAY_STYLES = {
+      FLEX: "flex",
+      BLOCK: "block",
+      NONE: "none",
+    };
 
-      // Globale Variable zur Verfolgung des Lightbox-Zustands
-      let isLightboxOpen = false;
-      let currentMediaIndex = 0;
-      const mediaElements = [];
+    // Globale Variable zur Verfolgung des Lightbox-Zustands
+    let isLightboxOpen = false;
+    let currentMediaIndex = 0;
+    const mediaElements = [];
 
-      // Utility-Funktion zum Setzen der Anzeige von Elementen
-      function setDisplay(element, displayStyle) {
-        element.style.display = displayStyle;
+    // Utility-Funktion zum Setzen der Anzeige von Elementen
+    function setDisplay(element, displayStyle) {
+      element.style.display = displayStyle;
+    }
+
+    // Lightbox Funktionen
+    function openLightbox(mediaElement) {
+      isLightboxOpen = true;
+      const lightbox = document.getElementById("lightbox");
+      const lightboxImg = document.getElementById("lightbox-img");
+      const lightboxVideo = document.getElementById("lightbox-video");
+
+      // Verstecke beide Medien zu Beginn
+      setDisplay(lightboxImg, DISPLAY_STYLES.NONE);
+      setDisplay(lightboxVideo, DISPLAY_STYLES.NONE);
+
+      // Aktuellen Index finden
+      currentMediaIndex = mediaElements.findIndex(
+        (el) => el === mediaElement
+      );
+
+      if (mediaElement.tagName === "IMG") {
+        lightboxImg.src = mediaElement.src;
+        setDisplay(lightboxImg, DISPLAY_STYLES.BLOCK);
+      } else if (mediaElement.tagName === "VIDEO") {
+        lightboxVideo.src = mediaElement.querySelector("source").src;
+        setDisplay(lightboxVideo, DISPLAY_STYLES.BLOCK);
       }
 
-      // Lightbox Funktionen
-      function openLightbox(mediaElement) {
-        isLightboxOpen = true;
-        const lightbox = document.getElementById("lightbox");
-        const lightboxImg = document.getElementById("lightbox-img");
-        const lightboxVideo = document.getElementById("lightbox-video");
+      setDisplay(lightbox, DISPLAY_STYLES.BLOCK);
+      document.body.style.overflow = "hidden";
+    }
 
-        // Verstecke beide Medien zu Beginn
-        setDisplay(lightboxImg, DISPLAY_STYLES.NONE);
-        setDisplay(lightboxVideo, DISPLAY_STYLES.NONE);
+    function closeLightbox() {
+      isLightboxOpen = false;
+      const lightbox = document.getElementById("lightbox");
+      const lightboxVideo = document.getElementById("lightbox-video");
 
-        // Aktuellen Index finden
-        currentMediaIndex = mediaElements.findIndex(
-          (el) => el === mediaElement
-        );
+      lightboxVideo.pause();
+      setDisplay(lightbox, DISPLAY_STYLES.NONE);
+      document.body.style.overflow = "auto";
+    }
 
-        if (mediaElement.tagName === "IMG") {
-          lightboxImg.src = mediaElement.src;
-          setDisplay(lightboxImg, DISPLAY_STYLES.BLOCK);
-        } else if (mediaElement.tagName === "VIDEO") {
-          lightboxVideo.src = mediaElement.querySelector("source").src;
-          setDisplay(lightboxVideo, DISPLAY_STYLES.BLOCK);
-        }
+    function navigateLightbox(direction) {
+      if (mediaElements.length === 0) return;
 
-        setDisplay(lightbox, DISPLAY_STYLES.BLOCK);
-        document.body.style.overflow = "hidden";
-      }
+      currentMediaIndex =
+        (currentMediaIndex + direction + mediaElements.length) %
+        mediaElements.length;
+      openLightbox(mediaElements[currentMediaIndex]);
+    }
 
-      function closeLightbox() {
-        isLightboxOpen = false;
-        const lightbox = document.getElementById("lightbox");
-        const lightboxVideo = document.getElementById("lightbox-video");
+    // Media Container Setup
+    function setupMediaContainer(container) {
+      const overlay = container.querySelector(".overlay");
+      const downloadButton = overlay.querySelector(".download-button");
+      const media = container.querySelector("img, video");
 
-        lightboxVideo.pause();
-        setDisplay(lightbox, DISPLAY_STYLES.NONE);
-        document.body.style.overflow = "auto";
-      }
+      // Medien zur globalen Liste hinzufügen
+      if (media) mediaElements.push(media);
 
-      function navigateLightbox(direction) {
-        if (mediaElements.length === 0) return;
-
-        currentMediaIndex =
-          (currentMediaIndex + direction + mediaElements.length) %
-          mediaElements.length;
-        openLightbox(mediaElements[currentMediaIndex]);
-      }
-
-      // Media Container Setup
-      function setupMediaContainer(container) {
-        const overlay = container.querySelector(".overlay");
-        const downloadButton = overlay.querySelector(".download-button");
-        const media = container.querySelector("img, video");
-
-        // Medien zur globalen Liste hinzufügen
-        if (media) mediaElements.push(media);
-
-        container.addEventListener("mouseenter", () => {
-          setDisplay(overlay, DISPLAY_STYLES.FLEX);
-        });
-
-        container.addEventListener("mouseleave", () => {
-          setDisplay(overlay, DISPLAY_STYLES.NONE);
-        });
-
-        downloadButton.addEventListener("click", (event) => {
-          event.stopPropagation();
-        });
-
-        container.addEventListener("click", () => {
-          if (media) openLightbox(media);
-        });
-
-        if (media.tagName === "VIDEO") {
-          media.addEventListener("click", (event) => {
-            event.stopPropagation();
-            openLightbox(media);
-          });
-        }
-      }
-
-      function downloadAsZip(event) {
-        event.preventDefault(); // Verhindert die Standardaktion des Links
-      
-        // Die aktuelle URL abrufen und "download=zip" als Parameter hinzufügen
-        const currentUrl = window.location.origin + window.location.pathname + "?download=zip";
-      
-        // Ein unsichtbares <a>-Element erstellen, um den Download auszulösen
-        const link = document.createElement("a");
-        link.href = currentUrl;
-        link.download = "archive.zip"; // Optionaler Dateiname (Browser entscheidet meist selbst)
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-      
-
-      // Initialisierung nach DOM-Load
-      document.addEventListener("DOMContentLoaded", () => {
-        // Header-Höhe anpassen
-        const header = document.querySelector("header");
-        if (header) {
-          const container = document.querySelector(".container");
-          container.style.marginTop = `${header.offsetHeight + 10}px`;
-        }
-
-        // LazyLoad initialisieren
-        const lazyLoadInstance = new LazyLoad({
-          elements_selector:
-            ".media-container img[data-src]",
-          callback_enter: (el) => !isLightboxOpen,
-          load_delay: 300,
-        });
-
-        // Media Container initialisieren
-        document
-          .querySelectorAll(".media-container")
-          .forEach(setupMediaContainer);
-
-        // Event-Listener für Lightbox
-        document
-          .querySelector(".close")
-          ?.addEventListener("click", closeLightbox);
-        document
-          .getElementById("lightbox")
-          ?.addEventListener("click", (event) => {
-            if (event.target === event.currentTarget) closeLightbox();
-          });
-
-        // Tastatur-Shortcuts
-        document.addEventListener("keydown", (event) => {
-          if (isLightboxOpen) {
-            if (event.key === "Escape") closeLightbox();
-            if (event.key === "ArrowRight") navigateLightbox(1);
-            if (event.key === "ArrowLeft") navigateLightbox(-1);
-          }
-        });
+      container.addEventListener("mouseenter", () => {
+        setDisplay(overlay, DISPLAY_STYLES.FLEX);
       });
 
-      function formatTimestamp(timestamp) {
-        const date = new Date(Number(timestamp) * 1000);
-        const userLocale = navigator.language || "en-US";
+      container.addEventListener("mouseleave", () => {
+        setDisplay(overlay, DISPLAY_STYLES.NONE);
+      });
 
-        return date.toLocaleString(userLocale, {
-            weekday: "long",
-            year: "2-digit",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit"
+      downloadButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      container.addEventListener("click", () => {
+        if (media) openLightbox(media);
+      });
+
+      if (media.tagName === "VIDEO") {
+        media.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openLightbox(media);
         });
+      }
+    }
+
+    function downloadAsZip(event) {
+      event.preventDefault(); // Verhindert die Standardaktion des Links
+
+      // Die aktuelle URL abrufen und "download=zip" als Parameter hinzufügen
+      const currentUrl = window.location.origin + window.location.pathname + "?download=zip";
+
+      // Ein unsichtbares <a>-Element erstellen, um den Download auszulösen
+      const link = document.createElement("a");
+      link.href = currentUrl;
+      link.download = "archive.zip"; // Optionaler Dateiname (Browser entscheidet meist selbst)
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+
+    // Initialisierung nach DOM-Load
+    document.addEventListener("DOMContentLoaded", () => {
+      // Header-Höhe anpassen
+      const header = document.querySelector("header");
+      if (header) {
+        const container = document.querySelector(".container");
+        container.style.marginTop = `${header.offsetHeight + 10}px`;
+      }
+
+      // LazyLoad initialisieren
+      const lazyLoadInstance = new LazyLoad({
+        elements_selector:
+          ".media-container img[data-src]",
+        callback_enter: (el) => !isLightboxOpen,
+        load_delay: 300,
+      });
+
+      // Media Container initialisieren
+      document
+        .querySelectorAll(".media-container")
+        .forEach(setupMediaContainer);
+
+      // Event-Listener für Lightbox
+      document
+        .querySelector(".close")
+        ?.addEventListener("click", closeLightbox);
+      document
+        .getElementById("lightbox")
+        ?.addEventListener("click", (event) => {
+          if (event.target === event.currentTarget) closeLightbox();
+        });
+
+      // Tastatur-Shortcuts
+      document.addEventListener("keydown", (event) => {
+        if (isLightboxOpen) {
+          if (event.key === "Escape") closeLightbox();
+          if (event.key === "ArrowRight") navigateLightbox(1);
+          if (event.key === "ArrowLeft") navigateLightbox(-1);
+        }
+      });
+    });
+
+    function formatTimestamp(timestamp) {
+      const date = new Date(Number(timestamp) * 1000);
+      const userLocale = navigator.language || "en-US";
+
+      return date.toLocaleString(userLocale, {
+        weekday: "long",
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
     }
 
     // Timestamp aus dem HTML-Element holen und umwandeln
     const uploadTimeElement = document.getElementById("upload-time");
     const timestamp = uploadTimeElement.dataset.timestamp;
-    
+
     if (timestamp) {
-        uploadTimeElement.innerText = formatTimestamp(timestamp);
+      uploadTimeElement.innerText = formatTimestamp(timestamp);
     }
-    </script>
-  </body>
+  </script>
+
+</body>
+
 </html>
 {{end}}

@@ -17,6 +17,7 @@ type Sharedata struct {
 	UploadTime int64
 	Uses       int
 	Expiration int64
+	AllowPost  bool
 }
 
 // Die JsonData Struktur mit einer neuen Files Map
@@ -26,7 +27,7 @@ type JsonData struct {
 }
 
 var instructionPath string = "/opt/fileshare/data.json"
-var random_subpath_length int = 12
+var randomSubpathLength int = 12
 
 func generateRandomSubpath(length int) string {
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
@@ -148,7 +149,7 @@ func del(path string, subpath string) {
 	}
 }
 
-func add(path string, subpath string, filePath string, uses int, expiration int64) {
+func add(path string, subpath string, filePath string, uses int, expiration int64, allowPost bool) {
 	var jsonData JsonData
 	err := loadJsonData(path, &jsonData)
 	if err != nil {
@@ -173,6 +174,7 @@ func add(path string, subpath string, filePath string, uses int, expiration int6
 		UploadTime: time.Now().Unix(),
 		Uses:       uses,
 		Expiration: expiration,
+		AllowPost:  allowPost,
 	}
 
 	// Write the updated data back to the file
@@ -192,7 +194,7 @@ func edit(subpath, newSubpath string) {
 	}
 	if shareData, ok := jsonData.Files[subpath]; ok {
 		fmt.Printf("Match found: Subpath: %s, Path: %s\nNow changing: Old Subpath %s to new subpath %s\n", subpath, shareData.Path, subpath, newSubpath)
-		add(instructionPath, newSubpath, shareData.Path, shareData.Uses, shareData.Expiration)
+		add(instructionPath, newSubpath, shareData.Path, shareData.Uses, shareData.Expiration, shareData.AllowPost)
 		del(instructionPath, subpath)
 		fmt.Println("Successfully changed subpath.")
 	} else {
@@ -230,109 +232,152 @@ func calculateExpirationTime(duration string) (int64, error) {
 }
 
 func printTooltips(command string) {
-	const (
-		green     = "\033[32m"
-		yellow    = "\033[33m"
-		cyan      = "\033[36m"
-		reset     = "\033[0m"
-		magenta   = "\033[35m"
-		underline = "\033[4m"
-	)
-
+	// Define a map for each command's tooltip description
 	helpText := map[string]string{
-		"list": fmt.Sprintf("%s%sLIST COMMAND%s\n%s----------------------%s\n%slist, l%s\n    → %sDisplays all shared files along with their assigned subpaths.%s",
-			cyan, underline, reset, cyan, reset, green, reset, reset, reset),
+		"list": fmt.Sprintf(`----------------------
+list, l
+    → Displays all shared files and their assigned subpaths.`),
 
-		"add": fmt.Sprintf("%s%sADD COMMAND%s\n%s----------------------%s\n%sadd%s -subpath=<subpath> -file=<file> [-use-expiration=<num>] [-time-expiration=<xxh/d/w/m/y>]%s\n    → %sCreates a new share for the specified file under the given subpath.%s\n      (%ssubpath%s = desired share name, %sfile%s = path to the file on the system, %suse-expiration%s = max uses, %stime-expiration%s = time limit)",
-			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset, yellow, reset, yellow, reset, yellow, reset),
+		"add": fmt.Sprintf(`----------------------
+add -subpath, -s, --subpath=<subpath> -file, -f, --file=<file> [-use-expiration, -uses, -u=<num>] [-time-expiration, -time, -t=<xxh/d/w/m/y>] [-allow-post, -post, -p]
+    → Creates a new share for the specified file under the given subpath.
+      (subpath = desired share name, file = path to the file on the system,
+       use-expiration = max uses, time-expiration = time limit, allow-post = allow POST requests)`),
 
-		"addrandom": fmt.Sprintf("%s%sADDRANDOM COMMAND%s\n%s----------------------------%s\n%saddrandom, random, add_random, addr%s -file=<file> [-use-expiration=<num>] [-time-expiration=<xxh/d/w/m/y>]%s\n    → %sCreates a new share for the specified file with a randomly generated subpath.%s\n      (%sfile%s = path to the file on the system, %suse-expiration%s = max uses, %stime-expiration%s = time limit)",
-			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset, yellow, reset, yellow, reset),
+		"addrandom": fmt.Sprintf(`----------------------------
+addrandom, random, add_random, addr -file, -f, --file=<file> [-use-expiration, -uses, -u=<num>] [-time-expiration, -time, -t=<xxh/d/w/m/y>] [-allow-post, -post, -p]
+    → Creates a new share for the specified file with a randomly generated subpath.
+      (file = path to the file on the system, use-expiration = max uses,
+       time-expiration = time limit, allow-post = allow POST requests)`),
 
-		"delete": fmt.Sprintf("%s%sDELETE COMMAND%s\n%s----------------------%s\n%sdelete, del, remove, rm%s -subpath=<subpath>%s\n    → %sRemoves an existing share.%s\n      (%ssubpath%s = existing share name)",
-			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset),
+		"delete": fmt.Sprintf(`----------------------
+delete, del, remove, rm -subpath, -s, --subpath=<subpath>
+    → Removes an existing share.
+      (subpath = the share to be deleted)`),
 
-		"edit": fmt.Sprintf("%s%sEDIT COMMAND%s\n%s----------------------%s\n%sedit%s -subpath=<old_subpath> -file=<new_subpath>%s\n    → %sChanges the subpath of an existing share.%s\n      (%sold_subpath%s = current share name, %snew_subpath%s = new share name)",
-			cyan, underline, reset, cyan, reset, green, yellow, reset, reset, reset, yellow, reset, yellow, reset),
+		"edit": fmt.Sprintf(`----------------------
+edit -old_subpath, -old, -o=<old> -new_subpath, -new, -n=<new>
+    → Changes the subpath of an existing share.
+      (old_subpath = current share name, new_subpath = new share name)`),
 	}
 
+	// If no specific command is provided, print all available commands
 	if command == "" || helpText[command] == "" {
-		fmt.Printf("%s╔══════════════════════════════╗%s\n", magenta, reset)
-		fmt.Printf("%s║    %sAVAILABLE COMMANDS%s        ║%s\n", magenta, green, magenta, reset)
-		fmt.Printf("%s╚══════════════════════════════╝%s\n", magenta, reset)
-		for _, text := range helpText {
-			fmt.Printf("\n%s\n", text)
+		fmt.Println("╔════════════════════════════╗")
+		fmt.Println("║     AVAILABLE COMMANDS     ║")
+		fmt.Println("╚════════════════════════════╝")
+		fmt.Println()
+
+		// List all commands
+		for cmd, text := range helpText {
+			fmt.Printf("\n%s\n", cmd)
+			fmt.Printf("%s\n", text)
 		}
 		return
 	}
 
+	// Print specific command tooltip
 	fmt.Println(helpText[command])
 }
 
 func main() {
+	// Check if the number of arguments is valid
 	if len(os.Args) < 2 {
 		printTooltips("")
 		return
 	}
-	old_subpath := flag.String("old_subpath", "", "The subpath (share name), that was used before edit")
-	new_subpath := flag.String("new_subpath", "", "The subpath (share name) to be used after edit")
-	subpath := flag.String("subpath", "", "The subpath (share name) to be used")
-	file := flag.String("file", "", "The path to the file to be used")
-	uses := flag.Int("use-expiration", -1, "Optional: amount of times a link can be used (note: not useful for sharing folders, since they make a request for every file opened)")
-	duration := flag.String("time-expiration", "", "Optional: amount of time, a link can be used <xx><h/d/w/m/y>")
+
+	// Flag definitions
+	oldSubpathFlag := flag.String("old_subpath", "", "The subpath (share name) that was used before editing")
+	flag.StringVar(oldSubpathFlag, "old", "", "Alias for --old_subpath")
+	flag.StringVar(oldSubpathFlag, "o", "", "Alias for --old_subpath")
+	
+	newSubpathFlag := flag.String("new_subpath", "", "The subpath (share name) to be used after editing")
+	flag.StringVar(newSubpathFlag, "new", "", "Alias for --new_subpath")
+	flag.StringVar(newSubpathFlag, "n", "", "Alias for --new_subpath")
+	
+	subpathFlag := flag.String("subpath", "", "The subpath (share name) to be used")
+	flag.StringVar(subpathFlag, "s", "", "Alias for --subpath")
+	
+	filePathFlag := flag.String("file", "", "The path to the file to be used")
+	flag.StringVar(filePathFlag, "f", "", "Alias for --file")
+	
+	usageLimitFlag := flag.Int("use-expiration", -1, "Optional: number of times a link can be used")
+	flag.IntVar(usageLimitFlag, "uses", -1, "Alias for --use-expiration")
+	flag.IntVar(usageLimitFlag, "u", -1, "Alias for --use-expiration")
+	
+	expirationTimeFlag := flag.String("time-expiration", "", "Optional: amount of time a link can be used <xx><h/d/w/m/y>")
+	flag.StringVar(expirationTimeFlag, "time", "", "Alias for --time-expiration")
+	flag.StringVar(expirationTimeFlag, "t", "", "Alias for --time-expiration")
+
+	// Corrected section: Using flag.BoolVar for boolean flags
+	allowPostFlag := flag.Bool("allow-post", false, "Optional: allow POST requests. Set to true to allow.")
+	flag.BoolVar(allowPostFlag, "post", false, "Alias for --allow-post")
+	flag.BoolVar(allowPostFlag, "p", false, "Alias for --allow-post")
+	
+	// Parse the command line flags
 	flag.CommandLine.Parse(os.Args[2:])
-	expiration, err := calculateExpirationTime(*duration)
+	
+	// Calculate expiration time based on user input
+	expirationTime, err := calculateExpirationTime(*expirationTimeFlag)
 	if err != nil {
 		fmt.Println("Error calculating expiration:", err)
 		return
 	}
 
+	// Main command handling based on the first argument
 	switch os.Args[1] {
 	case "list", "l":
+		// List all file paths and their domains
 		fmt.Println("Listing all file paths and their domains...")
 		list(instructionPath)
 		fmt.Println("Done.")
 
 	case "delete", "del", "remove", "rm":
-		if *subpath == "" {
+		// Delete a specific share based on the subpath
+		if *subpathFlag == "" {
 			printTooltips("delete")
 			return
 		}
-		fmt.Printf("Deleting share %s...\n", *subpath)
-		del(instructionPath, *subpath)
+		fmt.Printf("Deleting share %s...\n", *subpathFlag)
+		del(instructionPath, *subpathFlag)
 		fmt.Println("Done.")
 
 	case "add":
-		if *subpath == "" || *file == "" {
+		// Add a new share with a specified file
+		if *subpathFlag == "" || *filePathFlag == "" {
 			printTooltips("add")
 			return
 		}
-		absPath, _ := filepath.Abs(*file)
-		fmt.Printf("Adding share %s with file path %s...\n", *subpath, absPath)
-		add(instructionPath, *subpath, absPath, *uses, expiration)
+		absPath, _ := filepath.Abs(*filePathFlag)
+		fmt.Printf("Adding share %s with file path %s...\n", *subpathFlag, absPath)
+		add(instructionPath, *subpathFlag, absPath, *usageLimitFlag, expirationTime, *allowPostFlag) // Dereference the bool flag here
 		fmt.Println("Done.")
 
 	case "addrandom", "random", "add_random", "addr":
-		if *file == "" {
+		// Add a random share with a specified file
+		if *filePathFlag == "" {
 			printTooltips("addrandom")
 			return
 		}
-		absPath, _ := filepath.Abs(*file)
-		randomSubpath := generateRandomSubpath(random_subpath_length)
+		absPath, _ := filepath.Abs(*filePathFlag)
+		randomSubpath := generateRandomSubpath(randomSubpathLength)
 		fmt.Printf("Random subpath: %s\n", randomSubpath)
 		fmt.Printf("Adding share %s with file path %s...\n", randomSubpath, absPath)
-		add(instructionPath, randomSubpath, absPath, *uses, expiration)
+		add(instructionPath, randomSubpath, absPath, *usageLimitFlag, expirationTime, *allowPostFlag) // Dereference the bool flag here
 		fmt.Println("Done.")
 
 	case "edit":
-		if *old_subpath == "" || *new_subpath == "" {
+		// Edit an existing share by changing its subpath
+		if *oldSubpathFlag == "" || *newSubpathFlag == "" {
 			printTooltips("edit")
 			return
 		}
-		fmt.Printf("Editing: changing %s to %s...\n", *old_subpath, *new_subpath)
-		edit(*old_subpath, *new_subpath)
+		fmt.Printf("Editing: changing %s to %s...\n", *oldSubpathFlag, *newSubpathFlag)
+		edit(*oldSubpathFlag, *newSubpathFlag)
 
 	default:
+		// Unknown command handling
 		fmt.Printf("Unknown command: %s\n", os.Args[1])
 		printTooltips("")
 	}

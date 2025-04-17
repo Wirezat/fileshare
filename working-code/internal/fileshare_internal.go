@@ -2,11 +2,11 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,6 +37,8 @@ type PageData struct {
 	Files        []FileInfo
 	ParentDir    string
 	HasParentDir bool
+	Uses         int
+	Expiration   int64
 }
 
 // FileData Enthält die Daten des Json eintrags zu jedem Subpath
@@ -45,6 +47,7 @@ type FileData struct {
 	UploadTime int64
 	Uses       int
 	Expiration int64
+	AllowPost  bool
 }
 
 // JsonData enthält die Konfigurationseinstellungen aus der JSON-Datei.
@@ -53,13 +56,13 @@ type JsonData struct {
 	Files map[string]FileData `json:"files"` // Zuordnungen von Subpfaden zu Dateimetadaten
 }
 
-// Für multithreaded zipping.
+// for multithreaded zipping.
 type fileJob struct {
 	path    string
 	relPath string
 }
 
-// loadConfig lädt die Konfiguration aus der JSON-Datei und gibt sie als JsonData zurück.
+// #region log and config functions
 func loadConfig() (JsonData, error) {
 	file, err := os.Open(configFilePath)
 	if err != nil {
@@ -95,8 +98,8 @@ func logToFile(level, message string) {
 		os.Mkdir(logDir, 0755)
 	}
 
-	hour := time.Now().Format("2006-01-02-15")
-	logFile := filepath.Join(logDir, hour+".log")
+	day := time.Now().Format("20060102")
+	logFile := filepath.Join(logDir, day+".log")
 
 	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -138,96 +141,129 @@ func logInfo(message string) {
 	logToFile("INFO", message)
 }
 
+// #endregion
+
+// logRequest logs basic information about an incoming HTTP request,
+// including timestamp, method, requested URL, and client IP address.
+// It prefers proxy headers (X-Forwarded-For, Cf-Connecting-Ip) to determine the IP.
+// The log is saved in JSON format via logToFile.
 func logRequest(r *http.Request) {
+	// Get current UTC time in RFC3339Nano format
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
 
-	decodedURL, _ := url.QueryUnescape(r.URL.String())
-	headers := make(map[string]string)
-	for name, values := range r.Header {
-		headers[name] = strings.Join(values, ", ")
-	}
+	// Decode the full request URI (e.g., replace %20 with space)
+	decodedURL, _ := url.QueryUnescape(r.URL.RequestURI())
 
-	// Falls der Header "X-Forwarded-For" existiert, verwende ihn, andernfalls RemoteAddr
+	// Determine client IP address
+	// Priority: X-Forwarded-For > Cf-Connecting-Ip > RemoteAddr
 	clientIP := r.Header.Get("X-Forwarded-For")
 	if clientIP == "" {
 		clientIP = r.Header.Get("Cf-Connecting-Ip")
 	}
 	if clientIP == "" {
 		clientIP = r.RemoteAddr
+		// Remove the port from the address (e.g., [::1]:12345 -> ::1)
+		clientIP, _, _ = net.SplitHostPort(clientIP)
 	}
 
+	// Prepare the data to be logged
 	logData := map[string]interface{}{
 		"timestamp": timestamp,
-		"level":     "REQUEST",
 		"method":    r.Method,
 		"url":       decodedURL,
-		"headers":   headers,
 		"client_ip": clientIP,
 	}
 
-	if r.Body != nil {
-		bodyBytes, _ := io.ReadAll(r.Body)
-		if len(bodyBytes) > 0 {
-			var bodyContent interface{}
-			if json.Valid(bodyBytes) {
-				json.Unmarshal(bodyBytes, &bodyContent)
-			} else {
-				bodyContent = string(bodyBytes)
-			}
-			logData["body"] = bodyContent
-		}
-		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-
+	// Convert the log data to JSON
 	logJSON, _ := json.Marshal(logData)
+
+	// Write the log to file with a "REQUEST" prefix
 	logToFile("REQUEST", string(logJSON))
 }
 
-// fileShareHandler verarbeitet Anfragen für Dateien und Verzeichnisse.
-// Hier wird der erste Pfadabschnitt als Subpfad interpretiert, der zur Auswahl der entsprechenden Dateimetadaten genutzt wird.
-func fileShareHandler(w http.ResponseWriter, r *http.Request) {
-	logRequest(r)
-	config, err := loadConfig()
-	if err != nil {
-		logError(w, r, fmt.Errorf("failed to load config: %v", err))
-		return
-	}
+// handleRequest processes requests for files and directories.
+// The first path segment is treated as a subpath to fetch the corresponding file metadata.
+// If the requested file or directory is found, it is either served or an appropriate error is returned.
+// handleRequest processes requests for files and directories.
+// It logs the request and checks if it's a GET or POST request.
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet, http.MethodPost:
+		logRequest(r)
 
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	if len(pathParts) == 0 {
-		http.NotFound(w, r)
-		return
-	}
+		// Load the configuration containing the file metadata
+		config, err := loadConfig()
+		if err != nil {
+			logError(w, r, fmt.Errorf("failed to load config: %v", err))
+			return
+		}
 
-	subpath := pathParts[0]
-	FileData, exists := config.Files[subpath]
-	if !exists {
-		http.NotFound(w, r)
-		return
-	}
+		// Split the URL path and extract the subpath for file selection
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		if len(pathParts) == 0 {
+			http.NotFound(w, r)
+			return
+		}
 
-	if FileData.Uses == 0 || (FileData.Expiration != 0 && FileData.Expiration < FileData.UploadTime) {
-		delete(config.Files, subpath)
-		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
-	} else if FileData.Uses > 0 {
-		fd := config.Files[subpath] // Extrahiere den Wert
-		fd.Uses--                   // Ändere den Wert
-		config.Files[subpath] = fd  // Setze den geänderten Wert wieder in die Map
-	}
-	saveConfig(config)
+		// Retrieve the file metadata from the config based on the subpath
+		subpath := pathParts[0]
+		FileData, exists := config.Files[subpath]
+		if !exists {
+			http.NotFound(w, r)
+			return
+		}
 
-	// Erstelle den vollständigen Pfad zur angeforderten Datei oder Verzeichnis
-	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
-	fileInfo, err := os.Stat(remainingPath)
-	if err != nil {
-		logError(w, r, fmt.Errorf("error accessing file: %v", err))
-		return
-	}
+		// Create the full path to the requested file or directory (Absolute path on drive)
+		remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
+		fileInfo, err := os.Stat(remainingPath)
+		if err != nil {
+			logError(w, r, fmt.Errorf("error accessing file: %v", err))
+			return
+		}
 
-	if fileInfo.IsDir() {
-		serveDirectory(w, remainingPath, subpath, FileData.Path, FileData.UploadTime, r)
-	} else {
-		http.ServeFile(w, r, remainingPath)
+		handleGet := func() {
+			// Check if the file is expired or has been used up, and delete it if necessary
+			if FileData.Uses == 0 || (FileData.Expiration != 0 && FileData.Expiration < FileData.UploadTime) {
+				delete(config.Files, subpath)
+				http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+			} else if FileData.Uses > 0 {
+				// Decrease the use count if the file is still available
+				fd := config.Files[subpath]
+				fd.Uses--
+				config.Files[subpath] = fd
+			}
+			if err := saveConfig(config); err != nil {
+				logError(w, r, fmt.Errorf("failed to save config: %v", err))
+				return
+			}
+
+			if fileInfo.IsDir() {
+				serveDirectory(w, remainingPath, subpath, FileData.Path, FileData.UploadTime, FileData.Expiration, FileData.Uses, r)
+			} else {
+				http.ServeFile(w, r, remainingPath)
+			}
+		}
+
+		handlePost := func() {
+			// Just print "POST" for now
+			fmt.Println("POST request received")
+			w.Write([]byte("POST request received"))
+		}
+
+		// Check the request method (GET or POST)
+		if r.Method == http.MethodGet {
+			handleGet()
+		} else if r.Method == http.MethodPost {
+			handlePost()
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+
+	default:
+		// Respond with allowed methods in case of unsupported methods
+		w.Header().Set("Allow", "GET, POST")
+		logError(w, r, fmt.Errorf("unsupported method: %s", r.Method))
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -239,31 +275,16 @@ func fileShareHandler(w http.ResponseWriter, r *http.Request) {
 //   - subpath: der subpath der Domain, unter der gehostet wird.
 //   - basePath: Das Wurzelverzeichnis, auf das sich subpath bezieht (inhalt der JSON:Path).
 //   - r: *http.Request mit der Client-Anfrage.
-func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, r *http.Request) {
+func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, Expiration int64, Uses int, r *http.Request) {
 	// Prüfe, ob ein ZIP-Download angefordert wurde
 	if r.URL.Query().Get("download") == "zip" {
 		zipAndServe(w, dirPath)
 		return
 	}
 
-	// Lese die Verzeichnisinhalte
-	fileInfos, err := getFileInfos(dirPath, basePath)
-	if err != nil {
-		logError(w, r, fmt.Errorf("error reading directory: %v", err))
-		return
-	}
-
-	// Bestimme den Pfad zum Elternverzeichnis
-	parentDir := "/"
-	if dirPath != basePath {
-		parentDir = filepath.Join("/", strings.TrimPrefix(filepath.Dir(dirPath), basePath))
-	}
-
 	// Lade und parse das HTML-Template
 	t, err := template.New("directory").Funcs(template.FuncMap{
-		"getFileExtension": func(filename string) string {
-			return strings.ToLower(filepath.Ext(filename))
-		},
+		"getFileExtension": func(filename string) string { return strings.ToLower(filepath.Ext(filename)) },
 	}).ParseFiles(templateFilePath)
 	if err != nil {
 		logError(w, r, fmt.Errorf("error parsing template: %v", err))
@@ -272,12 +293,19 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 
 	// Render die HTML-Seite
 	if err := t.Execute(w, PageData{
-		Subpath:      subpath,
-		UploadTime:   UploadTime,
-		DirPath:      filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),
-		Files:        fileInfos,
-		ParentDir:    parentDir,
+		Subpath:    subpath,
+		UploadTime: UploadTime,
+		DirPath:    filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),
+		Files:      func() []FileInfo { infos, _ := getFileInfos(dirPath, basePath); return infos }(),
+		ParentDir: func() string {
+			if dirPath == basePath {
+				return "/"
+			}
+			return filepath.Join("/", strings.TrimPrefix(filepath.Dir(dirPath), basePath))
+		}(),
 		HasParentDir: dirPath != basePath,
+		Uses:         Uses,
+		Expiration:   Expiration,
 	}); err != nil {
 		logError(w, r, fmt.Errorf("error rendering template: %v", err))
 	}
@@ -378,16 +406,6 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	}()
 
 	io.Copy(w, pr)
-}
-
-func handleRequest(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		fileShareHandler(w, r)
-	default:
-		w.Header().Set("Allow", "GET")
-		logError(w, r, fmt.Errorf("nicht unterstützte Methode: %s", r.Method))
-	}
 }
 
 // startServer startet den HTTP-Server auf dem angegebenen Port.

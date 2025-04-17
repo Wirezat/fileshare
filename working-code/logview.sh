@@ -9,6 +9,24 @@ CYAN='\033[1;36m'
 MAGENTA='\033[1;35m'
 NC='\033[0m' # No Color
 
+# Abhängigkeit prüfen
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}Fehler:${NC} 'jq' ist nicht installiert. Bitte installiere es zuerst (z.B. mit 'sudo apt install jq')."
+    exit 1
+fi
+
+# Argument prüfen
+if [ -z "$1" ]; then
+    echo -e "${YELLOW}Verwendung:${NC} $0 <pfad/zur/logdatei.log>"
+    exit 1
+fi
+
+logfile="$1"
+if [ ! -f "$logfile" ]; then
+    echo -e "${RED}Fehler:${NC} Datei '$logfile' nicht gefunden."
+    exit 1
+fi
+
 # Funktion zur Formatierung des Timestamps
 format_time() {
     echo "$1" | sed 's/T/ /; s/\..*Z//'
@@ -63,9 +81,6 @@ process_entry() {
                     echo -e "  ${CYAN}Method:${NC} $(echo "$parsed_msg" | jq -r '.method')"
                     echo -e "  ${CYAN}URL:${NC} $(echo "$parsed_msg" | jq -r '.url')"
                     echo -e "  ${CYAN}Client IP:${NC} $(echo "$parsed_msg" | jq -r '.client_ip')"
-                    
-                    echo -e "\n  ${CYAN}📋 Headers:${NC}"
-                    show_json "$(echo "$parsed_msg" | jq -r '.headers')" "    "
                     ;;
                     
                 "ERROR")
@@ -94,8 +109,8 @@ process_entry() {
     echo # Leerzeile zwischen Einträgen
 }
 
-# Hauptverarbeitung
+# Logdatei Zeile für Zeile verarbeiten
 while IFS= read -r line; do
     [ -z "$line" ] && continue
     process_entry "$line"
-done
+done < "$logfile"
