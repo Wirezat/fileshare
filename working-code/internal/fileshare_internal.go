@@ -23,7 +23,6 @@ const (
 )
 
 // #region various structs
-// FileInfo contains metadata for an item in a shared folder
 type FileInfo struct {
 	Name  string // Name of file or directory
 	Path  string // path of the requested item, relative to the path defined in the JSON
@@ -143,7 +142,13 @@ func logError(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func logInfo(message string) {
-	logToFile("INFO", message)
+	logData := map[string]interface{}{
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"level":     "INFO",
+		"message":   message,
+	}
+	logJSON, _ := json.Marshal(logData)
+	logToFile("INFO", string(logJSON))
 }
 
 // logRequest logs basic information about an incoming HTTP request,

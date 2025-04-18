@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// #region Structs und Vars
 type Sharedata struct {
 	Path       string
 	UploadTime int64
@@ -20,7 +21,6 @@ type Sharedata struct {
 	AllowPost  bool
 }
 
-// Die JsonData Struktur mit einer neuen Files Map
 type JsonData struct {
 	Port  int                  `json:"port"`
 	Files map[string]Sharedata `json:"files"` // Map von Subpath zu Sharedata
@@ -28,6 +28,8 @@ type JsonData struct {
 
 var instructionPath string = "/opt/fileshare/data.json"
 var randomSubpathLength int = 12
+
+// #endregion
 
 func generateRandomSubpath(length int) string {
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
@@ -234,31 +236,77 @@ func calculateExpirationTime(duration string) (int64, error) {
 func printTooltips(command string) {
 	// Define a map for each command's tooltip description
 	helpText := map[string]string{
-		"list": fmt.Sprintf(`----------------------
-list, l
-    → Displays all shared files and their assigned subpaths.`),
+		"list": `NAME
+       list - Displays all shared files and their assigned subpaths
 
-		"add": fmt.Sprintf(`----------------------
-add -subpath, -s, --subpath=<subpath> -file, -f, --file=<file> [-use-expiration, -uses, -u=<num>] [-time-expiration, -time, -t=<xxh/d/w/m/y>] [-allow-post, -post, -p]
-    → Creates a new share for the specified file under the given subpath.
-      (subpath = desired share name, file = path to the file on the system,
-       use-expiration = max uses, time-expiration = time limit, allow-post = allow POST requests)`),
+SYNOPSIS
+       list, l`,
 
-		"addrandom": fmt.Sprintf(`----------------------------
-addrandom, random, add_random, addr -file, -f, --file=<file> [-use-expiration, -uses, -u=<num>] [-time-expiration, -time, -t=<xxh/d/w/m/y>] [-allow-post, -post, -p]
-    → Creates a new share for the specified file with a randomly generated subpath.
-      (file = path to the file on the system, use-expiration = max uses,
-       time-expiration = time limit, allow-post = allow POST requests)`),
+		"add": `NAME
+       add - Creates a new share for the specified file under the given subpath
 
-		"delete": fmt.Sprintf(`----------------------
-delete, del, remove, rm -subpath, -s, --subpath=<subpath>
-    → Removes an existing share.
-      (subpath = the share to be deleted)`),
+SYNOPSIS
+       add -subpath, -s, --subpath=<subpath> -file, -f, --file=<file>
+           [-use-expiration, -u=<num>] [-time-expiration, -t=<xxh/d/w/m/y>]
+           [-allow-post, -p]
 
-		"edit": fmt.Sprintf(`----------------------
-edit -old_subpath, -old, -o=<old> -new_subpath, -new, -n=<new>
-    → Changes the subpath of an existing share.
-      (old_subpath = current share name, new_subpath = new share name)`),
+       subpath  The desired share name.
+       file     The path to the file on the system.
+
+OPTIONS
+       -subpath, -s, --subpath=<subpath>
+               Desired share name.
+       -file, -f, --file=<file>
+               Path to the file on the system.
+       -use-expiration, -u=<num>
+               Max uses.
+       -time-expiration, -t=<xxh/d/w/m/y>
+               Time limit.
+       -allow-post, -p
+               Allow POST requests.`,
+
+		"addrandom": `NAME
+       addrandom - Creates a new share for the specified file with a randomly
+       generated subpath
+
+SYNOPSIS
+       addrandom, random, add_random, addr -file, -f, --file=<file>
+           [-use-expiration, -u=<num>] [-time-expiration, -t=<xxh/d/w/m/y>]
+           [-allow-post, -p]
+
+       file     The path to the file on the system.
+
+OPTIONS
+       -file, -f, --file=<file>
+               Path to the file on the system.
+       -use-expiration, -u=<num>
+               Max uses.
+       -time-expiration, -t=<xxh/d/w/m/y>
+               Time limit.
+       -allow-post, -p
+               Allow POST requests.`,
+
+		"delete": `NAME
+       delete - Removes an existing share
+
+SYNOPSIS
+       delete, del, remove, rm -subpath, -s, --subpath=<subpath>
+
+OPTIONS
+       -subpath, -s, --subpath=<subpath>
+               The share to be deleted.`,
+
+		"edit": `NAME
+       edit - Changes the subpath of an existing share
+
+SYNOPSIS
+       edit -old_subpath, -old, -o=<old> -new_subpath, -new, -n=<new>
+
+OPTIONS
+       -old_subpath, -o=<old>
+               Current share name.
+       -new_subpath, -n=<new>
+               New share name.`,
 	}
 
 	// If no specific command is provided, print all available commands
@@ -268,15 +316,17 @@ edit -old_subpath, -old, -o=<old> -new_subpath, -new, -n=<new>
 		fmt.Println("╚════════════════════════════╝")
 		fmt.Println()
 
-		// List all commands
+		// List all commands with their brief description
 		for cmd, text := range helpText {
-			fmt.Printf("\n%s\n", cmd)
-			fmt.Printf("%s\n", text)
+			fmt.Printf("\n• %s\n  %s\n", cmd, text)
 		}
 		return
 	}
 
-	// Print specific command tooltip
+	// Print specific command tooltip in man page format
+	fmt.Println("╔════════════════════════════")
+	fmt.Printf("║   COMMAND: %s\n", command)
+	fmt.Println("╚════════════════════════════")
 	fmt.Println(helpText[command])
 }
 
@@ -291,21 +341,21 @@ func main() {
 	oldSubpathFlag := flag.String("old_subpath", "", "The subpath (share name) that was used before editing")
 	flag.StringVar(oldSubpathFlag, "old", "", "Alias for --old_subpath")
 	flag.StringVar(oldSubpathFlag, "o", "", "Alias for --old_subpath")
-	
+
 	newSubpathFlag := flag.String("new_subpath", "", "The subpath (share name) to be used after editing")
 	flag.StringVar(newSubpathFlag, "new", "", "Alias for --new_subpath")
 	flag.StringVar(newSubpathFlag, "n", "", "Alias for --new_subpath")
-	
+
 	subpathFlag := flag.String("subpath", "", "The subpath (share name) to be used")
 	flag.StringVar(subpathFlag, "s", "", "Alias for --subpath")
-	
+
 	filePathFlag := flag.String("file", "", "The path to the file to be used")
 	flag.StringVar(filePathFlag, "f", "", "Alias for --file")
-	
+
 	usageLimitFlag := flag.Int("use-expiration", -1, "Optional: number of times a link can be used")
 	flag.IntVar(usageLimitFlag, "uses", -1, "Alias for --use-expiration")
 	flag.IntVar(usageLimitFlag, "u", -1, "Alias for --use-expiration")
-	
+
 	expirationTimeFlag := flag.String("time-expiration", "", "Optional: amount of time a link can be used <xx><h/d/w/m/y>")
 	flag.StringVar(expirationTimeFlag, "time", "", "Alias for --time-expiration")
 	flag.StringVar(expirationTimeFlag, "t", "", "Alias for --time-expiration")
@@ -314,10 +364,10 @@ func main() {
 	allowPostFlag := flag.Bool("allow-post", false, "Optional: allow POST requests. Set to true to allow.")
 	flag.BoolVar(allowPostFlag, "post", false, "Alias for --allow-post")
 	flag.BoolVar(allowPostFlag, "p", false, "Alias for --allow-post")
-	
+
 	// Parse the command line flags
 	flag.CommandLine.Parse(os.Args[2:])
-	
+
 	// Calculate expiration time based on user input
 	expirationTime, err := calculateExpirationTime(*expirationTimeFlag)
 	if err != nil {
