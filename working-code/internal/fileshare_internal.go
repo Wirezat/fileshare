@@ -40,6 +40,7 @@ type PageData struct {
 	HasParentDir bool
 	Uses         int
 	Expiration   int64
+	AllowPost    bool
 }
 
 // FileData contains the details for the sharing configurations per file
@@ -191,82 +192,125 @@ func logRequest(r *http.Request) {
 // handleRequest processes requests for files and directories.
 // It logs the request and checks if it's a GET or POST request.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet, http.MethodPost:
-		logRequest(r)
-
-		// Load the configuration containing the file metadata
-		config, err := loadConfig()
-		if err != nil {
-			logError(w, r, fmt.Errorf("failed to load config: %v", err))
-			return
-		}
-
-		// Split the URL path and extract the subpath for file selection
-		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-		if len(pathParts) == 0 {
-			http.NotFound(w, r)
-			return
-		}
-
-		// Retrieve the file metadata from the config based on the subpath
-		subpath := pathParts[0]
-		FileData, exists := config.Files[subpath]
-		if !exists {
-			http.NotFound(w, r)
-			return
-		}
-
-		// Create the full path to the requested file or directory (Absolute path on drive)
-		remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
-		fileInfo, err := os.Stat(remainingPath)
-		if err != nil {
-			logError(w, r, fmt.Errorf("error accessing file: %v", err))
-			return
-		}
-
-		handleGet := func() {
-			// Check if the file is expired or has been used up, and delete it if necessary
-			if FileData.Uses == 0 || (FileData.Expiration != 0 && FileData.Expiration < FileData.UploadTime) {
-				delete(config.Files, subpath)
-				http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
-			} else if FileData.Uses > 0 {
-				// Decrease the use count if the file is still available
-				fd := config.Files[subpath]
-				fd.Uses--
-				config.Files[subpath] = fd
-			}
-			if err := saveConfig(config); err != nil {
-				logError(w, r, fmt.Errorf("failed to save config: %v", err))
-				return
-			}
-
-			if fileInfo.IsDir() {
-				serveDirectory(w, remainingPath, subpath, FileData.Path, FileData.UploadTime, FileData.Expiration, FileData.Uses, r)
-			} else {
-				http.ServeFile(w, r, remainingPath)
-			}
-		}
-
-		handlePost := func() {
-			// Just print "POST" for now
-			fmt.Println("POST request received")
-			w.Write([]byte("POST request received"))
-		}
-
-		// Check the request method (GET or POST)
-		if r.Method == http.MethodGet {
-			handleGet()
-		} else if r.Method == http.MethodPost {
-			handlePost()
-		} else {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		}
-
-	default:
+	logRequest(r)
+	// exit clause for wrong http method
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		// Respond with allowed methods in case of unsupported methods
 		w.Header().Set("Allow", "GET, POST")
 		logError(w, r, fmt.Errorf("unsupported method: %s", r.Method))
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Load the configuration containing the file metadata
+	config, err := loadConfig()
+	if err != nil {
+		logError(w, r, fmt.Errorf("failed to load config: %v", err))
+		return
+	}
+
+	// Split the URL path and extract the subpath for file selection
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if len(pathParts) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Retrieve the file metadata from the config based on the subpath
+	subpath := pathParts[0]
+	FileData, exists := config.Files[subpath]
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Create the full path to the requested file or directory (Absolute path on drive)
+	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
+	fileInfo, err := os.Stat(remainingPath)
+	if err != nil {
+		logError(w, r, fmt.Errorf("error accessing file: %v", err))
+		return
+	}
+
+	handleGet := func() {
+		// Check if the file is expired or has been used up, and delete it if necessary
+		if FileData.Uses == 0 || (FileData.Expiration != 0 && FileData.Expiration < FileData.UploadTime) {
+			delete(config.Files, subpath)
+			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		} else if FileData.Uses > 0 {
+			// Decrease the use count if the file is still available
+			fd := config.Files[subpath]
+			fd.Uses--
+			config.Files[subpath] = fd
+		}
+		if err := saveConfig(config); err != nil {
+			logError(w, r, fmt.Errorf("failed to save config: %v", err))
+			return
+		}
+		if fileInfo.IsDir() {
+			serveDirectory(w, remainingPath, subpath, FileData.Path, FileData.UploadTime, FileData.Expiration, FileData.Uses, FileData.AllowPost, r)
+		} else {
+			http.ServeFile(w, r, remainingPath)
+		}
+	}
+
+	handlePost := func(w http.ResponseWriter, r *http.Request, uploadDir string) {
+		err := r.ParseMultipartForm(100 << 30)
+
+		if err != nil {
+			logError(w, r, fmt.Errorf("could not parse multipart form: %v", err))
+			return
+		}
+
+		files := r.MultipartForm.File["files"]
+		for _, fileHeader := range files {
+
+			// open file
+			src, err := fileHeader.Open()
+			if err != nil {
+				logError(w, r, fmt.Errorf("error opening uploaded file: %v", err))
+				return
+			}
+			defer src.Close()
+
+			// path for the file to be on the server. add unix timestamp if filename already exist
+			dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
+			if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
+				timestamp := time.Now().Unix()
+				dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d", filepath.Base(fileHeader.Filename), timestamp))
+			}
+
+			// create file
+			dst, err := os.Create(dstPath)
+			if err != nil {
+				logError(w, r, fmt.Errorf("error creating file on server: %v", err))
+				return
+			}
+			defer dst.Close()
+
+			// copy file to destination
+			_, err = io.Copy(dst, src)
+			if err != nil {
+				logError(w, r, fmt.Errorf("error saving file: %v", err))
+				return
+			}
+		}
+
+		w.Write([]byte("Files uploaded successfully"))
+
+	}
+
+	// Check the request method (GET or POST)
+	switch r.Method {
+	case http.MethodGet:
+		handleGet()
+	case http.MethodPost:
+		if !FileData.AllowPost {
+			http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePost(w, r, remainingPath)
+	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
@@ -279,7 +323,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 //   - subpath: The subpath of the domain under which the content is hosted.
 //   - basePath: The root directory that the subpath refers to (as defined in the JSON under "Path").
 //   - r: *http.Request containing the client request.
-func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, Expiration int64, Uses int, r *http.Request) {
+func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, Expiration int64, Uses int, AllowPost bool, r *http.Request) {
 	// Check if a ZIP download has been requested.
 	if r.URL.Query().Get("download") == "zip" {
 		zipAndServe(w, dirPath)
@@ -310,6 +354,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		HasParentDir: dirPath != basePath,
 		Uses:         Uses,
 		Expiration:   Expiration,
+		AllowPost:    AllowPost,
 	}); err != nil {
 		logError(w, r, fmt.Errorf("error rendering template: %v", err))
 	}
