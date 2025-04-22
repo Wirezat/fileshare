@@ -156,37 +156,57 @@ func logInfo(message string) {
 // It prefers proxy headers (X-Forwarded-For, Cf-Connecting-Ip) to determine the IP.
 // The log is saved in JSON format via logToFile.
 func logRequest(r *http.Request) {
-	// Get current UTC time in RFC3339Nano format
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
-
-	// Decode the full request URI (e.g., replace %20 with space)
 	decodedURL, _ := url.QueryUnescape(r.URL.RequestURI())
 
-	// Determine client IP address
-	// Priority: X-Forwarded-For > Cf-Connecting-Ip > RemoteAddr
-	clientIP := r.Header.Get("X-Forwarded-For")
-	if clientIP == "" {
-		clientIP = r.Header.Get("Cf-Connecting-Ip")
-	}
-	if clientIP == "" {
-		clientIP = r.RemoteAddr
-		// Remove the port from the address (e.g., [::1]:12345 -> ::1)
-		clientIP, _, _ = net.SplitHostPort(clientIP)
+	// Bestimme Client-IP: Priorität XFF > CF > RemoteAddr (IPv4/IPv6)
+	getIP := func() string {
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			return ip
+		}
+		if ip := r.Header.Get("Cf-Connecting-Ip"); ip != "" {
+			return ip
+		}
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err == nil {
+			if ip := net.ParseIP(host); ip != nil {
+				return ip.String()
+			}
+			return host
+		}
+		return r.RemoteAddr
 	}
 
-	// Prepare the data to be logged
 	logData := map[string]interface{}{
 		"timestamp": timestamp,
 		"method":    r.Method,
 		"url":       decodedURL,
-		"client_ip": clientIP,
+		"client_ip": getIP(),
 	}
 
-	// Convert the log data to JSON
-	logJSON, _ := json.Marshal(logData)
+	// Datei-Metadaten bei POST (multipart/form-data)
+	if r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err == nil {
+			var fileInfos []map[string]interface{}
+			for field, fhs := range r.MultipartForm.File {
+				for _, fh := range fhs {
+					fileInfos = append(fileInfos, map[string]interface{}{
+						"field":       field,
+						"filename":    fh.Filename,
+						"size_bytes":  fh.Size,
+						"contenttype": fh.Header.Get("Content-Type"),
+					})
+				}
+			}
+			if len(fileInfos) > 0 {
+				logData["uploaded_files"] = fileInfos
+			}
+		}
+	}
 
-	// Write the log to file with a "REQUEST" prefix
-	logToFile("REQUEST", string(logJSON))
+	if logJSON, err := json.Marshal(logData); err == nil {
+		logToFile("REQUEST", string(logJSON))
+	}
 }
 
 // #endregion
