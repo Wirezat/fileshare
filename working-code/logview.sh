@@ -99,7 +99,7 @@ process_entry() {
                         local name=$(echo "$file" | jq -r '.filename')
                         local size=$(echo "$file" | jq -r '.size_bytes')
                         local ctype=$(echo "$file" | jq -r '.contenttype')
-                        echo -e "    🗂️  ${MAGENTA}Feld:${NC} $field"
+                        echo -e "    🗂️ ${MAGENTA}Feld:${NC} $field"
                         echo -e "    📄 ${MAGENTA}Dateiname:${NC} $name"
                         echo -e "    🔢 ${MAGENTA}Größe:${NC} $size Bytes"
                         echo -e "    📦 ${MAGENTA}Typ:${NC} $ctype"
