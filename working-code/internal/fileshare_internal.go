@@ -215,13 +215,13 @@ func logRequest(r *http.Request) {
 // The first path segment is treated as a subpath to fetch the corresponding file metadata.
 // If the requested file or directory is found, it is either served or an appropriate error is returned.
 // handleRequest processes requests for files and directories.
-// It logs the request and checks if it's a GET or POST request.
+// It logs the request and checks if it's a GET, HEAD or POST request.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 	logRequest(r)
 	// exit clause for wrong http method
-	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodHead {
 		// Respond with allowed methods in case of unsupported methods
-		w.Header().Set("Allow", "GET, POST")
+		w.Header().Set("Allow", "GET, POST, HEAD")
 		logError(w, r, fmt.Errorf("unsupported method: %s", r.Method))
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -302,7 +302,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
 			if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
 				timestamp := time.Now().Unix()
-				dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d", filepath.Base(fileHeader.Filename), timestamp))
+				dstPath := filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s", strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)), timestamp, filepath.Ext(fileHeader.Filename)))
 			}
 
 			// create file
@@ -329,6 +329,8 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		handleGet()
+	case http.MethodHead:
+		handleGet()
 	case http.MethodPost:
 		if !FileData.AllowPost {
 			http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
@@ -336,6 +338,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		handlePost(w, r, remainingPath)
 	default:
+		//handleGet()
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
