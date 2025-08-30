@@ -25,7 +25,7 @@ make_symlink(){
 }
 
 # Überprüfen, ob die notwendigen Dateien existieren
-if [ ! -f "fileshare-backend" ] || [ ! -f "fileshare-interface" ] || [ ! -f "fileshare-run.sh" ] || [ ! -f "fileshare.service" ] || [ ! -f "data.json" ]; then
+if [ ! -f "fileshare-backend" ] || [ ! -f "fileshare-interface" ] || [ ! -f "fileshare-run.sh" ] || [ ! -f "fileshare.service" ] || [ ! -f "data.json" ] || [ ! -f "template.html" ]; then
     echo "Error: One or more files are missing!"
     exit 1
 fi
