@@ -302,7 +302,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
 			if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
 				timestamp := time.Now().Unix()
-				dstPath := filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s", strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)), timestamp, filepath.Ext(fileHeader.Filename)))
+				dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s", strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)), timestamp, filepath.Ext(fileHeader.Filename)))
 			}
 
 			// create file
