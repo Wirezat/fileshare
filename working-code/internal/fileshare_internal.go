@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -15,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Wirezat/GoLog"
 )
 
 const (
@@ -57,13 +60,103 @@ type JsonData struct {
 	Files map[string]FileData `json:"files"` // Details for the sharing configurations per file
 }
 
-// for multithreaded zipping.
 type fileJob struct {
 	path    string
 	relPath string
 }
 
-// #endregion
+func requestToJSON(r *http.Request) (string, error) {
+	decodedURL, err := url.QueryUnescape(r.URL.RequestURI())
+	if err != nil {
+		return "", err
+	}
+
+	// Client-IP ermitteln
+	getIP := func() string {
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			return ip
+		}
+		if ip := r.Header.Get("Cf-Connecting-Ip"); ip != "" {
+			return ip
+		}
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err == nil {
+			return host
+		}
+		return r.RemoteAddr
+	}
+
+	// Header sammeln (optional)
+	headers := make(map[string]string)
+	for name, values := range r.Header {
+		if len(values) > 0 {
+			headers[name] = values[0]
+		}
+	}
+
+	// Body lesen (nur bei nicht-multipart)
+	var bodyContent interface{}
+	if r.Method == http.MethodPost || r.Method == http.MethodPut {
+		contentType := r.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "application/json") {
+			// JSON Body
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err == nil {
+				var jsonBody interface{}
+				if json.Unmarshal(bodyBytes, &jsonBody) == nil {
+					bodyContent = jsonBody
+				} else {
+					bodyContent = string(bodyBytes)
+				}
+			}
+			// Body muss zurückgesetzt werden, falls weitere Handler es brauchen
+			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+			_ = r.ParseForm()
+			bodyContent = r.Form
+		}
+	}
+
+	// Multipart-Dateien
+	var files []map[string]interface{}
+	if r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err == nil && r.MultipartForm != nil {
+			for field, fhs := range r.MultipartForm.File {
+				for _, fh := range fhs {
+					files = append(files, map[string]interface{}{
+						"field":       field,
+						"filename":    fh.Filename,
+						"size_bytes":  fh.Size,
+						"contenttype": fh.Header.Get("Content-Type"),
+					})
+				}
+			}
+		}
+	}
+
+	// Zusammensetzen der JSON-Daten
+	logData := map[string]interface{}{
+		"method":    r.Method,
+		"url":       decodedURL,
+		"client_ip": getIP(),
+		"headers":   headers,
+	}
+
+	if bodyContent != nil {
+		logData["body"] = bodyContent
+	}
+
+	if len(files) > 0 {
+		logData["uploaded_files"] = files
+	}
+
+	jsonBytes, err := json.MarshalIndent(logData, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonBytes), nil
+}
 
 // #region log and config management functions
 func loadConfig() (JsonData, error) {
@@ -96,133 +189,19 @@ func saveConfig(config JsonData) error {
 	return nil
 }
 
-func logToFile(level, message string) {
-	logDir := "./logs"
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		os.Mkdir(logDir, 0755)
-	}
-
-	day := time.Now().Format("20060102")
-	logFile := filepath.Join(logDir, day+".log")
-
-	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Println("Error opening log file:", err)
-		return
-	}
-	defer file.Close()
-
-	logData := map[string]interface{}{
-		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
-		"level":     level,
-		"message":   message,
-	}
-	logJSON, _ := json.Marshal(logData)
-	file.WriteString(string(logJSON) + "\n")
-}
-
-func logError(w http.ResponseWriter, r *http.Request, err error) {
-	logData := map[string]interface{}{
-		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
-		"level":     "ERROR",
-		"request": map[string]string{
-			"method": r.Method,
-			"path":   r.URL.Path,
-		},
-		"error": err.Error(),
-		"response": map[string]interface{}{
-			"status_code": http.StatusInternalServerError,
-			"message":     "An error occurred while processing your request",
-		},
-	}
-	logJSON, _ := json.Marshal(logData)
-	logToFile("ERROR", string(logJSON))
-
-	http.Error(w, "An error occurred while processing your request", http.StatusInternalServerError)
-}
-
-func logInfo(message string) {
-	logData := map[string]interface{}{
-		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
-		"level":     "INFO",
-		"message":   message,
-	}
-	logJSON, _ := json.Marshal(logData)
-	logToFile("INFO", string(logJSON))
-}
-
-// logRequest logs basic information about an incoming HTTP request,
-// including timestamp, method, requested URL, and client IP address.
-// It prefers proxy headers (X-Forwarded-For, Cf-Connecting-Ip) to determine the IP.
-// The log is saved in JSON format via logToFile.
-func logRequest(r *http.Request) {
-	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
-	decodedURL, _ := url.QueryUnescape(r.URL.RequestURI())
-
-	// Bestimme Client-IP: Priorität XFF > CF > RemoteAddr (IPv4/IPv6)
-	getIP := func() string {
-		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-			return ip
-		}
-		if ip := r.Header.Get("Cf-Connecting-Ip"); ip != "" {
-			return ip
-		}
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err == nil {
-			if ip := net.ParseIP(host); ip != nil {
-				return ip.String()
-			}
-			return host
-		}
-		return r.RemoteAddr
-	}
-
-	logData := map[string]interface{}{
-		"timestamp": timestamp,
-		"method":    r.Method,
-		"url":       decodedURL,
-		"client_ip": getIP(),
-	}
-
-	// Datei-Metadaten bei POST (multipart/form-data)
-	if r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		if err := r.ParseMultipartForm(32 << 20); err == nil {
-			var fileInfos []map[string]interface{}
-			for field, fhs := range r.MultipartForm.File {
-				for _, fh := range fhs {
-					fileInfos = append(fileInfos, map[string]interface{}{
-						"field":       field,
-						"filename":    fh.Filename,
-						"size_bytes":  fh.Size,
-						"contenttype": fh.Header.Get("Content-Type"),
-					})
-				}
-			}
-			if len(fileInfos) > 0 {
-				logData["uploaded_files"] = fileInfos
-			}
-		}
-	}
-
-	if logJSON, err := json.Marshal(logData); err == nil {
-		logToFile("REQUEST", string(logJSON))
-	}
-}
-
-// #endregion
-
 // handleRequest processes requests for files and directories.
 // The first path segment is treated as a subpath to fetch the corresponding file metadata.
 // If the requested file or directory is found, it is either served or an appropriate error is returned.
 // handleRequest processes requests for files and directories.
 // It logs the request and checks if it's a GET, HEAD or POST request.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	logRequest(r)
+	GoLog.Infof(requestToJSON(r))
+
 	// exit clause for wrong http method
 	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodHead {
 		// Respond with allowed methods in case of unsupported methods
 		w.Header().Set("Allow", "GET, POST, HEAD")
-		logError(w, r, fmt.Errorf("unsupported method: %s", r.Method))
+		GoLog.Errorf("unsupported method: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -230,7 +209,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	// Load the configuration containing the file metadata
 	config, err := loadConfig()
 	if err != nil {
-		logError(w, r, fmt.Errorf("failed to load config: %v", err))
+		GoLog.Errorf("failed to load config: %v", err)
 		return
 	}
 
@@ -253,7 +232,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
 	fileInfo, err := os.Stat(remainingPath)
 	if err != nil {
-		logError(w, r, fmt.Errorf("error accessing file: %v", err))
+		GoLog.Errorf("error accessing file: %v", err)
 		return
 	}
 
@@ -269,7 +248,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			config.Files[subpath] = fd
 		}
 		if err := saveConfig(config); err != nil {
-			logError(w, r, fmt.Errorf("failed to save config: %v", err))
+			GoLog.Errorf("failed to save config: %v", err)
 			return
 		}
 		if fileInfo.IsDir() {
@@ -283,7 +262,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseMultipartForm(100 << 30)
 
 		if err != nil {
-			logError(w, r, fmt.Errorf("could not parse multipart form: %v", err))
+			GoLog.Errorf("could not parse multipart form: %v", err)
 			return
 		}
 
@@ -293,7 +272,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			// open file
 			src, err := fileHeader.Open()
 			if err != nil {
-				logError(w, r, fmt.Errorf("error opening uploaded file: %v", err))
+				GoLog.Errorf("error opening uploaded file: %v", err)
 				return
 			}
 			defer src.Close()
@@ -308,7 +287,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			// create file
 			dst, err := os.Create(dstPath)
 			if err != nil {
-				logError(w, r, fmt.Errorf("error creating file on server: %v", err))
+				GoLog.Errorf("error creating file on server: %v", err)
 				return
 			}
 			defer dst.Close()
@@ -316,7 +295,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			// copy file to destination
 			_, err = io.Copy(dst, src)
 			if err != nil {
-				logError(w, r, fmt.Errorf("error saving file: %v", err))
+				GoLog.Errorf("error saving file: %v", err)
 				return
 			}
 		}
@@ -363,7 +342,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		"getFileExtension": func(filename string) string { return strings.ToLower(filepath.Ext(filename)) },
 	}).ParseFiles(templateFilePath)
 	if err != nil {
-		logError(w, r, fmt.Errorf("error parsing template: %v", err))
+		GoLog.Errorf("error parsing template: %v", err)
 		return
 	}
 
@@ -384,7 +363,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		Expiration:   Expiration,
 		AllowPost:    AllowPost,
 	}); err != nil {
-		logError(w, r, fmt.Errorf("error rendering template: %v", err))
+		GoLog.Errorf("error rendering template: %v", err)
 	}
 }
 
@@ -494,17 +473,18 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 //   - port: The port number on which the server should listen.
 func startServer(port int) {
 	http.HandleFunc("/", handleRequest)
-	logInfo(fmt.Sprintf("Server running at http://localhost:%d", port))
+	GoLog.Infof(fmt.Sprintf("Server running at http://localhost:%d", port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-		logError(nil, nil, fmt.Errorf("failed to start server: %v", err))
+		GoLog.Errorf("failed to start server: %v", err)
 	}
 }
 
 func main() {
 	// load configuration and Start Server
 	config, err := loadConfig()
+	err = GoLog.ToFile()
 	if err != nil {
-		logError(nil, nil, fmt.Errorf("error: %v", err))
+		GoLog.Errorf("error: %v", err)
 		return
 	}
 	startServer(config.Port)
