@@ -16,20 +16,10 @@ import (
 
 // #region structs
 
-type Sharedata struct {
-	Path       string `json:"path"`
-	UploadTime int64  `json:"upload_time"`
-	Uses       int    `json:"uses"`
-	Expiration int64  `json:"expiration"`
-	Expired    bool   `json:"expired"`
-	AllowPost  bool   `json:"allow_post"`
-	Password   string `json:"password"`
-}
-
 type JsonData struct {
-	Port          int                  `json:"port"`
-	AdminPassword string               `json:"admin_password"`
-	Files         map[string]Sharedata `json:"files"`
+	Port          int                        `json:"port"`
+	AdminPassword string                     `json:"admin_password"`
+	Files         map[string]shared.FileData `json:"files"`
 }
 
 var instructionPath string = "/opt/fileshare/data.json"
@@ -61,7 +51,7 @@ func loadJsonData(filepath string, target interface{}) error {
 
 	if jsonData, ok := target.(*JsonData); ok {
 		if jsonData.Files == nil {
-			jsonData.Files = make(map[string]Sharedata)
+			jsonData.Files = make(map[string]shared.FileData)
 		}
 	}
 	return nil
@@ -163,7 +153,7 @@ func add(path string, subpath string, filePath string, uses int, expiration int6
 		return
 	}
 
-	jsonData.Files[subpath] = Sharedata{
+	jsonData.Files[subpath] = shared.FileData{
 		Path:       filePath,
 		UploadTime: time.Now().Unix(),
 		Uses:       uses,

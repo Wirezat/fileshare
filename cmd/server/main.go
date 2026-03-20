@@ -9,9 +9,9 @@ import (
 )
 
 func startServer(port int) {
-	http.HandleFunc("/", handleRequest)
 	http.HandleFunc("/admin", basicAuth(handleAdminUI))
 	http.HandleFunc("/admin/api/shares", basicAuth(handleAdminShares))
+	http.HandleFunc("/", handleRequest)
 	GoLog.Infof(fmt.Sprintf("Server running at http://localhost:%d", port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
 		GoLog.Errorf("failed to start server: %v", err)

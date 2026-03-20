@@ -1,717 +1,670 @@
 {{define "directory"}}
 <!DOCTYPE html>
 <html lang="de">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{.Subpath}}-{{.DirPath}}</title>
-  <meta property="og:title" content="{{.Subpath}}-{{.DirPath}}" />
+  <title>{{.Subpath}}{{.DirPath}}</title>
+  <meta property="og:title" content="{{.Subpath}}{{.DirPath}}" />
   <meta property="og:type" content="website" />
-
   <style>
     :root {
-      --main-color: #ffc107;
-      --main-color-text: white;
-      --container-background: white;
-      --container-background-accent: #fff5cc;
-      --container-text: #4a4a4a;
-      --overlay-background: rgba(0, 0, 0, 0.2);
-      --overlay-hover-background: rgba(0, 0, 0, 0.4);
-      --button-background: rgba(0, 0, 0, 0.7);
-      --button-hover-background: rgba(0, 0, 0, 0.9);
-      --box-shadow-main: 0 4px 12px rgba(0, 0, 0, 0.5);
-      --box-shadow-container: 0 6px 18px rgba(0, 0, 0, 0.15);
+      --accent:        #ffc107;
+      --accent-dark:   #e6a800;
+      --accent-text:   #412402;
+      --accent-muted:  #faeeda;
+      --text:          #1a1a1a;
+      --text-muted:    #6b6b6b;
+      --text-faint:    #aaaaaa;
+      --border:        rgba(0,0,0,0.12);
+      --border-strong: rgba(0,0,0,0.22);
+      --bg:            #ffffff;
+      --bg-page:       #fafaf8;
+      --overlay-bg:    rgba(0,0,0,0.18);
+      --overlay-hover: rgba(0,0,0,0.38);
+      --btn-dark:      rgba(0,0,0,0.72);
+      --btn-dark-hover:rgba(0,0,0,0.90);
+      --radius:        8px;
+      --radius-lg:     12px;
     }
 
-    html,
-    body {
+    html.dark {
+      --accent:        #e6a800;
+      --accent-dark:   #cc9600;
+      --accent-text:   #faeeda;
+      --accent-muted:  #2a1f00;
+      --text:          #f0ede8;
+      --text-muted:    #9a9790;
+      --text-faint:    #5a5854;
+      --border:        rgba(255,255,255,0.08);
+      --border-strong: rgba(255,255,255,0.16);
+      --bg:            #1c1b19;
+      --bg-page:       #141412;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
       width: 100%;
-      height: 100%;
-      margin: 0;
+      min-height: 100%;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--container-background-accent);
-      color: var(--container-text);
+      background: var(--bg-page);
+      color: var(--text);
       line-height: 1.6;
       overflow-x: hidden;
+      transition: background 0.25s, color 0.25s;
     }
 
+    /* ── Header ── */
     header {
-      background-color: var(--main-color);
-      color: var(--main-color-text);
-      padding: 15px;
-      text-align: center;
-      box-shadow: var(--box-shadow-main);
-      position: fixed;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+      position: sticky;
       top: 0;
-      left: 0;
-      width: 100%;
       z-index: 1000;
+      flex-shrink: 0;
     }
-
-    .info-line {
+    .header-brand {
       display: flex;
-      justify-content: center;
       align-items: center;
-      max-width: 100%;
-      margin: 0 auto 0 auto;
-      font-size: 0.95rem;
-      gap: 1rem;
-      padding: 0 1rem;
-      box-sizing: border-box;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text);
+      text-decoration: none;
     }
-
-    h1 {
-      font-size: 1.2rem;
-      margin: 0;
-      font-weight: 700;
-      text-align: center;
+    .header-logo {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
     }
+    .header-sub { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+    .header-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0 24px;
+      flex-wrap: wrap;
+    }
+    .header-info strong { color: var(--text); font-weight: 600; }
+    .theme-btn {
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 3px 8px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1.4;
+      transition: background 0.15s, color 0.15s;
+    }
+    .theme-btn:hover { background: var(--bg-page); color: var(--text); }
 
+    /* ── Main container ── */
     .container {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
       max-width: 1200px;
-      margin: 20px auto;
-      padding: 10px;
-      margin-top: 70px;
-      /* vorher: 60px */
-      background-color: var(--container-background);
-      border-radius: 12px;
-      box-shadow: var(--box-shadow-container);
+      margin: 0 auto;
+      padding: 16px;
+      margin-top: 0;
     }
 
+    /* ── Breadcrumb / toolbar ── */
     .breadcrumb {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 1rem;
-      margin-bottom: 20px;
-      padding: 12px;
-      background-color: var(--container-background-accent);
-      border-radius: 8px;
-      border: 1px solid var(--container-text);
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-      width: 100%;
-      max-width: 1200px;
-      text-align: left;
-      margin-left: auto;
-      margin-right: auto;
-      box-sizing: border-box;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 16px;
+      flex-wrap: wrap;
     }
-
-    .breadcrumb .button {
-      display: inline-block;
+    .breadcrumb-path {
+      flex: 1;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
-      padding: 4px 8px;
-      font-size: 1rem;
-      text-decoration: none;
-      background-color: var(--main-color);
-      color: var(--main-color-text);
-      border-radius: 4px;
-      border: none;
-      cursor: pointer;
-      box-sizing: border-box;
-      width: auto;
-      max-width: 200px;
     }
-
-    .zip-download-button {
-      margin-left: 1px;
-    }
-
-    .upload-form {
+    .breadcrumb-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       margin-left: auto;
-      margin-right: 1px;
+      flex-shrink: 0;
     }
-
-    form.button:hover .upload-label {
-      text-decoration: underline;
-      cursor: pointer;
-    }
-
-    .breadcrumb a:hover {
-      text-decoration: underline;
-    }
-
-    .breadcrumb a {
-      text-decoration: none;
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 30px;
+      padding: 0 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
       font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
     }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-text);
+      border-color: var(--accent-dark);
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border-color: var(--border-strong);
+    }
+    .btn-ghost:hover { background: var(--accent-muted); color: var(--text); }
 
-    ul {
+    /* Upload form styled as button */
+    .upload-form {
+      display: inline-flex;
+    }
+    .upload-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 30px;
+      padding: 0 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: 1px solid var(--accent-dark);
+      transition: background 0.15s;
+    }
+    .upload-label:hover { background: var(--accent-dark); }
+
+    /* ── File grid ── */
+    .file-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(200px, 1fr));
+      grid-template-columns: repeat(5, minmax(180px, 1fr));
+      column-gap: 8px;
+      row-gap: 0;
       list-style: none;
-      margin: 0;
-      justify-items: center;
-      gap: 1px 25px;
-      padding: 10px;
+      padding: 0;
     }
+    .file-item, .media-item { margin-bottom: 8px; }
 
-    li {
-      margin: 5px 0;
+    .file-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--container-text);
-      background-color: var(--container-background);
-      transition: transform 0.2s ease, background-color 0.3s ease;
       position: relative;
-      display: block;
-      width: 100%;
       overflow: hidden;
+      transition: border-color 0.18s, background 0.18s;
     }
-
-    li:hover {
-      overflow: hidden;
-      background-color: var(--container-background-accent);
+    .file-item:hover {
+      border-color: var(--accent);
+      background: var(--accent-muted);
     }
-
-    li a {
+    .file-item a {
       text-decoration: none;
-      color: var(--container-text);
+      color: var(--text);
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 1rem;
+      gap: 10px;
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
+    .file-item a:hover { color: var(--text); }
 
-    img,
-    video,
-    audio {
-      border-radius: 8px;
-      max-width: 100%;
-      height: auto;
-      display: block;
-    }
-
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--overlay-background);
-      color: white;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      font-size: 1.2rem;
-      pointer-events: auto;
-    }
-
-    .media-container:hover .overlay {
-      display: flex;
-      pointer-events: none;
-      background: var(--overlay-hover-background);
-    }
-
-    .download-button {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background-color: var(--button-background);
-      color: white;
-      padding: 8px 15px;
-      border-radius: 5px;
-      text-decoration: none;
-      font-size: 1rem;
-      transition: background-color 0.3s ease, transform 0.3s ease;
-      pointer-events: auto;
-    }
-
-    .line-break {
+    /* ── Section separator ── */
+    .section-break {
       grid-column: 1 / -1;
       height: 0 !important;
       padding: 0 !important;
       margin: 0 !important;
       border: 0 !important;
-      gap: 0 !important;
     }
 
+    /* ── Media items ── */
+    .media-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      transition: border-color 0.18s;
+    }
+    .media-item:hover { border-color: var(--accent); }
+
+    img, video, audio {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 0;
+    }
+    .media-name {
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Overlay ── */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--overlay-bg);
+      display: none;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 10px;
+      text-align: center;
+      pointer-events: auto;
+      transition: background 0.18s;
+    }
+    .media-item:hover .overlay {
+      display: flex;
+      background: var(--overlay-hover);
+      pointer-events: none;
+    }
+    .download-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--btn-dark);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-size: 0.8rem;
+      pointer-events: auto;
+      transition: background 0.18s, transform 0.18s;
+    }
     .download-button:hover {
-      background-color: var(--button-hover-background);
-      transform: translateY(-3px);
+      background: var(--btn-dark-hover);
+      transform: translateY(-2px);
     }
 
-    /* Lightbox Styling */
+    /* ── Lightbox ── */
     .lightbox {
       display: none;
-      /* Standardmäßig versteckt */
       position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.9);
-      /* Dunkler Hintergrund */
+      z-index: 2000;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.92);
       overflow: auto;
     }
-
     .lightbox-content {
       display: block;
       margin: auto;
       max-width: 90%;
       max-height: 80vh;
       position: absolute;
-      top: 50%;
-      left: 50%;
+      top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      border-radius: 8px;
+      border-radius: var(--radius);
     }
-
-    .close {
+    .lightbox-close {
       position: absolute;
-      top: 20px;
-      right: 35px;
+      top: 18px; right: 28px;
       color: white;
-      font-size: 40px;
-      font-weight: bold;
+      font-size: 36px;
+      font-weight: 300;
       cursor: pointer;
-      transition: color 0.3s ease;
+      line-height: 1;
+      transition: color 0.2s;
     }
+    .lightbox-close:hover { color: var(--accent); }
 
-    .close:hover {
-      color: var(--main-color);
-      /* Hover-Effekt für den Schließen-Button */
+    /* ── Responsive ── */
+    @media (max-width: 1024px) { .file-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 900px)  { .file-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 768px)  {
+      header { position: relative; }
+      .container { margin-top: 16px; }
+      .file-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+      h1 { font-size: 1rem; }
     }
-
-    /* 🖥️ Mittlere Bildschirme (z. B. Laptop, max. 1024px) */
-    @media (max-width: 1024px) {
-      ul {
-        grid-template-columns: repeat(4, 1fr);
-        /* 4 Spalten */
-      }
-    }
-
-    /* 📱 Größere Tablets (z. B. iPad Querformat, max. 900px) */
-    @media (max-width: 900px) {
-      ul {
-        grid-template-columns: repeat(3, 1fr);
-        /* 3 Spalten */
-      }
-    }
-
-    /* 📱 Kleinere Tablets (z. B. iPad Hochformat, max. 768px) */
-    @media (max-width: 768px) {
-      header {
-        position: relative;
-      }
-
-      .breadcrumb .button {
-        padding: 4px 8px;
-      }
-
-      h1 {
-        font-size: 1.5rem;
-      }
-
-      .container {
-        padding: 5px;
-      }
-
-      ul {
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        justify-items: center;
-        gap: 1px 25px;
-        padding: 5px;
-        margin: 5px;
-      }
-
-      ul {
-        grid-template-columns: repeat(2, 1fr);
-        /* 2 Spalten */
-      }
+    @media (max-width: 480px)  {
+      .file-grid { grid-template-columns: 1fr 1fr; }
     }
   </style>
+  <script>
+    // Run before paint to prevent dark mode flash
+    (function() {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
 </head>
-
 <body>
-  <header>
-    <h1>Index of {{.Subpath}}{{.DirPath}}</h1>
-    <div class="info-line">
-      <span><strong>Uploaded:</strong>
-        <span id="upload-time" data-timestamp="{{.UploadTime}}"></span></span>
-      <span><strong>Expiration:</strong> {{if eq .Expiration
-        0}}<span>never</span>{{else}}<span id="time-left" data-timestamp="{{.Expiration}}"></span>{{end}}</span>
-      <span><strong>Uses:</strong> {{if eq .Uses
-        -1}}<span>Infinity</span>{{else}}<span id="uses" data-uses="{{.Uses}}"></span>{{end}}</span>
-    </div>
-  </header>
 
-  <div class="container">
-    <div class="breadcrumb">
-      {{if .HasParentDir}}
-      <a href="/{{.Subpath}}{{.ParentDir}}/" class="button">📂 [..]</a> &gt;
-      {{end}}
-      <span>Verzeichnis: {{.Subpath}}{{.DirPath}}</span>
+<header>
+  <a class="header-brand" href="/{{.Subpath}}">
+    <div class="header-logo">📂</div>
+    <span>{{.Subpath}}</span>
+    <span class="header-sub">{{.DirPath}}</span>
+  </a>
+  <div class="header-info">
+    <span><strong>Uploaded</strong> <span id="upload-time" data-timestamp="{{.UploadTime}}"></span></span>
+    <span><strong>Expires</strong> {{if eq .Expiration 0}}<span>never</span>{{else}}<span id="time-left" data-timestamp="{{.Expiration}}"></span>{{end}}</span>
+    <span><strong>Uses</strong> {{if eq .Uses -1}}<span>∞</span>{{else}}<span id="uses" data-uses="{{.Uses}}"></span>{{end}}</span>
+  </div>
+  <div class="header-right">
+    <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()">🌙</button>
+  </div>
+</header>
 
+<div class="container">
+
+  <!-- Breadcrumb / toolbar -->
+  <div class="breadcrumb">
+    {{if .HasParentDir}}
+    <a href="/{{.Subpath}}{{.ParentDir}}/" class="btn btn-primary">📂 [..]</a>
+    <span style="color:var(--border-strong);">/</span>
+    {{end}}
+    <span class="breadcrumb-path">{{.Subpath}}{{.DirPath}}</span>
+    <div class="breadcrumb-actions">
       {{if .AllowPost}}
-      <form id="uploadForm" method="post" enctype="multipart/form-data" class="button upload-form">
+      <form id="uploadForm" method="post" enctype="multipart/form-data" class="upload-form">
         <label for="fileUpload" class="upload-label">
-          <span id="uploadButtonText">📤UPLOAD</span>
-          <input id="fileUpload" name="files" type="file" multiple style="display: none" onchange="submitUpload()" />
+          <span id="uploadButtonText">📤 Upload</span>
+          <input id="fileUpload" name="files" type="file" multiple style="display:none" onchange="submitUpload()" />
         </label>
       </form>
       {{end}}
-
-      <a href="#" class="button" onclick="downloadAsZip(event)">📦 ZIP</a>
+      <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">📦 ZIP</a>
     </div>
-
-    <!-- Lightbox Viewer -->
-    <div id="lightbox" class="lightbox">
-      <span class="close">&times;</span>
-      <img id="lightbox-img" class="lightbox-content" src="" alt="Enlarged Image" style="display: none" />
-      <video id="lightbox-video" class="lightbox-content" controls style="display: none">
-        <source src="" type="video/mp4" />
-        Dein Browser unterstützt dieses Videoformat nicht.
-      </video>
-      <audio id="lightbox-audio" class="lightbox-content" controls style="display: none">
-        <source src="" type="audio/mpeg" />
-        Dein Browser unterstützt dieses Audioformat nicht.
-      </audio>
-    </div>
-
-    <ul>
-      <!-- Ordner -->
-      {{range .Files}} {{if .IsDir}}
-      <li><a href="/{{$.Subpath}}{{.Path}}">📁 {{.Name}}/</a></li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Archive -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext ".zip"
-      ".rar" ".7z" ".tar" ".gz"}}
-      <li><a href="/{{$.Subpath}}{{.Path}}" download>📦 {{.Name}}</a></li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- PDFs -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext
-      ".pdf"}}
-      <li><a href="/{{$.Subpath}}{{.Path}}">📄 {{.Name}}</a></li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Word-Dokumente -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-      ".doc") (eq $ext ".docx")}}
-      <li><a href="/{{$.Subpath}}{{.Path}}">📑 {{.Name}}</a></li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Excel-Dateien -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-      ".xls") (eq $ext ".xlsx")}}
-      <li><a href="/{{$.Subpath}}{{.Path}}">📊 {{.Name}}</a></li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Textdateien -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if eq $ext
-      ".txt"}}
-      <li><a href="/{{$.Subpath}}{{.Path}}">📝 {{.Name}}</a></li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Bilder -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-      ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
-      <li class="lazy media-container">
-        <img data-src="/{{$.Subpath}}{{.Path}}" alt="{{.Name}}" />
-        <p>{{.Name}}</p>
-        <div class="overlay">
-          <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">📷 Download</a>
-        </div>
-      </li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Audio-Dateien -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-      ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
-      <li class="media-container">
-        <div class="overlay">
-          <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">🎵 Download</a>
-        </div>
-        <audio controls preload="none" style="width: 100%; display: block">
-          <source src="/{{$.Subpath}}{{.Path}}" />
-          Dein Browser unterstützt dieses Audioformat nicht.
-        </audio>
-        <p>{{.Name}}</p>
-      </li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Video-Dateien -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if or (eq $ext
-      ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext
-      ".wmv")}}
-      <li class="media-container">
-        <video preload="metadata" style="max-width: 100%; height: auto; display: block">
-          <source src="/{{$.Subpath}}{{.Path}}" />
-          Dein Browser unterstützt dieses Videoformat nicht.
-        </video>
-        <p>{{.Name}}</p>
-        <div class="overlay">
-          <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">🎥 Download</a>
-        </div>
-      </li>
-      {{end}} {{end}}
-      <li class="line-break"></li>
-
-      <!-- Unbekannte Dateitypen -->
-      {{range .Files}} {{$ext := getFileExtension .Name}} {{if not .IsDir}}
-      {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq
-      $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq
-      $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq
-      $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq
-      $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext
-      ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext
-      ".gz"))}}
-      <li><a href="/{{$.Subpath}}{{.Path}}">📎 {{.Name}}</a></li>
-      {{end}} {{end}} {{end}}
-    </ul>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.min.js"></script>
-  <script>
-    // Konstanten für die Anzeigestile
-    const DISPLAY_STYLES = {
-      FLEX: "flex",
-      BLOCK: "block",
-      NONE: "none",
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox">
+    <span class="lightbox-close" id="lightbox-close">&times;</span>
+    <img id="lightbox-img" class="lightbox-content" src="" alt="" style="display:none" />
+    <video id="lightbox-video" class="lightbox-content" controls style="display:none">
+      <source src="" type="video/mp4" />
+    </video>
+  </div>
+
+  <!-- File list -->
+  <ul class="file-grid">
+
+    <!-- Folders -->
+    {{range .Files}}{{if .IsDir}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📁 {{.Name}}/</a></li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Archives -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if eq $ext ".zip" ".rar" ".7z" ".tar" ".gz"}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}" download>📦 {{.Name}}</a></li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- PDFs -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if eq $ext ".pdf"}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📄 {{.Name}}</a></li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Word -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".doc") (eq $ext ".docx")}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📑 {{.Name}}</a></li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Excel -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".xls") (eq $ext ".xlsx")}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📊 {{.Name}}</a></li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Text -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if eq $ext ".txt"}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📝 {{.Name}}</a></li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Images -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif")}}
+    <li class="media-item lazy media-container">
+      <img data-src="/{{$.Subpath}}{{.Path}}" alt="{{.Name}}" />
+      <div class="overlay">
+        <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">📷 Download</a>
+      </div>
+      <div class="media-name">{{.Name}}</div>
+    </li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Audio -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac")}}
+    <li class="media-item media-container">
+      <div class="overlay">
+        <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">🎵 Download</a>
+      </div>
+      <audio controls preload="none" style="width:100%;display:block">
+        <source src="/{{$.Subpath}}{{.Path}}" />
+      </audio>
+      <div class="media-name">{{.Name}}</div>
+    </li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Video -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv")}}
+    <li class="media-item media-container">
+      <video preload="metadata" style="max-width:100%;height:auto;display:block">
+        <source src="/{{$.Subpath}}{{.Path}}" />
+      </video>
+      <div class="overlay">
+        <a href="/{{$.Subpath}}{{.Path}}" download class="download-button">🎥 Download</a>
+      </div>
+      <div class="media-name">{{.Name}}</div>
+    </li>
+    {{end}}{{end}}
+    <li class="section-break"></li>
+
+    <!-- Unknown -->
+    {{range .Files}}{{$ext := getFileExtension .Name}}{{if not .IsDir}}
+    {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq $ext ".xls") (eq $ext ".xlsx") (eq $ext ".txt") (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq $ext ".wav") (eq $ext ".flac") (eq $ext ".aac") (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov") (eq $ext ".mkv") (eq $ext ".wmv") (eq $ext ".zip") (eq $ext ".rar") (eq $ext ".7z") (eq $ext ".tar") (eq $ext ".gz"))}}
+    <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📎 {{.Name}}</a></li>
+    {{end}}{{end}}{{end}}
+
+  </ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.min.js"></script>
+<script>
+  const DISPLAY = { FLEX: "flex", BLOCK: "block", NONE: "none" };
+
+  // ── Dark mode ────────────────────────────────────────
+  // (class already set in <head> to prevent flash)
+  function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    document.getElementById('theme-toggle').textContent = isDark ? '☀️' : '🌙';
+  }
+  document.getElementById('theme-toggle').textContent =
+    document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+
+  // ── Lightbox ─────────────────────────────────────────
+  let isLightboxOpen = false;
+  let currentMediaIndex = 0;
+  const mediaElements = [];
+
+  function setDisplay(el, v) { el.style.display = v; }
+
+  function openLightbox(mediaElement) {
+    isLightboxOpen = true;
+    const lb   = document.getElementById("lightbox");
+    const img  = document.getElementById("lightbox-img");
+    const vid  = document.getElementById("lightbox-video");
+    setDisplay(img, DISPLAY.NONE);
+    setDisplay(vid, DISPLAY.NONE);
+    currentMediaIndex = mediaElements.findIndex(el => el === mediaElement);
+    if (mediaElement.tagName === "IMG") {
+      img.src = mediaElement.src;
+      setDisplay(img, DISPLAY.BLOCK);
+    } else if (mediaElement.tagName === "VIDEO") {
+      const src = vid.querySelector("source");
+      src.src = mediaElement.querySelector("source").src;
+      vid.load();
+      setDisplay(vid, DISPLAY.BLOCK);
+    }
+    setDisplay(lb, DISPLAY.BLOCK);
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    isLightboxOpen = false;
+    const vid = document.getElementById("lightbox-video");
+    vid.pause();
+    setDisplay(document.getElementById("lightbox"), DISPLAY.NONE);
+    document.body.style.overflow = "";
+  }
+
+  function navigateLightbox(dir) {
+    if (!mediaElements.length) return;
+    currentMediaIndex = (currentMediaIndex + dir + mediaElements.length) % mediaElements.length;
+    openLightbox(mediaElements[currentMediaIndex]);
+  }
+
+  function setupMediaContainer(container) {
+    const overlay = container.querySelector(".overlay");
+    const dlBtn   = overlay?.querySelector(".download-button");
+    const media   = container.querySelector("img, video");
+    if (media) mediaElements.push(media);
+
+    container.addEventListener("mouseenter", () => { if (overlay) setDisplay(overlay, DISPLAY.FLEX); });
+    container.addEventListener("mouseleave", () => { if (overlay) setDisplay(overlay, DISPLAY.NONE); });
+    if (dlBtn) dlBtn.addEventListener("click", e => e.stopPropagation());
+
+    if (media) {
+      container.addEventListener("click", () => openLightbox(media));
+      if (media.tagName === "VIDEO") {
+        media.addEventListener("click", e => { e.stopPropagation(); openLightbox(media); });
+      }
+    }
+  }
+
+  // ── ZIP ──────────────────────────────────────────────
+  function downloadAsZip(event) {
+    event.preventDefault();
+    const link = document.createElement("a");
+    link.href = window.location.origin + window.location.pathname + "?download=zip";
+    link.download = "archive.zip";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // ── Timestamps ───────────────────────────────────────
+  function formatTimestamp(ts) {
+    const date = new Date(Number(ts) * 1000);
+    return date.toLocaleString(navigator.language || "en-US", {
+      weekday: "long", year: "2-digit", month: "2-digit",
+      day: "2-digit", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  const uploadTimeEl = document.getElementById("upload-time");
+  const ts = uploadTimeEl?.dataset.timestamp;
+  if (ts) uploadTimeEl.innerText = formatTimestamp(ts);
+
+  const timeLeftEl = document.getElementById("time-left");
+  if (timeLeftEl) {
+    const exp = timeLeftEl.dataset.timestamp;
+    if (exp) {
+      const diff = new Date(Number(exp) * 1000) - new Date();
+      if (diff <= 0) {
+        timeLeftEl.innerText = "expired";
+      } else {
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        timeLeftEl.innerText = `${d}d ${h}h ${m}m`;
+      }
+    }
+  }
+
+  const usesEl = document.getElementById("uses");
+  if (usesEl?.dataset.uses !== undefined) usesEl.innerText = usesEl.dataset.uses;
+
+  // ── Init ─────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    const header = document.querySelector("header");
+    if (header) {
+      const container = document.querySelector(".container");
+      if (container) container.style.marginTop = `${header.offsetHeight + 12}px`;
+    }
+
+    new LazyLoad({
+      elements_selector: ".media-container img[data-src]",
+      callback_enter: () => !isLightboxOpen,
+      load_delay: 300,
+    });
+
+    document.querySelectorAll(".media-container").forEach(setupMediaContainer);
+
+    document.getElementById("lightbox-close")?.addEventListener("click", closeLightbox);
+    document.getElementById("lightbox")?.addEventListener("click", e => {
+      if (e.target === e.currentTarget) closeLightbox();
+    });
+
+    document.addEventListener("keydown", e => {
+      if (!isLightboxOpen) return;
+      if (e.key === "Escape")     closeLightbox();
+      if (e.key === "ArrowRight") navigateLightbox(1);
+      if (e.key === "ArrowLeft")  navigateLightbox(-1);
+    });
+  });
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const uploadForm = document.getElementById("uploadForm");
+    if (!uploadForm) return;
+
+    window.submitUpload = function () {
+      const input = document.getElementById("fileUpload");
+      const formData = new FormData();
+      for (let i = 0; i < input.files.length; i++) {
+        formData.append("files", input.files[i]);
+      }
+      fetch(window.location.href, { method: "POST", body: formData })
+        .then(res => res.text())
+        .then(() => {
+          const btn = document.getElementById("uploadButtonText");
+          btn.textContent = "✓ Uploaded!";
+          setTimeout(() => location.reload(), 3000);
+        })
+        .catch(err => alert("Upload error: " + err));
     };
-
-    // Globale Variable zur Verfolgung des Lightbox-Zustands
-    let isLightboxOpen = false;
-    let currentMediaIndex = 0;
-    const mediaElements = [];
-
-    // Utility-Funktion zum Setzen der Anzeige von Elementen
-    function setDisplay(element, displayStyle) {
-      element.style.display = displayStyle;
-    }
-
-    // Lightbox Funktionen
-    function openLightbox(mediaElement) {
-      isLightboxOpen = true;
-      const lightbox = document.getElementById("lightbox");
-      const lightboxImg = document.getElementById("lightbox-img");
-      const lightboxVideo = document.getElementById("lightbox-video");
-
-      // Verstecke beide Medien zu Beginn
-      setDisplay(lightboxImg, DISPLAY_STYLES.NONE);
-      setDisplay(lightboxVideo, DISPLAY_STYLES.NONE);
-
-      // Aktuellen Index finden
-      currentMediaIndex = mediaElements.findIndex(
-        (el) => el === mediaElement
-      );
-
-      if (mediaElement.tagName === "IMG") {
-        lightboxImg.src = mediaElement.src;
-        setDisplay(lightboxImg, DISPLAY_STYLES.BLOCK);
-      } else if (mediaElement.tagName === "VIDEO") {
-        const source = lightboxVideo.querySelector("source");
-        source.src = mediaElement.querySelector("source").src;
-        lightboxVideo.load();
-        setDisplay(lightboxVideo, DISPLAY_STYLES.BLOCK);
-      }
-
-      setDisplay(lightbox, DISPLAY_STYLES.BLOCK);
-      document.body.style.overflow = "hidden";
-    }
-
-    function closeLightbox() {
-      isLightboxOpen = false;
-      const lightbox = document.getElementById("lightbox");
-      const lightboxVideo = document.getElementById("lightbox-video");
-
-      lightboxVideo.pause();
-      setDisplay(lightbox, DISPLAY_STYLES.NONE);
-      document.body.style.overflow = "auto";
-    }
-
-    function navigateLightbox(direction) {
-      if (mediaElements.length === 0) return;
-
-      currentMediaIndex =
-        (currentMediaIndex + direction + mediaElements.length) %
-        mediaElements.length;
-      openLightbox(mediaElements[currentMediaIndex]);
-    }
-
-    // Media Container Setup
-    function setupMediaContainer(container) {
-      const overlay = container.querySelector(".overlay");
-      const downloadButton = overlay.querySelector(".download-button");
-      const media = container.querySelector("img, video");
-
-      // Medien zur globalen Liste hinzufügen
-      if (media) mediaElements.push(media);
-
-      container.addEventListener("mouseenter", () => { setDisplay(overlay, DISPLAY_STYLES.FLEX); });
-      container.addEventListener("mouseleave", () => { setDisplay(overlay, DISPLAY_STYLES.NONE); });
-
-      downloadButton.addEventListener("click", (event) => { event.stopPropagation(); });
-
-      if (media) {
-        container.addEventListener("click", () => { openLightbox(media); });
-        if (media.tagName === "VIDEO") {
-          media.addEventListener("click", (event) => {
-            event.stopPropagation();
-            openLightbox(media);
-          });
-        }
-      }
-    }
-
-      function downloadAsZip(event) {
-        event.preventDefault(); // Verhindert die Standardaktion des Links
-
-        // Die aktuelle URL abrufen und "download=zip" als Parameter hinzufügen
-        const currentUrl =
-          window.location.origin + window.location.pathname + "?download=zip";
-
-        // Ein unsichtbares <a>-Element erstellen, um den Download auszulösen
-        const link = document.createElement("a");
-        link.href = currentUrl;
-        link.download = "archive.zip"; // Optionaler Dateiname (Browser entscheidet meist selbst)
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-
-      // Initialisierung nach DOM-Load
-      document.addEventListener("DOMContentLoaded", () => {
-        // Header-Höhe anpassen
-        const header = document.querySelector("header");
-        if (header) {
-          const container = document.querySelector(".container");
-          container.style.marginTop = `${header.offsetHeight + 10}px`;
-        }
-
-        // LazyLoad initialisieren
-        const lazyLoadInstance = new LazyLoad({
-          elements_selector: ".media-container img[data-src]",
-          callback_enter: (el) => !isLightboxOpen,
-          load_delay: 300,
-        });
-
-        // Media Container initialisieren
-        document
-          .querySelectorAll(".media-container")
-          .forEach(setupMediaContainer);
-
-        // Event-Listener für Lightbox
-        document
-          .querySelector(".close")
-          ?.addEventListener("click", closeLightbox);
-        document
-          .getElementById("lightbox")
-          ?.addEventListener("click", (event) => {
-            if (event.target === event.currentTarget) closeLightbox();
-          });
-
-        // Tastatur-Shortcuts
-        document.addEventListener("keydown", (event) => {
-          if (isLightboxOpen) {
-            if (event.key === "Escape") closeLightbox();
-            if (event.key === "ArrowRight") navigateLightbox(1);
-            if (event.key === "ArrowLeft") navigateLightbox(-1);
-          }
-        });
-      });
-
-      function formatTimestamp(timestamp) {
-        const date = new Date(Number(timestamp) * 1000);
-        const userLocale = navigator.language || "en-US";
-
-        return date.toLocaleString(userLocale, {
-          weekday: "long",
-          year: "2-digit",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      }
-
-      // Timestamp aus dem HTML-Element holen und umwandeln
-      const uploadTimeElement = document.getElementById("upload-time");
-      const timestamp = uploadTimeElement.dataset.timestamp;
-      if (timestamp) {
-        uploadTimeElement.innerText = formatTimestamp(timestamp);
-      }
-      const timeLeftElement = document.getElementById("time-left");
-      if (timeLeftElement) {
-        const expiration = timeLeftElement.dataset.timestamp;
-        if (expiration) {
-          const expirationDate = new Date(Number(expiration) * 1000);
-          const now = new Date();
-          const diff = expirationDate - now;
-
-          if (diff <= 0) {
-            timeLeftElement.innerText = "expired";
-          } else {
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            timeLeftElement.innerText = `${days}d ${hours}h ${minutes}m`;
-          }
-        }
-      }
-
-      const usesElement = document.getElementById("uses");
-      if (usesElement) {
-        const uses = usesElement.dataset.uses;
-        if (uses !== undefined) {
-          usesElement.innerText = uses;
-        }
-      }
-  </script>
-  <script>
-      // Script for hiding Upload form if upload is not permitted anyways
-      document.addEventListener("DOMContentLoaded", () => {
-        const uploadForm = document.getElementById("uploadForm");
-
-        if (uploadForm) {
-          window.submitUpload = function () {
-            const input = document.getElementById("fileUpload");
-            const formData = new FormData();
-            for (let i = 0; i < input.files.length; i++) {
-              formData.append("files", input.files[i]);
-            }
-
-            fetch(window.location.href, {
-              method: "POST",
-              body: formData,
-            })
-              .then((res) => res.text())
-              .then((resText) => {
-                const uploadButton =
-                  document.getElementById("uploadButtonText");
-                uploadButton.textContent = "Upload erfolgreich!";
-
-                uploadButton.style.color = "green";
-
-                setTimeout(() => {
-                  location.reload();
-                }, 5000);
-              })
-              .catch((err) => {
-                alert("Error whilst uploading: " + err);
-              });
-          };
-        }
-      });
-  </script>
+  });
+</script>
 </body>
-
 </html>
 {{end}}

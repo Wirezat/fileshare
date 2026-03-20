@@ -180,7 +180,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, up
 		return
 	}
 
-	if err := t.Execute(w, shared.PageData{
+	if err := t.Execute(w, PageData{
 		Subpath:    subpath,
 		UploadTime: uploadTime,
 		DirPath:    filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),

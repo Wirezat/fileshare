@@ -23,19 +23,6 @@ type FileInfo struct {
 	IsDir bool
 }
 
-// PageData contains all data needed to render the directory view template
-type PageData struct {
-	Subpath      string
-	UploadTime   int64
-	DirPath      string
-	Files        []FileInfo
-	ParentDir    string
-	HasParentDir bool
-	Uses         int
-	Expiration   int64
-	AllowPost    bool
-}
-
 // FileData contains the sharing configuration for a single share
 type FileData struct {
 	Path       string `json:"path"`

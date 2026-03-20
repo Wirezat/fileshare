@@ -19,3 +19,16 @@ type requestContext struct {
 	diskPath string
 	fileInfo os.FileInfo
 }
+
+// PageData contains all data needed to render the directory view template
+type PageData struct {
+	Subpath      string
+	UploadTime   int64
+	DirPath      string
+	Files        []shared.FileInfo
+	ParentDir    string
+	HasParentDir bool
+	Uses         int
+	Expiration   int64
+	AllowPost    bool
+}
