@@ -21,23 +21,29 @@ import (
 	"github.com/Wirezat/GoLog"
 )
 
+// #region constants
+
 const (
 	configFilePath   = "./data.json"
 	templateFilePath = "template.html"
 )
 
-// #region various structs
+// #endregion
+
+// #region structs
+
+// FileInfo contains the name, path and type of a file or directory
 type FileInfo struct {
-	Name  string // Name of file or directory
-	Path  string // path of the requested item, relative to the path defined in the JSON
+	Name  string
+	Path  string
 	IsDir bool
 }
 
-// PageData contains all necessary files for loading the folder share html
+// PageData contains all data needed to render the directory view template
 type PageData struct {
-	Subpath      string // requested subpath
+	Subpath      string
 	UploadTime   int64
-	DirPath      string // current requested path
+	DirPath      string
 	Files        []FileInfo
 	ParentDir    string
 	HasParentDir bool
@@ -46,7 +52,7 @@ type PageData struct {
 	AllowPost    bool
 }
 
-// FileData contains the details for the sharing configurations per file
+// FileData contains the sharing configuration for a single share
 type FileData struct {
 	Path       string
 	UploadTime int64
@@ -57,12 +63,22 @@ type FileData struct {
 	Password   string
 }
 
-// JsonData contains the list of shared files and the port used by the program
+// JsonData is the top-level configuration structure
 type JsonData struct {
-	Port          int                 `json:"port"`           // Port used by the program
-	AdminPassword string              `json:"admin_password"` // Password for admin access (not implemented yet)
-	AdminSalt     string              `json:"admin_salt"`     // Salt for admin password hashing (not implemented yet)
-	Files         map[string]FileData `json:"files"`          // Details for the sharing configurations per file
+	Port          int                 `json:"port"`
+	AdminPassword string              `json:"admin_password"`
+	AdminSalt     string              `json:"admin_salt"`
+	Files         map[string]FileData `json:"files"`
+}
+
+// requestContext holds all resolved data for an incoming request,
+// computed once by prepareRequest and passed to the individual handlers.
+type requestContext struct {
+	config   JsonData
+	fileData FileData
+	subpath  string
+	diskPath string
+	fileInfo os.FileInfo
 }
 
 type fileJob struct {
@@ -70,100 +86,10 @@ type fileJob struct {
 	relPath string
 }
 
-func requestToJSON(r *http.Request) (string, error) {
-	decodedURL, err := url.QueryUnescape(r.URL.RequestURI())
-	if err != nil {
-		return "", err
-	}
+// #endregion
 
-	// Client-IP ermitteln
-	getIP := func() string {
-		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-			return ip
-		}
-		if ip := r.Header.Get("Cf-Connecting-Ip"); ip != "" {
-			return ip
-		}
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err == nil {
-			return host
-		}
-		return r.RemoteAddr
-	}
+// #region config
 
-	// Header sammeln (optional)
-	headers := make(map[string]string)
-	for name, values := range r.Header {
-		if len(values) > 0 {
-			headers[name] = values[0]
-		}
-	}
-
-	// Body lesen (nur bei nicht-multipart)
-	var bodyContent interface{}
-	if r.Method == http.MethodPost || r.Method == http.MethodPut {
-		contentType := r.Header.Get("Content-Type")
-		if strings.HasPrefix(contentType, "application/json") {
-			// JSON Body
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err == nil {
-				var jsonBody interface{}
-				if json.Unmarshal(bodyBytes, &jsonBody) == nil {
-					bodyContent = jsonBody
-				} else {
-					bodyContent = string(bodyBytes)
-				}
-			}
-			// Body muss zurückgesetzt werden, falls weitere Handler es brauchen
-			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
-			_ = r.ParseForm()
-			bodyContent = r.Form
-		}
-	}
-
-	// Multipart-Dateien
-	var files []map[string]interface{}
-	if r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		if err := r.ParseMultipartForm(32 << 20); err == nil && r.MultipartForm != nil {
-			for field, fhs := range r.MultipartForm.File {
-				for _, fh := range fhs {
-					files = append(files, map[string]interface{}{
-						"field":       field,
-						"filename":    fh.Filename,
-						"size_bytes":  fh.Size,
-						"contenttype": fh.Header.Get("Content-Type"),
-					})
-				}
-			}
-		}
-	}
-
-	// Zusammensetzen der JSON-Daten
-	logData := map[string]interface{}{
-		"method":    r.Method,
-		"url":       decodedURL,
-		"client_ip": getIP(),
-		"headers":   headers,
-	}
-
-	if bodyContent != nil {
-		logData["body"] = bodyContent
-	}
-
-	if len(files) > 0 {
-		logData["uploaded_files"] = files
-	}
-
-	jsonBytes, err := json.MarshalIndent(logData, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonBytes), nil
-}
-
-// #region log and config management functions
 func loadConfig() (JsonData, error) {
 	file, err := os.Open(configFilePath)
 	if err != nil {
@@ -186,7 +112,6 @@ func saveConfig(config JsonData) error {
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
-	// formatting for JSON
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(config); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
@@ -194,62 +119,115 @@ func saveConfig(config JsonData) error {
 	return nil
 }
 
-// saveUploadedFile saves a single uploaded file to the given directory.
-// If a file with the same name already exists, a unix timestamp is appended to the filename.
-// Parameters:
-//   - fileHeader: The multipart file header containing the file data.
-//   - uploadDir: The directory to save the file to.
-func saveUploadedFile(fileHeader *multipart.FileHeader, uploadDir string) error {
-	src, err := fileHeader.Open()
+// #endregion
+
+// #region logging
+
+func requestToJSON(r *http.Request) (string, error) {
+	decodedURL, err := url.QueryUnescape(r.URL.RequestURI())
 	if err != nil {
-		return fmt.Errorf("error opening uploaded file: %w", err)
-	}
-	defer src.Close()
-
-	// path for the file to be on the server. add unix timestamp if filename already exists
-	dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
-	if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
-		timestamp := time.Now().Unix()
-		dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s",
-			strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)),
-			timestamp,
-			filepath.Ext(fileHeader.Filename)))
+		return "", err
 	}
 
-	dst, err := os.Create(dstPath)
+	getIP := func() string {
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			return ip
+		}
+		if ip := r.Header.Get("Cf-Connecting-Ip"); ip != "" {
+			return ip
+		}
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err == nil {
+			return host
+		}
+		return r.RemoteAddr
+	}
+
+	headers := make(map[string]string)
+	for name, values := range r.Header {
+		if len(values) > 0 {
+			headers[name] = values[0]
+		}
+	}
+
+	var bodyContent interface{}
+	if r.Method == http.MethodPost || r.Method == http.MethodPut {
+		contentType := r.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "application/json") {
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err == nil {
+				var jsonBody interface{}
+				if json.Unmarshal(bodyBytes, &jsonBody) == nil {
+					bodyContent = jsonBody
+				} else {
+					bodyContent = string(bodyBytes)
+				}
+			}
+			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+			_ = r.ParseForm()
+			bodyContent = r.Form
+		}
+	}
+
+	var files []map[string]interface{}
+	if r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err == nil && r.MultipartForm != nil {
+			for field, fhs := range r.MultipartForm.File {
+				for _, fh := range fhs {
+					files = append(files, map[string]interface{}{
+						"field":       field,
+						"filename":    fh.Filename,
+						"size_bytes":  fh.Size,
+						"contenttype": fh.Header.Get("Content-Type"),
+					})
+				}
+			}
+		}
+	}
+
+	logData := map[string]interface{}{
+		"method":    r.Method,
+		"url":       decodedURL,
+		"client_ip": getIP(),
+		"headers":   headers,
+	}
+	if bodyContent != nil {
+		logData["body"] = bodyContent
+	}
+	if len(files) > 0 {
+		logData["uploaded_files"] = files
+	}
+
+	jsonBytes, err := json.MarshalIndent(logData, "", "  ")
 	if err != nil {
-		return fmt.Errorf("error creating file on server: %w", err)
+		return "", err
 	}
-	defer dst.Close()
-
-	if _, err = io.Copy(dst, src); err != nil {
-		return fmt.Errorf("error saving file: %w", err)
-	}
-
-	return nil
+	return string(jsonBytes), nil
 }
 
-// handleRequest processes requests for files and directories.
-// The first path segment is treated as a subpath to fetch the corresponding file metadata.
-// If the requested file or directory is found, it is either served or an appropriate error is returned.
-// handleRequest processes requests for files and directories.
-// It logs the request and checks if it's a GET, HEAD or POST request.
-func handleRequest(w http.ResponseWriter, r *http.Request) {
-	GoLog.Infof(requestToJSON(r))
+// #endregion
 
+// #region request handling
+
+// prepareRequest validates and resolves all data needed to serve a request.
+// It writes the appropriate HTTP error to w and returns false if anything is invalid.
+// On success it returns a populated requestContext and true.
+func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bool) {
 	// Methode prüfen
 	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, POST, HEAD")
 		GoLog.Errorf("unsupported method: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
+		return nil, false
 	}
 
 	// Config laden
 	config, err := loadConfig()
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
-		return
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return nil, false
 	}
 
 	// URL aufteilen
@@ -260,7 +238,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	fileData, exists := config.Files[subpath]
 	if !exists {
 		http.NotFound(w, r)
-		return
+		return nil, false
 	}
 
 	// Disk-Pfad berechnen
@@ -269,13 +247,13 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	// Security-Check: Path Traversal verhindern
 	if !strings.HasPrefix(diskPath, fileData.Path) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
+		return nil, false
 	}
 
 	// Expired prüfen
 	if fileData.Expired {
 		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
-		return
+		return nil, false
 	}
 
 	// Datei/Ordner prüfen
@@ -283,88 +261,105 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		GoLog.Errorf("error accessing file: %v", err)
 		http.NotFound(w, r)
+		return nil, false
+	}
+
+	return &requestContext{
+		config:   config,
+		fileData: fileData,
+		subpath:  subpath,
+		diskPath: diskPath,
+		fileInfo: fileInfo,
+	}, true
+}
+
+// handleGet serves a file or directory for GET and HEAD requests.
+func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	fd := ctx.fileData
+
+	// Expired oder Uses aufgebraucht
+	if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
+		fd.Expired = true
+		ctx.config.Files[ctx.subpath] = fd
+		if err := saveConfig(ctx.config); err != nil {
+			GoLog.Errorf("failed to save config: %v", err)
+		}
+		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
 		return
 	}
 
-	fd := config.Files[subpath]
-	handleGet := func() {
-		// Check if the file is expired or has been used up, and delete it if necessary
-		if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
-			fd.Expired = true
-			config.Files[subpath] = fd
-			if err := saveConfig(config); err != nil {
-				GoLog.Errorf("failed to save config: %v", err)
-				return
-			}
-			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+	// Uses dekrementieren
+	if fd.Uses > 0 {
+		fd.Uses--
+		ctx.config.Files[ctx.subpath] = fd
+	}
+	if err := saveConfig(ctx.config); err != nil {
+		GoLog.Errorf("failed to save config: %v", err)
+		return
+	}
+
+	if ctx.fileInfo.IsDir() {
+		serveDirectory(w, ctx.diskPath, ctx.subpath, fd.Path, fd.UploadTime, fd.Expiration, fd.Uses, fd.AllowPost, r)
+	} else {
+		http.ServeFile(w, r, ctx.diskPath)
+	}
+}
+
+// handlePost processes file uploads for POST requests.
+func handlePost(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	if !ctx.fileData.AllowPost {
+		http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	err := r.ParseMultipartForm(100 << 30) // 100 GB - intentionally high for private use
+	if err != nil {
+		GoLog.Errorf("could not parse multipart form: %v", err)
+		return
+	}
+
+	for _, fileHeader := range r.MultipartForm.File["files"] {
+		if err := saveUploadedFile(fileHeader, ctx.diskPath); err != nil {
+			GoLog.Errorf("error saving uploaded file: %v", err)
+			http.Error(w, "Upload failed", http.StatusInternalServerError)
 			return
-		} else if fd.Uses > 0 {
-			// Decrease the use count if the file is still available
-			fd.Uses--
-			config.Files[subpath] = fd
-		}
-		if err := saveConfig(config); err != nil {
-			GoLog.Errorf("failed to save config: %v", err)
-			return
-		}
-		if fileInfo.IsDir() {
-			serveDirectory(w, diskPath, subpath, fd.Path, fd.UploadTime, fd.Expiration, fd.Uses, fd.AllowPost, r)
-		} else {
-			http.ServeFile(w, r, diskPath)
 		}
 	}
 
-	handlePost := func(w http.ResponseWriter, r *http.Request, uploadDir string) {
-		err := r.ParseMultipartForm(100 << 30)
-		if err != nil {
-			GoLog.Errorf("could not parse multipart form: %v", err)
-			return
-		}
+	w.Write([]byte("Files uploaded successfully"))
+}
 
-		for _, fileHeader := range r.MultipartForm.File["files"] {
-			if err := saveUploadedFile(fileHeader, uploadDir); err != nil {
-				GoLog.Errorf("error saving uploaded file: %v", err)
-				http.Error(w, "Upload failed", http.StatusInternalServerError)
-				return
-			}
-		}
+// handleRequest is the main HTTP handler. It validates the request via prepareRequest
+// and then dispatches to the appropriate handler based on the HTTP method.
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	GoLog.Infof(requestToJSON(r))
 
-		w.Write([]byte("Files uploaded successfully"))
+	ctx, ok := prepareRequest(w, r)
+	if !ok {
+		return
 	}
 
-	// Check the request method (GET or POST)
 	switch r.Method {
-	case http.MethodGet:
-		handleGet()
-	case http.MethodHead:
-		handleGet()
+	case http.MethodGet, http.MethodHead:
+		handleGet(w, r, ctx)
 	case http.MethodPost:
-		if !fd.AllowPost {
-			http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		handlePost(w, r, diskPath)
+		handlePost(w, r, ctx)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-// serveDirectory handles requests for directories.
-// It either displays an HTML view of the directory contents or offers a ZIP download.
-// Parameters:
-//   - w: http.ResponseWriter for writing the response.
-//   - dirPath: The absolute path of the requested directory.
-//   - subpath: The subpath of the domain under which the content is hosted.
-//   - basePath: The root directory that the subpath refers to (as defined in the JSON under "Path").
-//   - r: *http.Request containing the client request.
+// #endregion
+
+// #region directory serving
+
+// serveDirectory renders the directory listing HTML or streams a ZIP archive.
 func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, UploadTime int64, Expiration int64, Uses int, AllowPost bool, r *http.Request) {
-	// Check if a ZIP download has been requested.
 	if r.URL.Query().Get("download") == "zip" {
 		zipAndServe(w, dirPath)
 		return
 	}
 
-	// load and parse the html template
 	t, err := template.New("directory").Funcs(template.FuncMap{
 		"getFileExtension": func(filename string) string { return strings.ToLower(filepath.Ext(filename)) },
 	}).ParseFiles(templateFilePath)
@@ -373,7 +368,6 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 		return
 	}
 
-	// Render html page
 	if err := t.Execute(w, PageData{
 		Subpath:    subpath,
 		UploadTime: UploadTime,
@@ -394,15 +388,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, Up
 	}
 }
 
-// getFileInfos reads the contents of a directory and returns a list of FileInfo.
-// Parameters:
-//   - dirPath: The absolute path of the directory to be scanned.
-//   - basePath: The base path used to compute the returned paths relative to it.
-//
-// Returns:
-//   - []FileInfo: A list of data structures, each containing the name,
-//     relative path to the host directory [path listed in json], and IsDir status.
-//   - error: An error if the directory cannot be read.
+// getFileInfos reads a directory and returns a list of FileInfo structs.
 func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -410,28 +396,24 @@ func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
 	}
 
 	var fileInfos []FileInfo
-	// skip hidden files
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
-
 		fileInfos = append(fileInfos, FileInfo{
 			Name:  file.Name(),
 			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), file.Name()),
 			IsDir: file.IsDir(),
 		})
 	}
-
 	return fileInfos, nil
 }
 
-// zipAndServe creates a ZIP archive of the specified directory and streams it to the client.
-// The function uses multiple worker goroutines to compress files in parallel and streams
-// the archive in real time to the client in order to save memory.
-// Parameters:
-//   - w: http.ResponseWriter used to stream the ZIP archive to the client.
-//   - dirPath: The absolute path of the directory to be zipped and served.
+// #endregion
+
+// #region zip
+
+// zipAndServe creates a ZIP archive of dirPath and streams it to the client.
 func zipAndServe(w http.ResponseWriter, dirPath string) {
 	numWorkers := runtime.NumCPU() - 1
 	if numWorkers < 1 {
@@ -446,8 +428,6 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	zipWriter := zip.NewWriter(pw)
 	var wg sync.WaitGroup
 	jobs := make(chan fileJob)
-
-	// Mutex for safe access to zipWriter.
 	var zipMutex sync.Mutex
 
 	for i := 0; i < numWorkers; i++ {
@@ -495,9 +475,44 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	io.Copy(w, pr)
 }
 
-// startServer starts the HTTP server on the specified port.
-// Parameters:
-//   - port: The port number on which the server should listen.
+// #endregion
+
+// #region upload
+
+// saveUploadedFile saves a single uploaded file to uploadDir.
+// If a file with the same name already exists, a unix timestamp is appended.
+func saveUploadedFile(fileHeader *multipart.FileHeader, uploadDir string) error {
+	src, err := fileHeader.Open()
+	if err != nil {
+		return fmt.Errorf("error opening uploaded file: %w", err)
+	}
+	defer src.Close()
+
+	dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
+	if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
+		timestamp := time.Now().Unix()
+		dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s",
+			strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)),
+			timestamp,
+			filepath.Ext(fileHeader.Filename)))
+	}
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return fmt.Errorf("error creating file on server: %w", err)
+	}
+	defer dst.Close()
+
+	if _, err = io.Copy(dst, src); err != nil {
+		return fmt.Errorf("error saving file: %w", err)
+	}
+	return nil
+}
+
+// #endregion
+
+// #region server
+
 func startServer(port int) {
 	http.HandleFunc("/", handleRequest)
 	GoLog.Infof(fmt.Sprintf("Server running at http://localhost:%d", port))
@@ -519,3 +534,5 @@ func main() {
 	}
 	startServer(config.Port)
 }
+
+// #endregion
