@@ -1,4 +1,4 @@
-module fileshare
+module github.com/Wirezat/fileshare
 
 go 1.23.6
 

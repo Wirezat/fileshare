@@ -1,0 +1,16 @@
+{
+  "port": 27182,
+  "admin_password": "",
+  "admin_salt": "",
+  "files": {
+    "example": {
+      "path": "/path/to/your/file/or/folder",
+      "upload_time": 0,
+      "uses": -1,
+      "expiration": 0,
+      "expired": false,
+      "allow_post": false,
+      "password": ""
+    }
+  }
+}

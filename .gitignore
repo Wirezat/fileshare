@@ -1,2 +1,17 @@
-release/
-working-code/.idea/
+# Binaries
+fileshare-backend
+fileshare-interface
+
+# Go
+*.test
+go.sum
+
+# Laufzeit-Konfiguration (bleibt auf dem Server)
+data.json
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
