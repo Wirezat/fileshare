@@ -1,8 +1,10 @@
 #!/bin/bash
+# Ins richtige Verzeichnis wechseln
+cd "$(dirname "$0")"
 
-# Go-Code für Linux amd64 kompilieren
-GOOS=linux GOARCH=amd64 go build -o fileshare-backend internal/fileshare_internal.go
-GOOS=linux GOARCH=amd64 go build -o fileshare-interface json_interface/fileshare.go
+# Go-Code kompilieren
+GOOS=linux GOARCH=amd64 /usr/local/go/bin/go build -o fileshare-backend ./internal/fileshare_internal.go
+GOOS=linux GOARCH=amd64 /usr/local/go/bin/go build -o fileshare-interface ./json_interface/fileshare.go
 echo "done compile"
 
 # Alte Dateien entfernen

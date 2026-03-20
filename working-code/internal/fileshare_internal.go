@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
@@ -51,13 +52,17 @@ type FileData struct {
 	UploadTime int64
 	Uses       int
 	Expiration int64
+	Expired    bool
 	AllowPost  bool
+	Password   string
 }
 
 // JsonData contains the list of shared files and the port used by the program
 type JsonData struct {
-	Port  int                 `json:"port"`  // Port used by the program
-	Files map[string]FileData `json:"files"` // Details for the sharing configurations per file
+	Port          int                 `json:"port"`           // Port used by the program
+	AdminPassword string              `json:"admin_password"` // Password for admin access (not implemented yet)
+	AdminSalt     string              `json:"admin_salt"`     // Salt for admin password hashing (not implemented yet)
+	Files         map[string]FileData `json:"files"`          // Details for the sharing configurations per file
 }
 
 type fileJob struct {
@@ -189,6 +194,41 @@ func saveConfig(config JsonData) error {
 	return nil
 }
 
+// saveUploadedFile saves a single uploaded file to the given directory.
+// If a file with the same name already exists, a unix timestamp is appended to the filename.
+// Parameters:
+//   - fileHeader: The multipart file header containing the file data.
+//   - uploadDir: The directory to save the file to.
+func saveUploadedFile(fileHeader *multipart.FileHeader, uploadDir string) error {
+	src, err := fileHeader.Open()
+	if err != nil {
+		return fmt.Errorf("error opening uploaded file: %w", err)
+	}
+	defer src.Close()
+
+	// path for the file to be on the server. add unix timestamp if filename already exists
+	dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
+	if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
+		timestamp := time.Now().Unix()
+		dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s",
+			strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)),
+			timestamp,
+			filepath.Ext(fileHeader.Filename)))
+	}
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return fmt.Errorf("error creating file on server: %w", err)
+	}
+	defer dst.Close()
+
+	if _, err = io.Copy(dst, src); err != nil {
+		return fmt.Errorf("error saving file: %w", err)
+	}
+
+	return nil
+}
+
 // handleRequest processes requests for files and directories.
 // The first path segment is treated as a subpath to fetch the corresponding file metadata.
 // If the requested file or directory is found, it is either served or an appropriate error is returned.
@@ -197,53 +237,69 @@ func saveConfig(config JsonData) error {
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 	GoLog.Infof(requestToJSON(r))
 
-	// exit clause for wrong http method
+	// Methode prüfen
 	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodHead {
-		// Respond with allowed methods in case of unsupported methods
 		w.Header().Set("Allow", "GET, POST, HEAD")
 		GoLog.Errorf("unsupported method: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Load the configuration containing the file metadata
+	// Config laden
 	config, err := loadConfig()
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
 		return
 	}
 
-	// Split the URL path and extract the subpath for file selection
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	if len(pathParts) == 0 {
-		http.NotFound(w, r)
-		return
-	}
+	// URL aufteilen
+	subpath := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")[0]
+	relativePath := strings.TrimPrefix(r.URL.Path, "/"+subpath)
 
-	// Retrieve the file metadata from the config based on the subpath
-	subpath := pathParts[0]
-	FileData, exists := config.Files[subpath]
+	// Share aus Config holen
+	fileData, exists := config.Files[subpath]
 	if !exists {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Create the full path to the requested file or directory (Absolute path on drive)
-	remainingPath := filepath.Join(FileData.Path, filepath.Join(pathParts[1:]...))
-	fileInfo, err := os.Stat(remainingPath)
-	if err != nil {
-		GoLog.Errorf("error accessing file: %v", err)
+	// Disk-Pfad berechnen
+	diskPath := filepath.Join(fileData.Path, relativePath)
+
+	// Security-Check: Path Traversal verhindern
+	if !strings.HasPrefix(diskPath, fileData.Path) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
+	// Expired prüfen
+	if fileData.Expired {
+		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		return
+	}
+
+	// Datei/Ordner prüfen
+	fileInfo, err := os.Stat(diskPath)
+	if err != nil {
+		GoLog.Errorf("error accessing file: %v", err)
+		http.NotFound(w, r)
+		return
+	}
+
+	fd := config.Files[subpath]
 	handleGet := func() {
 		// Check if the file is expired or has been used up, and delete it if necessary
-		if FileData.Uses == 0 || (FileData.Expiration != 0 && FileData.Expiration < FileData.UploadTime) {
-			delete(config.Files, subpath)
+		if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
+			fd.Expired = true
+			config.Files[subpath] = fd
+			if err := saveConfig(config); err != nil {
+				GoLog.Errorf("failed to save config: %v", err)
+				return
+			}
 			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
-		} else if FileData.Uses > 0 {
+			return
+		} else if fd.Uses > 0 {
 			// Decrease the use count if the file is still available
-			fd := config.Files[subpath]
 			fd.Uses--
 			config.Files[subpath] = fd
 		}
@@ -252,56 +308,28 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if fileInfo.IsDir() {
-			serveDirectory(w, remainingPath, subpath, FileData.Path, FileData.UploadTime, FileData.Expiration, FileData.Uses, FileData.AllowPost, r)
+			serveDirectory(w, diskPath, subpath, fd.Path, fd.UploadTime, fd.Expiration, fd.Uses, fd.AllowPost, r)
 		} else {
-			http.ServeFile(w, r, remainingPath)
+			http.ServeFile(w, r, diskPath)
 		}
 	}
 
 	handlePost := func(w http.ResponseWriter, r *http.Request, uploadDir string) {
 		err := r.ParseMultipartForm(100 << 30)
-
 		if err != nil {
 			GoLog.Errorf("could not parse multipart form: %v", err)
 			return
 		}
 
-		files := r.MultipartForm.File["files"]
-		for _, fileHeader := range files {
-
-			// open file
-			src, err := fileHeader.Open()
-			if err != nil {
-				GoLog.Errorf("error opening uploaded file: %v", err)
-				return
-			}
-			defer src.Close()
-
-			// path for the file to be on the server. add unix timestamp if filename already exist
-			dstPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
-			if _, err := os.Stat(dstPath); !os.IsNotExist(err) {
-				timestamp := time.Now().Unix()
-				dstPath = filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s", strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename)), timestamp, filepath.Ext(fileHeader.Filename)))
-			}
-
-			// create file
-			dst, err := os.Create(dstPath)
-			if err != nil {
-				GoLog.Errorf("error creating file on server: %v", err)
-				return
-			}
-			defer dst.Close()
-
-			// copy file to destination
-			_, err = io.Copy(dst, src)
-			if err != nil {
-				GoLog.Errorf("error saving file: %v", err)
+		for _, fileHeader := range r.MultipartForm.File["files"] {
+			if err := saveUploadedFile(fileHeader, uploadDir); err != nil {
+				GoLog.Errorf("error saving uploaded file: %v", err)
+				http.Error(w, "Upload failed", http.StatusInternalServerError)
 				return
 			}
 		}
 
 		w.Write([]byte("Files uploaded successfully"))
-
 	}
 
 	// Check the request method (GET or POST)
@@ -311,13 +339,12 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	case http.MethodHead:
 		handleGet()
 	case http.MethodPost:
-		if !FileData.AllowPost {
+		if !fd.AllowPost {
 			http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		handlePost(w, r, remainingPath)
+		handlePost(w, r, diskPath)
 	default:
-		//handleGet()
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
@@ -480,11 +507,14 @@ func startServer(port int) {
 }
 
 func main() {
-	// load configuration and Start Server
-	config, err := loadConfig()
-	err = GoLog.ToFile()
+	err := GoLog.ToFile()
 	if err != nil {
 		GoLog.Errorf("error: %v", err)
+		return
+	}
+	config, err := loadConfig()
+	if err != nil {
+		GoLog.Errorf("error loading config: %v", err)
 		return
 	}
 	startServer(config.Port)
