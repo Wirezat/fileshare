@@ -36,6 +36,7 @@ chmod +x "$INSTALL_DIR/fileshare-interface"
 
 log "Copying Assets..."
 cp "$REPO_ROOT/assets/template.html" "$INSTALL_DIR/template.html"
+cp "$REPO_ROOT/assets/admin.html" "$INSTALL_DIR/admin.html"
 
 # Create data.json only if it doesn't exist
 if [ ! -f "$INSTALL_DIR/data.json" ]; then

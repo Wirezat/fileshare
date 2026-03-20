@@ -5,10 +5,13 @@ import (
 	"net/http"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 func startServer(port int) {
 	http.HandleFunc("/", handleRequest)
+	http.HandleFunc("/admin", basicAuth(handleAdminUI))
+	http.HandleFunc("/admin/api/shares", basicAuth(handleAdminShares))
 	GoLog.Infof(fmt.Sprintf("Server running at http://localhost:%d", port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
 		GoLog.Errorf("failed to start server: %v", err)
@@ -22,7 +25,7 @@ func main() {
 		return
 	}
 
-	config, err := loadConfig()
+	config, err := shared.LoadConfig()
 	if err != nil {
 		GoLog.Errorf("error loading config: %v", err)
 		return

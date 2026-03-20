@@ -1,7 +1,6 @@
 {
   "port": 27182,
   "admin_password": "",
-  "admin_salt": "",
   "files": {
     "example": {
       "path": "/path/to/your/file/or/folder",

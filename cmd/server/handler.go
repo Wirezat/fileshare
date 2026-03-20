@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 // #region request preparation
@@ -26,7 +27,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}
 
 	// Config laden
-	config, err := loadConfig()
+	config, err := shared.LoadConfig()
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -88,7 +89,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
 		fd.Expired = true
 		ctx.config.Files[ctx.subpath] = fd
-		if err := saveConfig(ctx.config); err != nil {
+		if err := shared.SaveConfig(ctx.config); err != nil {
 			GoLog.Errorf("failed to save config: %v", err)
 		}
 		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
@@ -100,7 +101,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		fd.Uses--
 		ctx.config.Files[ctx.subpath] = fd
 	}
-	if err := saveConfig(ctx.config); err != nil {
+	if err := shared.SaveConfig(ctx.config); err != nil {
 		GoLog.Errorf("failed to save config: %v", err)
 		return
 	}
@@ -179,11 +180,11 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, up
 		return
 	}
 
-	if err := t.Execute(w, PageData{
+	if err := t.Execute(w, shared.PageData{
 		Subpath:    subpath,
 		UploadTime: uploadTime,
 		DirPath:    filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),
-		Files:      func() []FileInfo { infos, _ := getFileInfos(dirPath, basePath); return infos }(),
+		Files:      func() []shared.FileInfo { infos, _ := getFileInfos(dirPath, basePath); return infos }(),
 		ParentDir: func() string {
 			if dirPath == basePath {
 				return "/"
@@ -201,18 +202,18 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, up
 
 // getFileInfos reads a directory and returns a list of FileInfo structs.
 // Hidden files (starting with ".") are skipped.
-func getFileInfos(dirPath, basePath string) ([]FileInfo, error) {
+func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var fileInfos []FileInfo
+	var fileInfos []shared.FileInfo
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
-		fileInfos = append(fileInfos, FileInfo{
+		fileInfos = append(fileInfos, shared.FileInfo{
 			Name:  file.Name(),
 			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), file.Name()),
 			IsDir: file.IsDir(),

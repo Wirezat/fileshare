@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 // #region structs
@@ -25,9 +27,8 @@ type Sharedata struct {
 }
 
 type JsonData struct {
-	Port          int                 `json:"port"`
-	AdminPassword string              `json:"admin_password"`
-	AdminSalt     string              `json:"admin_salt"`
+	Port          int                  `json:"port"`
+	AdminPassword string               `json:"admin_password"`
 	Files         map[string]Sharedata `json:"files"`
 }
 
@@ -194,6 +195,27 @@ func edit(subpath, newSubpath string) {
 	}
 }
 
+func setPassword(password string) {
+	hashedPassword, err := shared.HashPassword(password)
+	if err != nil {
+		fmt.Println("Error hashing password:", err)
+		return
+	}
+	var jsonData JsonData
+	err = loadJsonData(instructionPath, &jsonData)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	jsonData.AdminPassword = hashedPassword
+	err = writeJsonData(instructionPath, &jsonData)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Admin password set successfully.")
+}
+
 func calculateExpirationTime(duration string) (int64, error) {
 	if duration == "" {
 		return 0, nil
@@ -258,6 +280,12 @@ SYNOPSIS
 
 SYNOPSIS
        edit -old_subpath=<old> -new_subpath=<new>`,
+
+		"setpassword": `NAME
+       setpassword - Sets the admin password
+
+SYNOPSIS
+       setpassword -password=<password>`,
 	}
 
 	if command == "" || helpText[command] == "" {
@@ -308,6 +336,10 @@ func main() {
 	flag.BoolVar(allowPostFlag, "post", false, "")
 	flag.BoolVar(allowPostFlag, "p", false, "")
 
+	passwordFlag := flag.String("password", "", "")
+	flag.StringVar(passwordFlag, "pass", "", "")
+	flag.StringVar(passwordFlag, "pwd", "", "")
+
 	flag.CommandLine.Parse(os.Args[2:])
 
 	expirationTime, err := calculateExpirationTime(*expirationTimeFlag)
@@ -351,6 +383,13 @@ func main() {
 			return
 		}
 		edit(*oldSubpathFlag, *newSubpathFlag)
+
+	case "setpassword", "setpass", "password":
+		if *passwordFlag == "" {
+			printTooltips("setpassword")
+			return
+		}
+		setPassword(*passwordFlag)
 
 	default:
 		fmt.Printf("Unknown command: %s\n", os.Args[1])

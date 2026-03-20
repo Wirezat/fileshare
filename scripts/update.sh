@@ -32,6 +32,7 @@ if [ -d "/opt/fileshare" ]; then
     sudo cp fileshare-backend    /opt/fileshare/fileshare-backend
     sudo cp fileshare-interface  /opt/fileshare/fileshare-interface
     sudo cp assets/template.html /opt/fileshare/template.html
+    sudo cp assets/admin.html    /opt/fileshare/admin.html
 
     sudo restorecon -v /opt/fileshare/fileshare-backend  2>/dev/null || true
     sudo restorecon -v /opt/fileshare/fileshare-interface 2>/dev/null || true
