@@ -50,7 +50,6 @@
     html.dark .pill-no          { background: #1e1d1b; border-color: rgba(255,255,255,0.1); }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       font-family: "Segoe UI", system-ui, sans-serif;
       font-size: 14px;
@@ -59,8 +58,6 @@
       line-height: 1.5;
       transition: background 0.25s, color 0.25s;
     }
-
-    /* ── Header ── */
     .header {
       border-bottom: 1px solid var(--border);
       background: var(--bg);
@@ -73,79 +70,27 @@
       top: 0;
       z-index: 50;
     }
-    .header-brand {
-      display: flex; align-items: center; gap: 10px;
-      font-weight: 600; font-size: 15px;
-      color: var(--text); text-decoration: none;
-    }
-    .header-logo {
-      width: 28px; height: 28px;
-      background: var(--accent); border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
-    }
+    .header-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--text); text-decoration: none; }
+    .header-logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
     .header-sub  { font-size: 12px; color: var(--text-muted); font-weight: 400; }
     .header-right { display: flex; align-items: center; gap: 8px; }
     .dot-live    { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; }
     .live-label  { font-size: 12px; color: var(--text-muted); }
-
-    /* ── Tabs ── */
-    .tabs-bar {
-      border-bottom: 1px solid var(--border);
-      background: var(--bg);
-      padding: 0 32px;
-      display: flex;
-      gap: 0;
-    }
-    .tab-btn {
-      padding: 12px 18px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      transition: color 0.15s, border-color 0.15s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .tab-btn:hover   { color: var(--text); }
-    .tab-btn.active  { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+    .tabs-bar { border-bottom: 1px solid var(--border); background: var(--bg); padding: 0 32px; display: flex; gap: 0; }
+    .tab-btn { padding: 12px 18px; font-size: 13px; font-weight: 500; color: var(--text-muted); border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; display: flex; align-items: center; gap: 6px; }
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
     .tab-panel       { display: none; }
     .tab-panel.active { display: block; }
-
-    /* ── Page layout ── */
-    .page {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 32px 24px 64px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    /* ── Section title ── */
-    .section-title {
-      font-size: 11px; font-weight: 600;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--text-faint); margin-bottom: 12px;
-    }
-
-    /* ── Cards ── */
+    .page { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 24px; }
+    .section-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px; }
     .card         { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
     .card-accent  { border-left: 3px solid var(--accent); }
     .card-body    { padding: 20px; }
-
-    /* ── Stats row ── */
     .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
     .stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 18px; }
     .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
     .stat-value { font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.2; }
-
-    /* ── Forms ── */
     .form-row   { display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px; }
     .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
     .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
@@ -153,97 +98,49 @@
     .field label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .field input[type="text"],
     .field input[type="number"],
-    .field input[type="password"] {
-      height: 34px; padding: 0 10px;
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius);
-      font-size: 13px; color: var(--text);
-      background: var(--bg);
-      transition: border-color 0.15s; width: 100%;
-    }
+    .field input[type="password"] { height: 34px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 13px; color: var(--text); background: var(--bg); transition: border-color 0.15s; width: 100%; }
     .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,193,7,0.15); }
     .field-check { display: flex; align-items: center; gap: 8px; padding-top: 18px; }
     .field-check label { font-size: 13px; font-weight: 400; color: var(--text); cursor: pointer; }
     .field-check input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
     .field-hint { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
     .form-footer { display: flex; align-items: center; gap: 12px; padding-top: 4px; }
-
-    /* ── Buttons ── */
-    .btn {
-      height: 32px; padding: 0 14px;
-      border-radius: var(--radius); font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: background 0.12s, border-color 0.12s;
-      display: inline-flex; align-items: center; gap: 5px;
-      border: 1px solid transparent; white-space: nowrap;
-    }
+    .btn { height: 32px; padding: 0 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.12s, border-color 0.12s; display: inline-flex; align-items: center; gap: 5px; border: 1px solid transparent; white-space: nowrap; }
     .btn-primary      { background: var(--accent); color: var(--accent-text); border-color: var(--accent-dark); }
     .btn-primary:hover { background: var(--accent-dark); }
     .btn-ghost        { background: transparent; color: var(--text-muted); border-color: var(--border-strong); }
     .btn-ghost:hover  { background: var(--bg-page); color: var(--text); }
     .btn-danger-ghost { background: transparent; color: var(--danger); border-color: rgba(192,57,43,0.25); height: 28px; padding: 0 10px; font-size: 12px; }
     .btn-danger-ghost:hover { background: var(--danger-muted); border-color: var(--danger); }
-    .btn-sm           { height: 28px; padding: 0 10px; font-size: 12px; }
-
-    /* ── Status msg ── */
+    .btn-sm { height: 28px; padding: 0 10px; font-size: 12px; }
     .status-msg      { font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: var(--radius); display: none; }
     .status-msg.ok   { background: var(--success-muted); color: var(--success); display: inline-flex; }
     .status-msg.err  { background: var(--danger-muted);  color: var(--danger);  display: inline-flex; }
-
-    /* ── Table ── */
     table { width: 100%; border-collapse: collapse; }
-    thead th {
-      padding: 10px 16px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.07em;
-      color: var(--text-faint); text-align: left;
-      border-bottom: 1px solid var(--border); background: var(--bg-page);
-    }
+    thead th { padding: 10px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-faint); text-align: left; border-bottom: 1px solid var(--border); background: var(--bg-page); }
     tbody td { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; transition: background 0.18s ease; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: #fffdf4; }
-
-    /* ── Pills ── */
     .pill         { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid transparent; }
     .pill-active  { background: #f0faf0; color: var(--success); border-color: #c3e6cb; }
     .pill-expired { background: var(--danger-muted); color: var(--danger); border-color: #f5c6cb; }
     .pill-yes     { background: var(--accent-muted); color: var(--accent-text); border-color: #f0d080; }
     .pill-no      { background: var(--bg-page); color: var(--text-faint); border-color: var(--border); }
-
     .subpath      { font-family: "Courier New", monospace; font-size: 12px; font-weight: 600; color: var(--accent-text); background: var(--accent-muted); border: 1px solid #f0d080; padding: 2px 7px; border-radius: 5px; text-decoration: none; display: inline-block; }
     .subpath:hover { background: #f5e090; }
     .path-text    { font-family: "Courier New", monospace; font-size: 11px; color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-
-    /* ── Empty / loading ── */
     .table-info      { padding: 48px 16px; text-align: center; color: var(--text-faint); font-size: 13px; }
     .table-info-icon { font-size: 28px; display: block; margin-bottom: 8px; opacity: 0.4; }
-
-    /* ── Log viewer ── */
-    .log-box {
-      background: var(--bg-page);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      font-family: "Courier New", monospace;
-      font-size: 12px;
-      line-height: 1.7;
-      max-height: 500px;
-      overflow-y: auto;
-      color: var(--text-muted);
-    }
+    .log-box { background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; font-family: "Courier New", monospace; font-size: 12px; line-height: 1.7; max-height: 500px; overflow-y: auto; color: var(--text-muted); }
     .log-line-info    { color: var(--success); }
     .log-line-error   { color: var(--danger); }
     .log-line-request { color: #378add; }
-
-    /* ── Settings sections ── */
     .settings-group { margin-bottom: 32px; }
     .settings-group:last-child { margin-bottom: 0; }
     .settings-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
     .settings-desc  { font-size: 12px; color: var(--text-faint); margin-bottom: 12px; }
     .divider        { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-
-    /* ── Demo badge ── */
     .demo-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; background: var(--accent-muted); color: var(--accent-text); border-radius: 4px; border: 1px solid #f0d080; vertical-align: middle; margin-left: 6px; }
-
-    /* ── Responsive ── */
     @media (max-width: 680px) {
       .page { padding: 16px 12px 48px; }
       .form-row, .form-row-3, .form-row-2 { grid-template-columns: 1fr; }
@@ -264,7 +161,6 @@
 </head>
 <body>
 
-<!-- Header -->
 <header class="header">
   <a class="header-brand" href="/admin">
     <div class="header-logo">📂</div>
@@ -278,27 +174,22 @@
   </div>
 </header>
 
-<!-- Tab bar -->
 <nav class="tabs-bar">
-  <button class="tab-btn active" onclick="switchTab('shares')">Shares</button>
-  <button class="tab-btn" onclick="switchTab('stats')">Stats <span class="demo-badge">demo</span></button>
-  <button class="tab-btn" onclick="switchTab('logs')">Logs <span class="demo-badge">demo</span></button>
-  <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+  <button class="tab-btn active" onclick="switchTab('shares')">📋 Shares</button>
+  <button class="tab-btn" onclick="switchTab('stats')">📊 Stats <span class="demo-badge">demo</span></button>
+  <button class="tab-btn" onclick="switchTab('logs')">🗒 Logs <span class="demo-badge">demo</span></button>
+  <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
 </nav>
 
-<!-- ══════════════════ TAB: SHARES ══════════════════ -->
+<!-- ══ TAB: SHARES ══ -->
 <div id="tab-shares" class="tab-panel active">
 <div class="page">
-
-  <!-- Stats row -->
   <div class="stats-row">
     <div class="stat-card"><div class="stat-label">Total shares</div><div class="stat-value" id="stat-total">—</div></div>
     <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value" id="stat-active">—</div></div>
     <div class="stat-card"><div class="stat-label">Expired</div><div class="stat-value" id="stat-expired">—</div></div>
     <div class="stat-card"><div class="stat-label">Upload enabled</div><div class="stat-value" id="stat-upload">—</div></div>
   </div>
-
-  <!-- Add share -->
   <div>
     <p class="section-title">New share</p>
     <div class="card card-accent">
@@ -336,8 +227,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Share list -->
   <div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <p class="section-title" style="margin:0;">Shares</p>
@@ -347,13 +236,9 @@
       <table>
         <thead>
           <tr>
-            <th>Subpath</th>
-            <th>Path</th>
-            <th class="hide-sm">Uses</th>
-            <th class="hide-sm">Expires</th>
-            <th>Upload</th>
-            <th>Status</th>
-            <th></th>
+            <th>Subpath</th><th>Path</th>
+            <th class="hide-sm">Uses</th><th class="hide-sm">Expires</th>
+            <th>Upload</th><th>Status</th><th></th>
           </tr>
         </thead>
         <tbody id="shares-body">
@@ -362,64 +247,41 @@
       </table>
     </div>
   </div>
-
 </div>
 </div>
 
-<!-- ══════════════════ TAB: STATS ══════════════════ -->
+<!-- ══ TAB: STATS ══ -->
 <div id="tab-stats" class="tab-panel">
 <div class="page">
-
-  <div class="stats-row" style="grid-template-columns: repeat(4,1fr);">
+  <div class="stats-row">
     <div class="stat-card"><div class="stat-label">Total downloads</div><div class="stat-value">1,284</div></div>
     <div class="stat-card"><div class="stat-label">This week</div><div class="stat-value">142</div></div>
     <div class="stat-card"><div class="stat-label">Total uploaded</div><div class="stat-value">38</div></div>
     <div class="stat-card"><div class="stat-label">Data served</div><div class="stat-value">4.2 GB</div></div>
   </div>
-
   <div>
     <p class="section-title">Downloads per share <span class="demo-badge">demo data</span></p>
     <div class="card">
       <table>
-        <thead>
-          <tr><th>Subpath</th><th>Downloads</th><th>Uploads</th><th>Last access</th><th>Data served</th></tr>
-        </thead>
+        <thead><tr><th>Subpath</th><th>Downloads</th><th>Uploads</th><th>Last access</th><th>Data served</th></tr></thead>
         <tbody>
-          <tr>
-            <td><a class="subpath" href="/music" target="_blank">/music</a></td>
-            <td>482</td><td>12</td>
-            <td><span style="font-size:12px;color:var(--text-muted);">2 hours ago</span></td>
-            <td><span style="font-size:12px;">1.8 GB</span></td>
-          </tr>
-          <tr>
-            <td><a class="subpath" href="/docs" target="_blank">/docs</a></td>
-            <td>231</td><td>0</td>
-            <td><span style="font-size:12px;color:var(--text-muted);">yesterday</span></td>
-            <td><span style="font-size:12px;">240 MB</span></td>
-          </tr>
-          <tr>
-            <td><a class="subpath" href="/photos" target="_blank">/photos</a></td>
-            <td>571</td><td>26</td>
-            <td><span style="font-size:12px;color:var(--text-muted);">3 days ago</span></td>
-            <td><span style="font-size:12px;">2.1 GB</span></td>
-          </tr>
+          <tr><td><a class="subpath" href="/music" target="_blank">/music</a></td><td>482</td><td>12</td><td><span style="font-size:12px;color:var(--text-muted);">2 hours ago</span></td><td><span style="font-size:12px;">1.8 GB</span></td></tr>
+          <tr><td><a class="subpath" href="/docs" target="_blank">/docs</a></td><td>231</td><td>0</td><td><span style="font-size:12px;color:var(--text-muted);">yesterday</span></td><td><span style="font-size:12px;">240 MB</span></td></tr>
+          <tr><td><a class="subpath" href="/photos" target="_blank">/photos</a></td><td>571</td><td>26</td><td><span style="font-size:12px;color:var(--text-muted);">3 days ago</span></td><td><span style="font-size:12px;">2.1 GB</span></td></tr>
         </tbody>
       </table>
     </div>
   </div>
-
   <div class="card card-body" style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px;">
     <span style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;">🚧</span>
     Stats tracking not yet implemented in the backend.<br>The data above is for demonstration only.
   </div>
-
 </div>
 </div>
 
-<!-- ══════════════════ TAB: LOGS ══════════════════ -->
+<!-- ══ TAB: LOGS ══ -->
 <div id="tab-logs" class="tab-panel">
 <div class="page">
-
   <div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <p class="section-title" style="margin:0;">Server log <span class="demo-badge">demo data</span></p>
@@ -438,16 +300,14 @@
       <div class="log-line-info">[INFO]  2025-03-21 11:15:01 — Share /docs served successfully</div>
     </div>
   </div>
-
   <div class="card card-body" style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px;">
     <span style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;">🚧</span>
     Live log streaming not yet implemented.<br>Planned: <code style="font-size:12px;">/admin/api/logs</code> endpoint with Server-Sent Events.
   </div>
-
 </div>
 </div>
 
-<!-- ══════════════════ TAB: SETTINGS ══════════════════ -->
+<!-- ══ TAB: SETTINGS ══ -->
 <div id="tab-settings" class="tab-panel">
 <div class="page">
 
@@ -459,13 +319,17 @@
         <div class="settings-group">
           <div class="settings-label">Change admin password</div>
           <div class="settings-desc">Password is stored as a bcrypt hash in data.json.</div>
-          <div class="form-row-2">
+          <div class="form-row-3">
+            <div class="field">
+              <label>Current password</label>
+              <input type="password" id="s-pw-current" placeholder="••••••••" autocomplete="current-password" />
+            </div>
             <div class="field">
               <label>New password</label>
               <input type="password" id="s-pw-new" placeholder="••••••••" autocomplete="new-password" />
             </div>
             <div class="field">
-              <label>Confirm password</label>
+              <label>Confirm new password</label>
               <input type="password" id="s-pw-confirm" placeholder="••••••••" autocomplete="new-password" />
             </div>
           </div>
@@ -478,24 +342,11 @@
     </div>
   </div>
 
-  <!-- Server -->
+  <!-- TLS preview -->
   <div>
     <p class="section-title">Server</p>
     <div class="card">
       <div class="card-body">
-        <div class="settings-group">
-          <div class="settings-label">Port</div>
-          <div class="settings-desc">Requires a server restart to take effect.</div>
-          <div style="display:flex;gap:10px;align-items:flex-end;">
-            <div class="field" style="width:160px;">
-              <label>Port number</label>
-              <input type="number" id="s-port" placeholder="27182" min="1" max="65535" />
-            </div>
-            <button class="btn btn-ghost" onclick="savePort()">Save</button>
-            <span class="status-msg" id="status-port"></span>
-          </div>
-        </div>
-        <hr class="divider" />
         <div class="settings-group">
           <div class="settings-label">TLS / HTTPS <span class="demo-badge">coming soon</span></div>
           <div class="settings-desc">Enable HTTPS with a custom certificate. Upload your .crt and .key files.</div>
@@ -535,7 +386,6 @@
 
   // ── Dark mode ──────────────────────────────────────────
   function initTheme() {
-    // class already set in <head> to prevent flash
     updateThemeBtn();
   }
   function updateThemeBtn() {
@@ -549,7 +399,7 @@
   }
   initTheme();
 
-  // ── Tabs ───────────────────────────────────────────────
+  // ── Tabs ──────────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -557,7 +407,7 @@
     event.currentTarget.classList.add('active');
   }
 
-  // ── Helpers ────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────
   function fmtExp(ts) {
     if (!ts || ts === 0) return '<span style="color:var(--text-faint);font-size:12px;">never</span>';
     const d = new Date(ts * 1000);
@@ -580,7 +430,7 @@
     setTimeout(() => { el.className = 'status-msg'; }, 3500);
   }
 
-  // ── Shares ─────────────────────────────────────────────
+  // ── Shares ────────────────────────────────────────────
   function updateStats(shares) {
     const keys = Object.keys(shares);
     const now = Date.now() / 1000;
@@ -632,15 +482,11 @@
     const uses       = parseInt(document.getElementById('f-uses').value);
     const expiration = parseInt(document.getElementById('f-expiration').value);
     const allowPost  = document.getElementById('f-allowpost').checked;
-
     if (!path) { showStatus('status-shares', 'Path is required', 'err'); return; }
-
-    // Random subpath if empty
     if (!subpath) {
       const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
       subpath = Array.from({length: 12}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     }
-
     try {
       const res = await fetch(API, {
         method: 'POST',
@@ -672,24 +518,29 @@
     document.getElementById('f-allowpost').checked = false;
   }
 
-  // ── Settings ───────────────────────────────────────────
-  function changePassword() {
-    const pw1 = document.getElementById('s-pw-new').value;
-    const pw2 = document.getElementById('s-pw-confirm').value;
-    if (!pw1) { showStatus('status-pw', 'Password cannot be empty', 'err'); return; }
+  // ── Settings ──────────────────────────────────────────
+  async function changePassword() {
+    const current = document.getElementById('s-pw-current').value;
+    const pw1     = document.getElementById('s-pw-new').value;
+    const pw2     = document.getElementById('s-pw-confirm').value;
+    if (!current) { showStatus('status-pw', 'Current password is required', 'err'); return; }
+    if (!pw1)     { showStatus('status-pw', 'New password cannot be empty', 'err'); return; }
     if (pw1 !== pw2) { showStatus('status-pw', 'Passwords do not match', 'err'); return; }
-    // TODO: POST /admin/api/settings/password
-    showStatus('status-pw', 'Not yet implemented', 'err');
+    try {
+      const res = await fetch('/admin/api/settings/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: current, new_password: pw1 })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus('status-pw', 'Password updated!', 'ok');
+      document.getElementById('s-pw-current').value = '';
+      document.getElementById('s-pw-new').value = '';
+      document.getElementById('s-pw-confirm').value = '';
+    } catch (err) { showStatus('status-pw', err.message, 'err'); }
   }
 
-  function savePort() {
-    const port = document.getElementById('s-port').value;
-    if (!port) { showStatus('status-port', 'Enter a port number', 'err'); return; }
-    // TODO: POST /admin/api/settings/port
-    showStatus('status-port', 'Not yet implemented', 'err');
-  }
-
-  function pruneExpired() {
+  async function pruneExpired() {
     if (!confirm('Delete all expired shares from data.json?')) return;
     // TODO: DELETE /admin/api/shares/expired
     showStatus('status-prune', 'Not yet implemented', 'err');
@@ -699,7 +550,6 @@
     document.getElementById('log-box').innerHTML = '<span style="color:var(--text-faint);">Log cleared.</span>';
   }
 
-  // ── Init ──────────────────────────────────────────────
   loadShares();
 </script>
 </body>

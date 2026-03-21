@@ -67,6 +67,49 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		var req struct {
+			CurrentPassword string `json:"current_password"`
+			NewPassword     string `json:"new_password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		config, err := shared.LoadConfig()
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
+			http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+			return
+		}
+		if req.NewPassword == "" {
+			http.Error(w, "Password cannot be empty", http.StatusBadRequest)
+			return
+		}
+		hashed, err := shared.HashPassword(req.NewPassword)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		config.AdminPassword = hashed
+		if err := shared.SaveConfig(config); err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 
