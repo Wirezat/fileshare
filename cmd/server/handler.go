@@ -142,7 +142,8 @@ func handlePost(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 // handleRequest is the main HTTP handler. It validates the request via prepareRequest
 // and dispatches to the appropriate handler based on the HTTP method.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	GoLog.Infof(requestToJSON(r))
+	requestJson, _ := requestToJSON(r)
+	GoLog.Infof(requestJson)
 
 	ctx, ok := prepareRequest(w, r)
 	if !ok {

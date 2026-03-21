@@ -542,8 +542,12 @@
 
   async function pruneExpired() {
     if (!confirm('Delete all expired shares from data.json?')) return;
-    // TODO: DELETE /admin/api/shares/expired
-    showStatus('status-prune', 'Not yet implemented', 'err');
+    try {
+      const res = await fetch('/admin/api/settings/prune_expired', { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      showStatus('status-prune', 'Expired shares deleted', 'ok');
+      loadShares();
+    } catch (err) { showStatus('status-prune', err.message, 'err'); }
   }
 
   function clearLog() {

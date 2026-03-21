@@ -51,11 +51,11 @@ show_json() {
 
 # Main processing function
 process_entry() {
-    local entry="$1"
-
-    local level=$(echo "$entry" | jq -r '.level')
-    local timestamp=$(format_time $(echo "$entry" | jq -r '.timestamp'))
-    local message=$(echo "$entry" | jq -r '.message')
+    local line="$1"
+    
+    local level=$(echo "$line" | awk '{print $1}')
+    local timestamp=$(echo "$line" | awk '{print $2}' | tr -d '[]')
+    local message=$(echo "$line" | cut -d' ' -f3-)
 
     case "$level" in
     "INFO") color="$GREEN" ;;

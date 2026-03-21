@@ -12,6 +12,7 @@ func startServer(port int) {
 	http.HandleFunc("/admin", basicAuth(handleAdminUI))
 	http.HandleFunc("/admin/api/shares", basicAuth(handleAdminShares))
 	http.HandleFunc("/admin/api/settings/password", basicAuth(handleAdminSettingsPassword))
+	http.HandleFunc("/admin/api/settings/prune_expired", basicAuth(handleAdminFunctionPruneExpired))
 	http.HandleFunc("/", handleRequest)
 	GoLog.Infof(fmt.Sprintf("Server running at http://localhost:%d", port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {

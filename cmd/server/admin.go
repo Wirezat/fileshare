@@ -113,6 +113,28 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	config, err := shared.LoadConfig()
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	for subpath, fileData := range config.Files {
+		if fileData.Expired {
+			delete(config.Files, subpath)
+		}
+	}
+	if err := shared.SaveConfig(config); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
