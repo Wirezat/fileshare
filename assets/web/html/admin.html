@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fileshare — Admin</title>
+  <link rel="stylesheet" href="/admin/static/admin.css" />
+  <script>
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+</head>
+
+<body>
+
+  <header class="header">
+    <a class="header-brand" href="/admin">
+      <div class="header-logo">📂</div>
+      <span>Fileshare</span>
+      <span class="header-sub">/ admin</span>
+    </a>
+    <div class="header-right">
+      <span class="dot-live"></span>
+      <span class="live-label">running</span>
+      <button class="btn btn-ghost btn-sm" id="theme-toggle" onclick="toggleTheme()">🌙</button>
+    </div>
+  </header>
+
+  <nav class="tabs-bar">
+    <button class="tab-btn active" onclick="switchTab('shares')">📋 Shares</button>
+    <button class="tab-btn" onclick="switchTab('stats')">📊 Stats <span class="demo-badge">demo</span></button>
+    <button class="tab-btn" onclick="switchTab('logs')">🗒 Logs <span class="demo-badge">demo</span></button>
+    <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
+  </nav>
+
+  <!-- ══ TAB: SHARES ══ -->
+  <div id="tab-shares" class="tab-panel active">
+    <div class="page">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Total shares</div>
+          <div class="stat-value" id="stat-total">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active</div>
+          <div class="stat-value" id="stat-active">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Expired</div>
+          <div class="stat-value" id="stat-expired">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Upload enabled</div>
+          <div class="stat-value" id="stat-upload">—</div>
+        </div>
+      </div>
+      <div>
+        <p class="section-title">New share</p>
+        <div class="card card-accent">
+          <div class="card-body">
+            <div class="form-row">
+              <div class="field">
+                <label>Subpath</label>
+                <input type="text" id="f-subpath" placeholder="e.g. music" autocomplete="off" />
+                <span class="field-hint">Leave empty for random</span>
+              </div>
+              <div class="field">
+                <label>File / folder path on server</label>
+                <input type="text" id="f-path" placeholder="/home/user/files/music" autocomplete="off" />
+              </div>
+            </div>
+            <div class="form-row-3">
+              <div class="field">
+                <label>Max uses (−1 = unlimited)</label>
+                <input type="number" id="f-uses" value="-1" min="-1" />
+              </div>
+              <div class="field">
+                <label>Expires (unix timestamp, 0 = never)</label>
+                <input type="number" id="f-expiration" value="0" min="0" />
+              </div>
+              <div class="field-check">
+                <input type="checkbox" id="f-allowpost" />
+                <label for="f-allowpost">Allow uploads</label>
+              </div>
+            </div>
+            <div class="form-footer">
+              <button class="btn btn-primary" onclick="addShare()">Add share</button>
+              <button class="btn btn-ghost" onclick="resetForm()">Clear</button>
+              <span class="status-msg" id="status-shares"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <p class="section-title" style="margin:0;">Shares</p>
+          <button class="btn btn-ghost" onclick="loadShares()" style="height:26px;font-size:12px;">↻ Refresh</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>Subpath</th>
+                <th>Path</th>
+                <th class="hide-sm">Uses</th>
+                <th class="hide-sm">Expires</th>
+                <th>Upload</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="shares-body">
+              <tr>
+                <td colspan="7" class="table-info"><span class="table-info-icon">⏳</span>Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: STATS ══ -->
+  <div id="tab-stats" class="tab-panel">
+    <div class="page">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Total downloads</div>
+          <div class="stat-value">1,284</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">This week</div>
+          <div class="stat-value">142</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total uploaded</div>
+          <div class="stat-value">38</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Data served</div>
+          <div class="stat-value">4.2 GB</div>
+        </div>
+      </div>
+      <div>
+        <p class="section-title">Downloads per share <span class="demo-badge">demo data</span></p>
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>Subpath</th>
+                <th>Downloads</th>
+                <th>Uploads</th>
+                <th>Last access</th>
+                <th>Data served</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><a class="subpath" href="/music" target="_blank">/music</a></td>
+                <td>482</td>
+                <td>12</td>
+                <td><span style="font-size:12px;color:var(--text-muted);">2 hours ago</span></td>
+                <td><span style="font-size:12px;">1.8 GB</span></td>
+              </tr>
+              <tr>
+                <td><a class="subpath" href="/docs" target="_blank">/docs</a></td>
+                <td>231</td>
+                <td>0</td>
+                <td><span style="font-size:12px;color:var(--text-muted);">yesterday</span></td>
+                <td><span style="font-size:12px;">240 MB</span></td>
+              </tr>
+              <tr>
+                <td><a class="subpath" href="/photos" target="_blank">/photos</a></td>
+                <td>571</td>
+                <td>26</td>
+                <td><span style="font-size:12px;color:var(--text-muted);">3 days ago</span></td>
+                <td><span style="font-size:12px;">2.1 GB</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card card-body" style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px;">
+        <span style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;">🚧</span>
+        Stats tracking not yet implemented in the backend.<br>The data above is for demonstration only.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: LOGS ══ -->
+  <div id="tab-logs" class="tab-panel">
+    <div class="page">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <p class="section-title" style="margin:0;">Server log <span class="demo-badge">demo data</span></p>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost" style="height:26px;font-size:12px;" onclick="clearLog()">Clear</button>
+            <button class="btn btn-ghost" style="height:26px;font-size:12px;">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="log-box" id="log-box">
+          <div class="log-line-info">[INFO] 2025-03-21 10:42:01 — Server running at http://localhost:27182</div>
+          <div class="log-line-request">[REQUEST] 2025-03-21 10:43:15 — GET /music — 192.168.1.42</div>
+          <div class="log-line-request">[REQUEST] 2025-03-21 10:43:18 — GET /music/song.mp3 — 192.168.1.42</div>
+          <div class="log-line-request">[REQUEST] 2025-03-21 10:51:04 — POST /temp — 192.168.1.10</div>
+          <div class="log-line-error">[ERROR] 2025-03-21 11:02:33 — error accessing file: /opt/files/old.zip: no such
+            file or directory</div>
+          <div class="log-line-request">[REQUEST] 2025-03-21 11:15:00 — GET /docs — 10.0.0.5</div>
+          <div class="log-line-info">[INFO] 2025-03-21 11:15:01 — Share /docs served successfully</div>
+        </div>
+      </div>
+      <div class="card card-body" style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px;">
+        <span style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;">🚧</span>
+        Live log streaming not yet implemented.<br>Planned: <code style="font-size:12px;">/admin/api/logs</code>
+        endpoint with Server-Sent Events.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: SETTINGS ══ -->
+  <div id="tab-settings" class="tab-panel">
+    <div class="page">
+
+      <!-- Admin password -->
+      <div>
+        <p class="section-title">Security</p>
+        <div class="card card-accent">
+          <div class="card-body">
+            <div class="settings-group">
+              <div class="settings-label">Change admin password</div>
+              <div class="settings-desc">Password is stored as a bcrypt hash in data.json.</div>
+              <div class="form-row-3">
+                <div class="field">
+                  <label>Current password</label>
+                  <input type="password" id="s-pw-current" placeholder="••••••••" autocomplete="current-password" />
+                </div>
+                <div class="field">
+                  <label>New password</label>
+                  <input type="password" id="s-pw-new" placeholder="••••••••" autocomplete="new-password" />
+                </div>
+                <div class="field">
+                  <label>Confirm new password</label>
+                  <input type="password" id="s-pw-confirm" placeholder="••••••••" autocomplete="new-password" />
+                </div>
+              </div>
+              <div class="form-footer">
+                <button class="btn btn-primary" onclick="changePassword()">Update password</button>
+                <span class="status-msg" id="status-pw"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TLS preview -->
+      <div>
+        <p class="section-title">Server</p>
+        <div class="card">
+          <div class="card-body">
+            <div class="settings-group">
+              <div class="settings-label">TLS / HTTPS <span class="demo-badge">coming soon</span></div>
+              <div class="settings-desc">Enable HTTPS with a custom certificate. Upload your .crt and .key files.</div>
+              <div class="form-row-2" style="opacity:0.4;pointer-events:none;">
+                <div class="field">
+                  <label>Certificate (.crt)</label>
+                  <input type="text" placeholder="/opt/fileshare/server.crt" disabled />
+                </div>
+                <div class="field">
+                  <label>Key (.key)</label>
+                  <input type="text" placeholder="/opt/fileshare/server.key" disabled />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Danger zone -->
+      <div>
+        <p class="section-title">Danger zone</p>
+        <div class="card" style="border-color: rgba(192,57,43,0.3);">
+          <div class="card-body">
+            <div class="settings-label" style="color:var(--danger);">Delete all expired shares</div>
+            <div class="settings-desc">Removes all shares marked as expired from data.json permanently.</div>
+            <button class="btn btn-danger-ghost" style="height:32px;padding:0 14px;font-size:13px;"
+              onclick="pruneExpired()">Delete expired shares</button>
+            <span class="status-msg" id="status-prune"></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/admin/static/admin.js"></script>
+</body>
+
+</html>
