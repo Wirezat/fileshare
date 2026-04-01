@@ -163,11 +163,6 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 // #endregion
 
 // #region directory serving
-
-func handleShareUI(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, shareHtmlPath)
-}
-
 func handleShareCSS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, shareCssPath)
 }
