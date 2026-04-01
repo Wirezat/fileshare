@@ -9,15 +9,15 @@ import (
 )
 
 func handleAdminUI(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "web/html/admin.html")
+	http.ServeFile(w, r, adminHtmlPath)
 }
 
 func handleAdminCSS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "web/css/admin.css")
+	http.ServeFile(w, r, adminCssPath)
 }
 
 func handleAdminJS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "web/js/admin.js")
+	http.ServeFile(w, r, adminJsPath)
 }
 
 func handleAdminShares(w http.ResponseWriter, r *http.Request) {

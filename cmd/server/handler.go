@@ -164,6 +164,18 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 // #region directory serving
 
+func handleShareUI(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, shareHtmlPath)
+}
+
+func handleShareCSS(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, shareCssPath)
+}
+
+func handleShareJS(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, shareJsPath)
+}
+
 // serveDirectory renders the directory listing HTML or streams a ZIP archive.
 func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, uploadTime int64, expiration int64, uses int, allowPost bool, r *http.Request) {
 	if r.URL.Query().Get("download") == "zip" {
@@ -175,7 +187,7 @@ func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, up
 		"getFileExtension": func(filename string) string {
 			return strings.ToLower(filepath.Ext(filename))
 		},
-	}).ParseFiles(templateFilePath)
+	}).ParseFiles(shareHtmlPath)
 	if err != nil {
 		GoLog.Errorf("error parsing template: %v", err)
 		return

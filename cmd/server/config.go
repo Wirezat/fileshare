@@ -7,7 +7,12 @@ import (
 )
 
 const (
-	templateFilePath = "./template.html"
+	shareHtmlPath = "./web/html/share.html"
+	shareCssPath  = "./web/css/share.css"
+	shareJsPath   = "./web/js/share.js"
+	adminHtmlPath = "./web/html/admin.html"
+	adminCssPath  = "./web/css/admin.css"
+	adminJsPath   = "./web/js/admin.js"
 )
 
 // requestContext holds all resolved data for an incoming request,
