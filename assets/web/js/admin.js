@@ -75,8 +75,7 @@ async function loadShares() {
         }
         tbody.innerHTML = keys.sort().map(sub => {
             const s = shares[sub];
-            const now = Date.now() / 1000;
-            const isExp = s.expired || (s.expiration !== 0 && s.expiration < now) || s.uses === 0;
+            const isExp = s.expired;
             return `<tr>
         <td><a class="subpath" href="/${sub}" target="_blank">/${sub}</a></td>
         <td><span class="path-text" title="${s.path}">${s.path}</span></td>
@@ -97,7 +96,7 @@ async function addShare() {
     const path = document.getElementById('f-path').value.trim();
     const uses = parseInt(document.getElementById('f-uses').value);
     const expiration = parseInt(document.getElementById('f-expiration').value);
-    const allowPost = document.getElementById('f-allowlist').checked;
+    const allowPost = document.getElementById('f-allowpost').checked;
     if (!path) { showStatus('status-shares', 'Path is required', 'err'); return; }
     if (!subpath) {
         const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -131,7 +130,7 @@ function resetForm() {
     document.getElementById('f-path').value = '';
     document.getElementById('f-uses').value = '-1';
     document.getElementById('f-expiration').value = '0';
-    document.getElementById('f-allowlist').checked = false;
+    document.getElementById('f-allowpost').checked = false;
 }
 
 // ── Settings ──────────────────────────────────────────

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
@@ -37,5 +38,6 @@ func main() {
 		return
 	}
 
+	startExpirationWatcher(5 * time.Minute)
 	startServer(config.Port)
 }

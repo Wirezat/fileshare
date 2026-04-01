@@ -99,6 +99,9 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	// Uses dekrementieren wenn nicht unendlich
 	if fd.Uses > 0 {
 		fd.Uses--
+		if fd.Uses == 0 {
+			fd.Expired = true
+		}
 		ctx.config.Files[ctx.subpath] = fd
 	}
 	if err := shared.SaveConfig(ctx.config); err != nil {
