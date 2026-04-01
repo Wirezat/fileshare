@@ -608,7 +608,7 @@ USAGE
   fileshare-cli edit -subpath=<subpath> [options]
 
 OPTIONS
-  -subpath,     -s  Share to edit  [required]
+  -subFpath,     -s  Share to edit  [required]
   -new-subpath, -n  Rename to a different subpath
   -file,        -f  Change the server file/folder path
   -uses,        -u  Change max uses (-1 = unlimited)
