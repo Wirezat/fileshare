@@ -146,7 +146,7 @@ func handlePost(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 // and dispatches to the appropriate handler based on the HTTP method.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 	requestJson, _ := requestToJSON(r)
-	GoLog.Info(requestJson)
+	GoLog.Info(string(requestJson))
 
 	ctx, ok := prepareRequest(w, r)
 	if !ok {
