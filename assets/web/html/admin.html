@@ -209,7 +209,9 @@
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
             <input type="checkbox" class="log-filter" value="ERROR" checked onchange="applyFilter()"> ERROR
           </label>
-          <button class="btn btn-ghost" style="height:26px;font-size:12px;" onclick="clearLog()">Clear</button>
+          <button class="btn btn-ghost" title="Clear only affects the current UI. Logs remain on the server.">
+            Clear
+          </button>
         </div>
       </div>
       <div class="log-box" id="log-box"></div>

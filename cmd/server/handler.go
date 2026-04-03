@@ -15,27 +15,34 @@ import (
 
 const maxUploadSize = 100 << 30 // 100 GB – intentionally high for private use
 
-// dirTemplate is parsed once on first use and reused for all directory listings.
 var (
 	dirTemplate     *template.Template
 	dirTemplateErr  error
 	dirTemplateOnce sync.Once
 )
 
-func loadTemplate() (*template.Template, error) {
-	dirTemplateOnce.Do(func() {
-		dirTemplate, dirTemplateErr = template.New("directory").
-			Funcs(template.FuncMap{
-				"getFileExtension": func(name string) string {
-					return strings.ToLower(filepath.Ext(name))
-				},
-			}).
-			ParseFiles(shareHtmlPath)
-		if dirTemplateErr != nil {
-			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)
-		}
-	})
-	return dirTemplate, dirTemplateErr
+// handleRequest is the main entry point. Logs the request, then delegates to
+// prepareRequest and the appropriate method handler.
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	if data, err := requestToJSON(r); err == nil {
+		GoLog.Info(string(data))
+	} else {
+		GoLog.Warnf("failed to serialize request: %v", err)
+	}
+
+	ctx, ok := prepareRequest(w, r)
+	if !ok {
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		handleGet(w, r, ctx)
+	case http.MethodPost:
+		handlePost(w, r, ctx)
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // prepareRequest validates the request and resolves all data needed to serve it.
@@ -94,30 +101,6 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}, true
 }
 
-// handleRequest is the main entry point. Logs the request, then delegates to
-// prepareRequest and the appropriate method handler.
-func handleRequest(w http.ResponseWriter, r *http.Request) {
-	if data, err := requestToJSON(r); err == nil {
-		GoLog.Info(string(data))
-	} else {
-		GoLog.Warnf("failed to serialize request: %v", err)
-	}
-
-	ctx, ok := prepareRequest(w, r)
-	if !ok {
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet, http.MethodHead:
-		handleGet(w, r, ctx)
-	case http.MethodPost:
-		handlePost(w, r, ctx)
-	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-	}
-}
-
 // handleGet serves a file or directory, enforcing expiration and use limits.
 func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	fd := ctx.fileData
@@ -132,17 +115,25 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		return
 	}
 
-	// Decrement uses; 0 means expired, negative means unlimited.
-	if fd.Uses > 0 {
+	// For directory shares: count once per browser session via cookie.
+	// For file shares: count every download.
+	isFileDownload := !ctx.fileInfo.IsDir()
+	isShareRoot := ctx.diskPath == ctx.fileData.Path
+	shouldCount := isShareRoot && (isFileDownload || !hasSessionCookie(r, ctx.subpath))
+
+	if shouldCount && fd.Uses > 0 {
 		fd.Uses--
 		if fd.Uses == 0 {
 			fd.Expired = true
 		}
 		ctx.config.Files[ctx.subpath] = fd
-	}
-	if err := shared.SaveConfig(ctx.config); err != nil {
-		GoLog.Errorf("failed to save config: %v", err)
-		return
+		if err := shared.SaveConfig(ctx.config); err != nil {
+			GoLog.Errorf("failed to save config: %v", err)
+			return
+		}
+		if !isFileDownload {
+			setSessionCookie(w, ctx.subpath)
+		}
 	}
 
 	if ctx.fileInfo.IsDir() {
@@ -241,4 +232,38 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 		})
 	}
 	return infos, nil
+}
+
+// loadTemplate parses the directory template once on first use and reuses it for all directory listings.
+func loadTemplate() (*template.Template, error) {
+	dirTemplateOnce.Do(func() {
+		dirTemplate, dirTemplateErr = template.New("directory").
+			Funcs(template.FuncMap{
+				"getFileExtension": func(name string) string {
+					return strings.ToLower(filepath.Ext(name))
+				},
+			}).
+			ParseFiles(shareHtmlPath)
+		if dirTemplateErr != nil {
+			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)
+		}
+	})
+	return dirTemplate, dirTemplateErr
+}
+
+// hasSessionCookie returns true if the browser already has a session cookie for this share.
+func hasSessionCookie(r *http.Request, subpath string) bool {
+	_, err := r.Cookie("session_" + subpath)
+	return err == nil
+}
+
+// setSessionCookie sets a session-scoped cookie for this share (no Expires = browser session only).
+func setSessionCookie(w http.ResponseWriter, subpath string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_" + subpath,
+		Value:    "1",
+		Path:     "/" + subpath,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
 }

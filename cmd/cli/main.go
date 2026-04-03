@@ -236,7 +236,7 @@ func cmdList(asJSON bool) {
 	fmt.Println(tableDivider)
 
 	if total == 0 {
-		fmt.Println(colorGray + "  No shares yet. Add one with:  fileshare-cli add -f <path>" + colorReset)
+		fmt.Println(colorGray + "  No shares yet. Add one with:  fileshare add -f <path>" + colorReset)
 		fmt.Println()
 		return
 	}
@@ -522,7 +522,7 @@ func cmdSetPassword(password string) {
 func helpAdd() {
 	fmt.Print(`
 USAGE
-  fileshare-cli add [options]
+  fileshare add [options]
 
 OPTIONS
   -subpath, -s    URL subpath (omit for random)
@@ -532,10 +532,10 @@ OPTIONS
   -allow-post, -p Allow uploads to this share
 
 EXAMPLES
-  fileshare-cli add -s music -f /home/user/music
-  fileshare-cli add -f /tmp/report.pdf -e 7d -u 10
-  fileshare-cli add -f /srv/uploads -allow-post
-  fileshare-cli add -f /tmp/secret.zip   # random subpath
+  fileshare add -s music -f /home/user/music
+  fileshare add -f /tmp/report.pdf -e 7d -u 10
+  fileshare add -f /srv/uploads -allow-post
+  fileshare add -f /tmp/secret.zip   # random subpath
 
 `)
 }
@@ -543,7 +543,7 @@ EXAMPLES
 func helpDelete() {
 	fmt.Print(`
 USAGE
-  fileshare-cli delete -subpath=<subpath> [-y]
+  fileshare delete -subpath=<subpath> [-y]
 
 OPTIONS
   -subpath, -s   Subpath of the share to delete  [required]
@@ -555,7 +555,7 @@ OPTIONS
 func helpEdit() {
 	fmt.Print(`
 USAGE
-  fileshare-cli edit -subpath=<subpath> [options]
+  fileshare edit -subpath=<subpath> [options]
 
 OPTIONS
   -subpath,     -s  Share to edit  [required]
@@ -566,9 +566,9 @@ OPTIONS
   -allow-post       Change upload permission (true/false)
 
 EXAMPLES
-  fileshare-cli edit -s music -n music2024
-  fileshare-cli edit -s docs  -e 30d -u 50
-  fileshare-cli edit -s temp  -allow-post=false
+  fileshare edit -s music -n music2024
+  fileshare edit -s docs  -e 30d -u 50
+  fileshare edit -s temp  -allow-post=false
 
 `)
 }
@@ -576,7 +576,7 @@ EXAMPLES
 func helpPrune() {
 	fmt.Print(`
 USAGE
-  fileshare-cli prune [-y]
+  fileshare prune [-y]
 
 Deletes all expired shares. Mirrors "Delete all expired shares" in Admin UI.
 
@@ -591,7 +591,7 @@ func printHelp() {
 Fileshare CLI — manage shares from the command line
 
 USAGE
-  fileshare-cli <command> [options]
+  fileshare <command> [options]
 
 COMMANDS
   list         Show all shares with status summary
@@ -606,14 +606,14 @@ GLOBAL FLAGS
   -data <path>   Path to data.json  (default: /opt/fileshare/data.json)
 
 EXAMPLES
-  fileshare-cli list
-  fileshare-cli list --json
-  fileshare-cli add -f /home/user/music -s music -e 7d
-  fileshare-cli add -f /tmp/file.zip
-  fileshare-cli delete -s music
-  fileshare-cli edit -s music -e 30d -u 100
-  fileshare-cli prune -y
-  fileshare-cli help add
+  fileshare list
+  fileshare list --json
+  fileshare add -f /home/user/music -s music -e 7d
+  fileshare add -f /tmp/file.zip
+  fileshare delete -s music
+  fileshare edit -s music -e 30d -u 100
+  fileshare prune -y
+  fileshare help add
 
 `)
 }
