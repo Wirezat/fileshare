@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// configOrErr loads the config and writes a 500 on failure. Returns (nil, false) on error.
 func configOrErr(w http.ResponseWriter) (*shared.Config, bool) {
 	config, err := shared.LoadConfig()
 	if err != nil {
@@ -22,7 +22,6 @@ func configOrErr(w http.ResponseWriter) (*shared.Config, bool) {
 	return config, true
 }
 
-// saveOrErr saves the config and writes a 500 on failure. Returns false on error.
 func saveOrErr(w http.ResponseWriter, config *shared.Config) bool {
 	if err := shared.SaveConfig(config); err != nil {
 		GoLog.Errorf("failed to save config: %v", err)
@@ -32,17 +31,39 @@ func saveOrErr(w http.ResponseWriter, config *shared.Config) bool {
 	return true
 }
 
-func handleAdminUI(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, adminHtmlPath)
+func decodeOrErr(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
-func handleAdminCSS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, adminCssPath)
+func subpathOrErr(w http.ResponseWriter, r *http.Request) (string, bool) {
+	sp := r.URL.Query().Get("subpath")
+	if sp == "" {
+		http.Error(w, "subpath query param required", http.StatusBadRequest)
+		return "", false
+	}
+	return sp, true
 }
 
-func handleAdminJS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, adminJsPath)
+func methodOnly(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
 }
+
+func jsonResponse(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+func handleAdminUI(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, r, adminHtmlPath) }
+func handleAdminCSS(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminCssPath) }
+func handleAdminJS(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, r, adminJsPath) }
 
 func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -52,16 +73,14 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(config.Files)
+		jsonResponse(w, config.Files)
 
 	case http.MethodPost:
 		var req struct {
 			Subpath string `json:"subpath"`
 			shared.FileData
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Bad Request", http.StatusBadRequest)
+		if !decodeOrErr(w, r, &req) {
 			return
 		}
 		if req.Subpath == "" || req.Path == "" {
@@ -84,21 +103,103 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		GoLog.Infof("share created: %s → %s", req.Subpath, req.Path)
 		w.WriteHeader(http.StatusCreated)
 
+	case http.MethodPatch:
+		subpath, ok := subpathOrErr(w, r)
+		if !ok {
+			return
+		}
+
+		var patch struct {
+			Path       *string `json:"path"`
+			Uses       *int    `json:"uses"`
+			Expiration *int64  `json:"expiration"`
+			AllowPost  *bool   `json:"allow_post"`
+			Expired    *bool   `json:"expired"`
+			Password   *string `json:"password"`
+		}
+
+		if !decodeOrErr(w, r, &patch) {
+			return
+		}
+
+		config, ok := configOrErr(w)
+		if !ok {
+			return
+		}
+
+		entry, exists := config.Files[subpath]
+		if !exists {
+			http.Error(w, "share not found", http.StatusNotFound)
+			return
+		}
+
+		var changes []string
+		track := func(k, v string) {
+			changes = append(changes, k+" -> "+v)
+		}
+
+		if patch.Path != nil {
+			if *patch.Path == "" {
+				http.Error(w, "path cannot be empty", http.StatusBadRequest)
+				return
+			}
+			track("path", *patch.Path)
+			entry.Path = *patch.Path
+		}
+
+		if patch.Uses != nil {
+			track("uses", strconv.Itoa(*patch.Uses))
+			entry.Uses = *patch.Uses
+		}
+
+		if patch.Expiration != nil {
+			track("expiration", strconv.FormatInt(*patch.Expiration, 10))
+			entry.Expiration = *patch.Expiration
+		}
+
+		if patch.AllowPost != nil {
+			track("allow_post", strconv.FormatBool(*patch.AllowPost))
+			entry.AllowPost = *patch.AllowPost
+		}
+
+		if patch.Expired != nil {
+			track("expired", strconv.FormatBool(*patch.Expired))
+			entry.Expired = *patch.Expired
+		}
+
+		if patch.Password != nil {
+			track("password", "***")
+			entry.Password = *patch.Password
+		}
+
+		if len(changes) == 0 {
+			http.Error(w, "no fields to update", http.StatusBadRequest)
+			return
+		}
+
+		config.Files[subpath] = entry
+
+		if !saveOrErr(w, config) {
+			return
+		}
+
+		GoLog.Infof("%s updated: %s", subpath, strings.Join(changes, ", "))
+
 	case http.MethodDelete:
-		subpath := r.URL.Query().Get("subpath")
-		if subpath == "" {
-			http.Error(w, "Bad Request", http.StatusBadRequest)
+		subpath, ok := subpathOrErr(w, r)
+		if !ok {
 			return
 		}
 		config, ok := configOrErr(w)
 		if !ok {
 			return
 		}
+		entry := config.Files[subpath]
 		delete(config.Files, subpath)
 		if !saveOrErr(w, config) {
 			return
 		}
-		GoLog.Infof("share deleted: %s", subpath)
+		GoLog.Infof("share deleted: %s (was → %s)", subpath, entry.Path)
 
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -107,19 +208,14 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 
 func handleAdminLogs(w http.ResponseWriter, r *http.Request) {
 	n := 100
-	if raw := r.URL.Query().Get("n"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			n = parsed
-		}
+	if parsed, err := strconv.Atoi(r.URL.Query().Get("n")); err == nil && parsed > 0 {
+		n = parsed
 	}
-
 	entries := shared.Logger.Recent(n)
 	if entries == nil {
-		entries = []shared.LogEntry{} // return [] instead of null
+		entries = []shared.LogEntry{}
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(entries)
+	jsonResponse(w, entries)
 }
 
 func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
@@ -132,15 +228,14 @@ func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // disable Nginx buffering
+	w.Header().Set("X-Accel-Buffering", "no")
 
 	ch := shared.Logger.Subscribe()
 	defer shared.Logger.Unsubscribe(ch)
 
-	ctx := r.Context()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-r.Context().Done():
 			return
 		case entry, ok := <-ch:
 			if !ok {
@@ -158,24 +253,20 @@ func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	if !methodOnly(w, r, http.MethodPost) {
 		return
 	}
-
 	var req struct {
 		CurrentPassword string `json:"current_password"`
 		NewPassword     string `json:"new_password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+	if !decodeOrErr(w, r, &req) {
 		return
 	}
 	if req.NewPassword == "" {
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
 		return
 	}
-
 	config, ok := configOrErr(w)
 	if !ok {
 		return
@@ -185,7 +276,6 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
 		return
 	}
-
 	hashed, err := shared.HashPassword(req.NewPassword)
 	if err != nil {
 		GoLog.Errorf("failed to hash new password: %v", err)
@@ -200,24 +290,20 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	if !methodOnly(w, r, http.MethodPost) {
 		return
 	}
-
 	config, ok := configOrErr(w)
 	if !ok {
 		return
 	}
-
 	pruned := 0
-	for subpath, fileData := range config.Files {
-		if fileData.Expired {
+	for subpath, fd := range config.Files {
+		if fd.Expired {
 			delete(config.Files, subpath)
 			pruned++
 		}
 	}
-
 	if !saveOrErr(w, config) {
 		return
 	}

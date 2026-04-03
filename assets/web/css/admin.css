@@ -523,6 +523,15 @@ tbody tr:hover td {
     opacity: 0.4;
 }
 
+.editable-cell {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.editable-cell:hover {
+    background: var(--bg-hover, rgba(79, 142, 247, 0.08));
+    border-radius: 4px;
+}
+
 .log-box {
     background: var(--bg-page);
     border: 1px solid var(--border);

@@ -27,7 +27,7 @@ function switchTab(name) {
 function fmtExp(ts) {
     if (!ts || ts === 0) return '<span style="color:var(--text-faint);font-size:12px;">never</span>';
     const d = new Date(ts * 1000);
-    if (d < new Date()) return '<span class="pill pill-expired">expired</span>';
+    if (d < new Date()) return '<span class="pill pill-expired">inactive</span>';
     const diff = d - Date.now();
     const days = Math.floor(diff / 86400000);
     const hours = Math.floor((diff % 86400000) / 3600000);
@@ -44,6 +44,79 @@ function showStatus(id, msg, type) {
     el.textContent = msg;
     el.className = 'status-msg ' + type;
     setTimeout(() => { el.className = 'status-msg'; }, 3500);
+}
+
+// ── Inline editing ────────────────────────────────────
+
+/**
+ * Send a PATCH to update one or more fields of a share.
+ * Expects the server to accept: PATCH /admin/api/shares?subpath=sub
+ * with a JSON body of the changed fields merged with the full share object.
+ */
+async function updateShare(sub, patch) {
+    try {
+        const res = await fetch(API + '?subpath=' + encodeURIComponent(sub), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch)
+        });
+        if (!res.ok) throw new Error(await res.text() || res.statusText);
+        showStatus('status-shares', '/' + sub + ' updated', 'ok');
+        loadShares();
+    } catch (err) {
+        showStatus('status-shares', err.message, 'err');
+        loadShares(); // re-render to revert optimistic UI
+    }
+}
+
+/**
+ * Replace a display cell with an <input>, save on blur or Enter,
+ * cancel on Escape and restore the original display value.
+ */
+function makeEditable(td, currentValue, type, onSave) {
+    // Don't open two editors at once
+    if (td.querySelector('input')) return;
+
+    const displayHTML = td.innerHTML;
+
+    const input = document.createElement('input');
+    input.type = type;
+    input.value = currentValue;
+    input.style.cssText = `
+        width: 100%;
+        box-sizing: border-box;
+        background: var(--bg-input, var(--bg-card));
+        border: 1px solid var(--accent, #4f8ef7);
+        border-radius: 4px;
+        color: var(--text);
+        font-size: 13px;
+        padding: 2px 6px;
+        outline: none;
+    `;
+
+    td.innerHTML = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    function save() {
+        const val = type === 'number' ? parseInt(input.value, 10) : input.value;
+        if (!isNaN(val) || type !== 'number') {
+            onSave(val);
+        } else {
+            td.innerHTML = displayHTML; // restore on bad input
+        }
+    }
+
+    function cancel() {
+        td.innerHTML = displayHTML;
+    }
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', save);
 }
 
 // ── Shares ────────────────────────────────────────────
@@ -73,19 +146,94 @@ async function loadShares() {
             tbody.innerHTML = `<tr><td colspan="7" class="table-info"><span class="table-info-icon">📭</span>No shares yet. Add one above.</td></tr>`;
             return;
         }
-        tbody.innerHTML = keys.sort().map(sub => {
+
+        tbody.innerHTML = '';
+
+        keys.sort().forEach(sub => {
             const s = shares[sub];
             const isExp = s.expired;
-            return `<tr>
-        <td><a class="subpath" href="/${sub}" target="_blank">/${sub}</a></td>
-        <td><span class="path-text" title="${s.path}">${s.path}</span></td>
-        <td class="hide-sm">${fmtUses(s.uses)}</td>
-        <td class="hide-sm">${fmtExp(s.expiration)}</td>
-        <td>${s.allow_post ? '<span class="pill pill-yes">on</span>' : '<span class="pill pill-no">off</span>'}</td>
-        <td>${isExp ? '<span class="pill pill-expired">expired</span>' : '<span class="pill pill-active">active</span>'}</td>
-        <td><button class="btn btn-danger-ghost" onclick="deleteShare('${sub}')">Delete</button></td>
-        </tr>`;
-        }).join('');
+            const tr = document.createElement('tr');
+
+            // ── Subpath (read-only link)
+            const tdSub = document.createElement('td');
+            tdSub.innerHTML = `<a class="subpath" href="/${sub}" target="_blank">/${sub}</a>`;
+
+            // ── Path (click to edit) ──────────────────
+            const tdPath = document.createElement('td');
+            tdPath.className = 'editable-cell';
+            tdPath.title = 'Click to edit';
+            tdPath.innerHTML = `<span class="path-text" title="${s.path}">${s.path}</span>`;
+            tdPath.addEventListener('click', () => {
+                makeEditable(tdPath, s.path, 'text', val => {
+                    if (val.trim()) updateShare(sub, { path: val.trim() });
+                    else tdPath.innerHTML = `<span class="path-text" title="${s.path}">${s.path}</span>`;
+                });
+            });
+
+            // ── Uses (click to edit) ──────────────────
+            const tdUses = document.createElement('td');
+            tdUses.className = 'hide-sm editable-cell';
+            tdUses.title = 'Click to edit';
+            tdUses.innerHTML = fmtUses(s.uses);
+            tdUses.addEventListener('click', () => {
+                makeEditable(tdUses, s.uses, 'number', val => {
+                    updateShare(sub, { uses: val });
+                });
+            });
+
+            // ── Expiration (click to edit) ────────────
+            const tdExp = document.createElement('td');
+            tdExp.className = 'hide-sm editable-cell';
+            tdExp.title = 'Click to edit (unix timestamp, 0 = never)';
+            tdExp.innerHTML = fmtExp(s.expiration);
+            tdExp.addEventListener('click', () => {
+                makeEditable(tdExp, s.expiration, 'number', val => {
+                    updateShare(sub, { expiration: val });
+                });
+            });
+
+            // ── Upload toggle ─────────────────────────
+            const tdUpload = document.createElement('td');
+            tdUpload.className = 'editable-cell';
+            tdUpload.title = 'Click to toggle';
+            tdUpload.innerHTML = s.allow_post
+                ? '<span class="pill pill-yes">on</span>'
+                : '<span class="pill pill-no">off</span>';
+            tdUpload.style.cursor = 'pointer';
+            tdUpload.addEventListener('click', () => {
+                // Optimistic UI flip
+                const next = !s.allow_post;
+                tdUpload.innerHTML = next
+                    ? '<span class="pill pill-yes">on</span>'
+                    : '<span class="pill pill-no">off</span>';
+                updateShare(sub, { allow_post: next });
+            });
+
+            // ── Status toggle (active ↔ expired) ────
+            //TODO: new tag: "inactive"
+            const tdStatus = document.createElement('td');
+            tdStatus.className = 'editable-cell';
+            tdStatus.title = 'Click to toggle';
+            tdStatus.style.cursor = 'pointer';
+            tdStatus.innerHTML = isExp
+                ? '<span class="pill pill-expired">expired</span>'
+                : '<span class="pill pill-active">active</span>';
+            tdStatus.addEventListener('click', () => {
+                const next = !isExp;
+                tdStatus.innerHTML = next
+                    ? '<span class="pill pill-expired">expired</span>'
+                    : '<span class="pill pill-active">active</span>';
+                updateShare(sub, { expired: next });
+            });
+
+            // ── Delete
+            const tdDel = document.createElement('td');
+            tdDel.innerHTML = `<button class="btn btn-danger-ghost" onclick="deleteShare('${sub}')">Delete</button>`;
+
+            tr.append(tdSub, tdPath, tdUses, tdExp, tdUpload, tdStatus, tdDel);
+            tbody.appendChild(tr);
+        });
+
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="7" class="table-info" style="color:var(--danger);"><span class="table-info-icon">⚠</span>Failed to load: ${err.message}</td></tr>`;
     }
