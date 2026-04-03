@@ -183,18 +183,32 @@ function appendLogLine(entry) {
     const div = document.createElement('div');
     div.className = LOG_CLASSES[entry.level] ?? '';
     div.dataset.level = entry.level;
-    div.textContent = `[${entry.level}] ${entry.time} — ${entry.message}`;
+
+    const time = entry.time.substring(11, 19);
+
+    let parsed = null;
+    try { parsed = JSON.parse(entry.message); } catch (_) { }
+
+    if (parsed?.method && parsed?.url) {
+        div.className = 'log-line-request';
+        div.style.cursor = 'pointer';
+
+        const detail = document.createElement('pre');
+        detail.textContent = JSON.stringify(parsed, null, 2);
+        detail.className = 'log-detail';
+
+        div.textContent = `[${entry.level}] ${time} — ${parsed.client_ip ?? ''}: ${parsed.method} ${parsed.url}`;
+        div.appendChild(detail);
+        div.onclick = () => {
+            const open = detail.style.display === 'block';
+            detail.style.display = open ? 'none' : 'block';
+        };
+    } else {
+        div.textContent = `[${entry.level}] ${time} — ${entry.message}`;
+    }
+
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-}
-
-function applyFilter() {
-    const active = new Set(
-        [...document.querySelectorAll('.log-filter:checked')].map(el => el.value)
-    );
-    document.querySelectorAll('#log-box > div[data-level]').forEach(el => {
-        el.hidden = !active.has(el.dataset.level);
-    });
 }
 
 async function loadLogs() {
@@ -216,7 +230,17 @@ async function loadLogs() {
         applyFilter();
     };
     logEventSource.onerror = () => {
+        console.warn('SSE connection lost, retrying...');
     };
+}
+
+function applyFilter() {
+    const active = new Set(
+        [...document.querySelectorAll('.log-filter:checked')].map(el => el.value)
+    );
+    document.querySelectorAll('#log-box > div').forEach(div => {
+        div.style.display = active.has(div.dataset.level) ? '' : 'none';
+    });
 }
 
 loadShares();

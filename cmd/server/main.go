@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Wirezat/GoLog"
@@ -28,24 +29,24 @@ func startServer(port int) {
 }
 
 func main() {
-	err := GoLog.ToFile()
-	if err != nil {
-		GoLog.Errorf("error initializing logger: %v", err)
-		return
+	if err := GoLog.ToFile(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
 
-	logPath := GoLog.LogPath()
-	if logPath != "" {
-		GoLog.Infof("Loading existing logs from %s", logPath)
-		if err := shared.Logger.LoadFromFile(logPath); err != nil {
-			GoLog.Errorf("error loading logs: %v", err)
+	if path := GoLog.LogPath(); path != "" {
+		if err := shared.Logger.Load(path); err != nil {
+			GoLog.Errorf("failed to load logs: %v", err)
+		}
+		if err := shared.Logger.Tail(path); err != nil {
+			GoLog.Errorf("failed to tail logs: %v", err)
 		}
 	}
 
 	config, err := shared.LoadConfig()
 	if err != nil {
-		GoLog.Errorf("error loading config: %v", err)
-		return
+		GoLog.Errorf("failed to load config: %v", err)
+		os.Exit(1)
 	}
 
 	startExpirationWatcher(5 * time.Minute)

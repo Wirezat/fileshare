@@ -536,6 +536,11 @@ tbody tr:hover td {
     color: var(--text-muted);
 }
 
+.log-box pre {
+    color: inherit;
+    font-family: inherit;
+}
+
 .log-line-info {
     color: var(--success);
 }
@@ -545,7 +550,14 @@ tbody tr:hover td {
 }
 
 .log-line-warn {
-    color: (--warn);
+    color: var(--warn);
+}
+
+.log-line-request {
+    color: #4a9eda;
+}
+html.dark .log-line-request {
+    color: #7ec8f7;
 }
 
 .settings-group {
@@ -586,6 +598,16 @@ tbody tr:hover td {
     border: 1px solid #f0d080;
     vertical-align: middle;
     margin-left: 6px;
+}
+
+.log-detail {
+    display: none;
+    margin: 4px 0 0 0;
+    font-size: 11px;
+    opacity: 0.75;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: inherit;
 }
 
 @media (max-width: 680px) {
