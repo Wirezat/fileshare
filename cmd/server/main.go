@@ -14,6 +14,8 @@ func startServer(port int) {
 	http.HandleFunc("/admin/static/admin.css", basicAuth(handleAdminCSS))
 	http.HandleFunc("/admin/static/admin.js", basicAuth(handleAdminJS))
 	http.HandleFunc("/admin/api/shares", basicAuth(handleAdminShares))
+	http.HandleFunc("/admin/api/logs", basicAuth(handleAdminLogs))
+	http.HandleFunc("/admin/api/logs/stream", basicAuth(handleAdminLogsStream))
 	http.HandleFunc("/admin/api/settings/password", basicAuth(handleAdminSettingsPassword))
 	http.HandleFunc("/admin/api/settings/prune_expired", basicAuth(handleAdminFunctionPruneExpired))
 	http.HandleFunc("/", handleRequest)
@@ -30,6 +32,14 @@ func main() {
 	if err != nil {
 		GoLog.Errorf("error initializing logger: %v", err)
 		return
+	}
+
+	logPath := GoLog.LogPath()
+	if logPath != "" {
+		GoLog.Infof("Loading existing logs from %s", logPath)
+		if err := shared.Logger.LoadFromFile(logPath); err != nil {
+			GoLog.Errorf("error loading logs: %v", err)
+		}
 	}
 
 	config, err := shared.LoadConfig()

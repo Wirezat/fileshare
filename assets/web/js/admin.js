@@ -165,8 +165,59 @@ async function pruneExpired() {
     } catch (err) { showStatus('status-prune', err.message, 'err'); }
 }
 
+let logEventSource = null;
+
 function clearLog() {
-    document.getElementById('log-box').innerHTML = '<span style="color:var(--text-faint);">Log cleared.</span>';
+    document.getElementById('log-box').innerHTML = '';
+}
+
+const LOG_CLASSES = {
+    INFO: 'log-line-info',
+    WARN: 'log-line-warn',
+    ERROR: 'log-line-error',
+    REQUEST: 'log-line-request',
+};
+
+function appendLogLine(entry) {
+    const box = document.getElementById('log-box');
+    const div = document.createElement('div');
+    div.className = LOG_CLASSES[entry.level] ?? '';
+    div.dataset.level = entry.level;
+    div.textContent = `[${entry.level}] ${entry.time} — ${entry.message}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+function applyFilter() {
+    const active = new Set(
+        [...document.querySelectorAll('.log-filter:checked')].map(el => el.value)
+    );
+    document.querySelectorAll('#log-box > div[data-level]').forEach(el => {
+        el.hidden = !active.has(el.dataset.level);
+    });
+}
+
+async function loadLogs() {
+    try {
+        const res = await fetch('/admin/api/logs?n=200');
+        if (!res.ok) throw new Error(res.statusText);
+        const entries = await res.json();
+        entries.forEach(appendLogLine);
+    } catch (err) {
+        const box = document.getElementById('log-box');
+        box.innerHTML = `<span style="color:var(--danger);">Failed to load logs: ${err.message}</span>`;
+    }
+
+    if (logEventSource) logEventSource.close();
+    logEventSource = new EventSource('/admin/api/logs/stream');
+    logEventSource.onmessage = e => {
+        const entry = JSON.parse(e.data);
+        appendLogLine(entry);
+        applyFilter();
+    };
+    logEventSource.onerror = () => {
+    };
 }
 
 loadShares();
+loadLogs();

@@ -14,6 +14,8 @@
     --danger-muted: #fdf0ee;
     --success: #2e7d32;
     --success-muted: #f0f7f0;
+    --warn: #ffc107;
+    --warn-muted: #fdf8e1;
     --radius: 8px;
     --radius-lg: 12px;
 }
@@ -542,8 +544,8 @@ tbody tr:hover td {
     color: var(--danger);
 }
 
-.log-line-request {
-    color: #378add;
+.log-line-warn {
+    color: (--warn);
 }
 
 .settings-group {

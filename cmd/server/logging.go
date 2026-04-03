@@ -141,7 +141,7 @@ func requestToJSON(r *http.Request) ([]byte, error) {
 		}
 	}
 
-	return json.MarshalIndent(logData, "", "  ")
+	return json.Marshal(logData)
 }
 
 // readAndRestoreBody reads the request body (limited to maxBodyBytes),

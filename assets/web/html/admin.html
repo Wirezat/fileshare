@@ -35,7 +35,7 @@
   <nav class="tabs-bar">
     <button class="tab-btn active" onclick="switchTab('shares')">📋 Shares</button>
     <button class="tab-btn" onclick="switchTab('stats')">📊 Stats <span class="demo-badge">demo</span></button>
-    <button class="tab-btn" onclick="switchTab('logs')">🗒 Logs <span class="demo-badge">demo</span></button>
+    <button class="tab-btn" onclick="switchTab('logs')">🗒 Logs</button>
     <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
   </nav>
 
@@ -196,30 +196,23 @@
   <!-- ══ TAB: LOGS ══ -->
   <div id="tab-logs" class="tab-panel">
     <div class="page">
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <p class="section-title" style="margin:0;">Server log <span class="demo-badge">demo data</span></p>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-ghost" style="height:26px;font-size:12px;" onclick="clearLog()">Clear</button>
-            <button class="btn btn-ghost" style="height:26px;font-size:12px;">↻ Refresh</button>
-          </div>
-        </div>
-        <div class="log-box" id="log-box">
-          <div class="log-line-info">[INFO] 2025-03-21 10:42:01 — Server running at http://localhost:27182</div>
-          <div class="log-line-request">[REQUEST] 2025-03-21 10:43:15 — GET /music — 192.168.1.42</div>
-          <div class="log-line-request">[REQUEST] 2025-03-21 10:43:18 — GET /music/song.mp3 — 192.168.1.42</div>
-          <div class="log-line-request">[REQUEST] 2025-03-21 10:51:04 — POST /temp — 192.168.1.10</div>
-          <div class="log-line-error">[ERROR] 2025-03-21 11:02:33 — error accessing file: /opt/files/old.zip: no such
-            file or directory</div>
-          <div class="log-line-request">[REQUEST] 2025-03-21 11:15:00 — GET /docs — 10.0.0.5</div>
-          <div class="log-line-info">[INFO] 2025-03-21 11:15:01 — Share /docs served successfully</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <p class="section-title" style="margin:0;">Server log</p>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <!-- Filter checkboxes -->
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" class="log-filter" value="INFO" checked onchange="applyFilter()"> INFO
+          </label>
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" class="log-filter" value="WARN" checked onchange="applyFilter()"> WARN
+          </label>
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" class="log-filter" value="ERROR" checked onchange="applyFilter()"> ERROR
+          </label>
+          <button class="btn btn-ghost" style="height:26px;font-size:12px;" onclick="clearLog()">Clear</button>
         </div>
       </div>
-      <div class="card card-body" style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px;">
-        <span style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;">🚧</span>
-        Live log streaming not yet implemented.<br>Planned: <code style="font-size:12px;">/admin/api/logs</code>
-        endpoint with Server-Sent Events.
-      </div>
+      <div class="log-box" id="log-box"></div>
     </div>
   </div>
 
