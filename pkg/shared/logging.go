@@ -26,12 +26,14 @@ type LogStore struct {
 	subs    []chan LogEntry
 }
 
-var Logger = &LogStore{}
+var Logger = &LogStore{
+	entries: make([]LogEntry, 0, maxLogEntries),
+}
 
 // ParseLine parses a log line of the form: [LEVEL] [timestamp] message
 func ParseLine(line string) (LogEntry, bool) {
 	line = strings.TrimSpace(line)
-	if len(line) == 0 || line[0] != '[' {
+	if len(line) < 2 || line[0] != '[' {
 		return LogEntry{}, false
 	}
 	i := strings.IndexByte(line, ']')
@@ -39,8 +41,7 @@ func ParseLine(line string) (LogEntry, bool) {
 		return LogEntry{}, false
 	}
 	level, rest := line[1:i], strings.TrimSpace(line[i+1:])
-
-	if len(rest) == 0 || rest[0] != '[' {
+	if len(rest) < 2 || rest[0] != '[' {
 		return LogEntry{}, false
 	}
 	j := strings.IndexByte(rest, ']')
@@ -48,7 +49,7 @@ func ParseLine(line string) (LogEntry, bool) {
 		return LogEntry{}, false
 	}
 	msg := ""
-	if j+2 <= len(rest) {
+	if j+2 < len(rest) {
 		msg = rest[j+2:]
 	}
 	return LogEntry{Level: level, Time: rest[1:j], Message: msg}, true
@@ -58,7 +59,9 @@ func (l *LogStore) add(entry LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if len(l.entries) >= maxLogEntries {
-		l.entries = l.entries[1:]
+		// Shift left without reallocating
+		copy(l.entries, l.entries[1:])
+		l.entries = l.entries[:len(l.entries)-1]
 	}
 	l.entries = append(l.entries, entry)
 	for _, ch := range l.subs {
@@ -124,7 +127,7 @@ func (l *LogStore) Load(path string) error {
 }
 
 // Tail watches a log file for new lines and feeds them into the ring buffer.
-// It seeks to the end of the file first so already-loaded entries are not duplicated.
+// Seeks to EOF first to avoid duplicating already-loaded entries.
 func (l *LogStore) Tail(path string) error {
 	f, err := os.Open(path)
 	if err != nil {

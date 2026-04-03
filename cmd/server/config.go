@@ -16,16 +16,16 @@ const (
 )
 
 // requestContext holds all resolved data for an incoming request,
-// computed once by prepareRequest and passed to the individual handlers.
+// populated once by prepareRequest and passed down to method handlers.
 type requestContext struct {
-	config   shared.JsonData
+	config   *shared.Config
 	fileData shared.FileData
 	subpath  string
 	diskPath string
 	fileInfo os.FileInfo
 }
 
-// PageData contains all data needed to render the directory view template
+// PageData contains all fields required to render the directory listing template.
 type PageData struct {
 	Subpath      string
 	UploadTime   int64

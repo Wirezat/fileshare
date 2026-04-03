@@ -6,27 +6,48 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// #region request preparation
+const maxUploadSize = 100 << 30 // 100 GB – intentionally high for private use
 
-// prepareRequest validates and resolves all data needed to serve a request.
-// It writes the appropriate HTTP error to w and returns false if anything is invalid.
-// On success it returns a populated requestContext and true.
+// dirTemplate is parsed once on first use and reused for all directory listings.
+var (
+	dirTemplate     *template.Template
+	dirTemplateErr  error
+	dirTemplateOnce sync.Once
+)
+
+func loadTemplate() (*template.Template, error) {
+	dirTemplateOnce.Do(func() {
+		dirTemplate, dirTemplateErr = template.New("directory").
+			Funcs(template.FuncMap{
+				"getFileExtension": func(name string) string {
+					return strings.ToLower(filepath.Ext(name))
+				},
+			}).
+			ParseFiles(shareHtmlPath)
+		if dirTemplateErr != nil {
+			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)
+		}
+	})
+	return dirTemplate, dirTemplateErr
+}
+
+// prepareRequest validates the request and resolves all data needed to serve it.
+// Writes an appropriate HTTP error and returns false if anything is invalid.
 func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bool) {
-	// Methode prüfen
 	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, POST, HEAD")
-		GoLog.Errorf("unsupported method: %s", r.Method)
+		GoLog.Warnf("unsupported method: %s", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return nil, false
 	}
 
-	// Config laden
 	config, err := shared.LoadConfig()
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
@@ -34,36 +55,32 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		return nil, false
 	}
 
-	// URL aufteilen
-	subpath := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")[0]
+	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
 	relativePath := strings.TrimPrefix(r.URL.Path, "/"+subpath)
 
-	// Share aus Config holen
 	fileData, exists := config.Files[subpath]
 	if !exists {
 		http.NotFound(w, r)
 		return nil, false
 	}
 
-	// Disk-Pfad berechnen
 	diskPath := filepath.Join(fileData.Path, relativePath)
 
-	// Security-Check: Path Traversal verhindern
-	if !strings.HasPrefix(diskPath, fileData.Path+"/") && diskPath != fileData.Path {
+	// Reject path traversal attempts.
+	if diskPath != fileData.Path && !strings.HasPrefix(diskPath, fileData.Path+"/") {
+		GoLog.Warnf("path traversal attempt: %s", diskPath)
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return nil, false
 	}
 
-	// Expired prüfen
 	if fileData.Expired {
 		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
 		return nil, false
 	}
 
-	// Datei/Ordner prüfen
 	fileInfo, err := os.Stat(diskPath)
 	if err != nil {
-		GoLog.Errorf("error accessing file: %v", err)
+		GoLog.Errorf("failed to stat %s: %v", diskPath, err)
 		http.NotFound(w, r)
 		return nil, false
 	}
@@ -77,76 +94,14 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}, true
 }
 
-// #endregion
-
-// #region handlers
-
-// handleGet serves a file or directory for GET and HEAD requests.
-func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
-	fd := ctx.fileData
-
-	// Expired oder Uses aufgebraucht
-	if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
-		fd.Expired = true
-		ctx.config.Files[ctx.subpath] = fd
-		if err := shared.SaveConfig(ctx.config); err != nil {
-			GoLog.Errorf("failed to save config: %v", err)
-		}
-		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
-		return
-	}
-
-	// Uses dekrementieren wenn nicht unendlich
-	if fd.Uses > 0 {
-		fd.Uses--
-		if fd.Uses == 0 {
-			fd.Expired = true
-		}
-		ctx.config.Files[ctx.subpath] = fd
-	}
-	if err := shared.SaveConfig(ctx.config); err != nil {
-		GoLog.Errorf("failed to save config: %v", err)
-		return
-	}
-
-	if ctx.fileInfo.IsDir() {
-		serveDirectory(w, ctx.diskPath, ctx.subpath, fd.Path, fd.UploadTime, fd.Expiration, fd.Uses, fd.AllowPost, r)
-	} else {
-		http.ServeFile(w, r, ctx.diskPath)
-	}
-}
-
-// handlePost processes file uploads for POST requests.
-func handlePost(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
-	if !ctx.fileData.AllowPost {
-		http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 100 GB limit - intentionally high for private use
-	err := r.ParseMultipartForm(100 << 30)
-	if err != nil {
-		GoLog.Errorf("could not parse multipart form: %v", err)
-		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return
-	}
-
-	for _, fileHeader := range r.MultipartForm.File["files"] {
-		if err := saveUploadedFile(fileHeader, ctx.diskPath); err != nil {
-			GoLog.Errorf("error saving uploaded file: %v", err)
-			http.Error(w, "Upload failed", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	w.Write([]byte("Files uploaded successfully"))
-}
-
-// handleRequest is the main HTTP handler. It validates the request via prepareRequest
-// and dispatches to the appropriate handler based on the HTTP method.
+// handleRequest is the main entry point. Logs the request, then delegates to
+// prepareRequest and the appropriate method handler.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	requestJson, _ := requestToJSON(r)
-	GoLog.Info(string(requestJson))
+	if data, err := requestToJSON(r); err == nil {
+		GoLog.Info(string(data))
+	} else {
+		GoLog.Warnf("failed to serialize request: %v", err)
+	}
 
 	ctx, ok := prepareRequest(w, r)
 	if !ok {
@@ -163,9 +118,64 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// #endregion
+// handleGet serves a file or directory, enforcing expiration and use limits.
+func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	fd := ctx.fileData
 
-// #region directory serving
+	if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
+		fd.Expired = true
+		ctx.config.Files[ctx.subpath] = fd
+		if err := shared.SaveConfig(ctx.config); err != nil {
+			GoLog.Errorf("failed to save config after expiry: %v", err)
+		}
+		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		return
+	}
+
+	// Decrement uses; 0 means expired, negative means unlimited.
+	if fd.Uses > 0 {
+		fd.Uses--
+		if fd.Uses == 0 {
+			fd.Expired = true
+		}
+		ctx.config.Files[ctx.subpath] = fd
+	}
+	if err := shared.SaveConfig(ctx.config); err != nil {
+		GoLog.Errorf("failed to save config: %v", err)
+		return
+	}
+
+	if ctx.fileInfo.IsDir() {
+		serveDirectory(w, r, ctx)
+	} else {
+		http.ServeFile(w, r, ctx.diskPath)
+	}
+}
+
+// handlePost processes file uploads.
+func handlePost(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	if !ctx.fileData.AllowPost {
+		http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		GoLog.Errorf("failed to parse multipart form: %v", err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	for _, fh := range r.MultipartForm.File["files"] {
+		if err := saveUploadedFile(fh, ctx.diskPath); err != nil {
+			GoLog.Errorf("failed to save uploaded file %q: %v", fh.Filename, err)
+			http.Error(w, "Upload failed", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Write([]byte("Files uploaded successfully"))
+}
+
 func handleShareCSS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, shareCssPath)
 }
@@ -174,63 +184,61 @@ func handleShareJS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, shareJsPath)
 }
 
-// serveDirectory renders the directory listing HTML or streams a ZIP archive.
-func serveDirectory(w http.ResponseWriter, dirPath, subpath, basePath string, uploadTime int64, expiration int64, uses int, allowPost bool, r *http.Request) {
+// serveDirectory renders the directory listing, or streams a ZIP if ?download=zip.
+func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if r.URL.Query().Get("download") == "zip" {
-		zipAndServe(w, dirPath)
+		zipAndServe(w, ctx.diskPath)
 		return
 	}
 
-	t, err := template.New("directory").Funcs(template.FuncMap{
-		"getFileExtension": func(filename string) string {
-			return strings.ToLower(filepath.Ext(filename))
-		},
-	}).ParseFiles(shareHtmlPath)
+	tmpl, err := loadTemplate()
 	if err != nil {
-		GoLog.Errorf("error parsing template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	if err := t.Execute(w, PageData{
-		Subpath:    subpath,
-		UploadTime: uploadTime,
-		DirPath:    filepath.Join("/", strings.TrimPrefix(dirPath, basePath)),
-		Files:      func() []shared.FileInfo { infos, _ := getFileInfos(dirPath, basePath); return infos }(),
-		ParentDir: func() string {
-			if dirPath == basePath {
-				return "/"
-			}
-			return filepath.Join("/", strings.TrimPrefix(filepath.Dir(dirPath), basePath))
-		}(),
-		HasParentDir: dirPath != basePath,
-		Uses:         uses,
-		Expiration:   expiration,
-		AllowPost:    allowPost,
+	fd := ctx.fileData
+	relPath := filepath.Join("/", strings.TrimPrefix(ctx.diskPath, fd.Path))
+
+	parentDir := "/"
+	if ctx.diskPath != fd.Path {
+		parentDir = filepath.Join("/", strings.TrimPrefix(filepath.Dir(ctx.diskPath), fd.Path))
+	}
+
+	files, _ := getFileInfos(ctx.diskPath, fd.Path)
+
+	if err := tmpl.Execute(w, PageData{
+		Subpath:      ctx.subpath,
+		UploadTime:   fd.UploadTime,
+		DirPath:      relPath,
+		Files:        files,
+		ParentDir:    parentDir,
+		HasParentDir: ctx.diskPath != fd.Path,
+		Uses:         fd.Uses,
+		Expiration:   fd.Expiration,
+		AllowPost:    fd.AllowPost,
 	}); err != nil {
-		GoLog.Errorf("error rendering template: %v", err)
+		GoLog.Errorf("failed to render directory template: %v", err)
 	}
 }
 
-// getFileInfos reads a directory and returns a list of FileInfo structs.
-// Hidden files (starting with ".") are skipped.
+// getFileInfos returns FileInfo entries for a directory, skipping hidden files.
 func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
-	files, err := os.ReadDir(dirPath)
+	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var fileInfos []shared.FileInfo
-	for _, file := range files {
-		if strings.HasPrefix(file.Name(), ".") {
+	infos := make([]shared.FileInfo, 0, len(entries))
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		fileInfos = append(fileInfos, shared.FileInfo{
-			Name:  file.Name(),
-			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), file.Name()),
-			IsDir: file.IsDir(),
+		infos = append(infos, shared.FileInfo{
+			Name:  entry.Name(),
+			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), entry.Name()),
+			IsDir: entry.IsDir(),
 		})
 	}
-	return fileInfos, nil
+	return infos, nil
 }
-
-// #endregion

@@ -2,11 +2,35 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
+
+// configOrErr loads the config and writes a 500 on failure. Returns (nil, false) on error.
+func configOrErr(w http.ResponseWriter) (*shared.Config, bool) {
+	config, err := shared.LoadConfig()
+	if err != nil {
+		GoLog.Errorf("failed to load config: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return nil, false
+	}
+	return config, true
+}
+
+// saveOrErr saves the config and writes a 500 on failure. Returns false on error.
+func saveOrErr(w http.ResponseWriter, config *shared.Config) bool {
+	if err := shared.SaveConfig(config); err != nil {
+		GoLog.Errorf("failed to save config: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return false
+	}
+	return true
+}
 
 func handleAdminUI(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, adminHtmlPath)
@@ -22,14 +46,15 @@ func handleAdminJS(w http.ResponseWriter, r *http.Request) {
 
 func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
+
 	case http.MethodGet:
-		config, err := shared.LoadConfig()
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		config, ok := configOrErr(w)
+		if !ok {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(config.Files)
+
 	case http.MethodPost:
 		var req struct {
 			Subpath string `json:"subpath"`
@@ -43,9 +68,8 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "subpath and path are required", http.StatusBadRequest)
 			return
 		}
-		config, err := shared.LoadConfig()
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		config, ok := configOrErr(w)
+		if !ok {
 			return
 		}
 		if _, exists := config.Files[req.Subpath]; exists {
@@ -54,71 +78,125 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		}
 		req.FileData.UploadTime = time.Now().Unix()
 		config.Files[req.Subpath] = req.FileData
-		if err := shared.SaveConfig(config); err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		if !saveOrErr(w, config) {
 			return
 		}
+		GoLog.Infof("share created: %s → %s", req.Subpath, req.Path)
 		w.WriteHeader(http.StatusCreated)
+
 	case http.MethodDelete:
 		subpath := r.URL.Query().Get("subpath")
 		if subpath == "" {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
-		config, err := shared.LoadConfig()
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		config, ok := configOrErr(w)
+		if !ok {
 			return
 		}
 		delete(config.Files, subpath)
-		if err := shared.SaveConfig(config); err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		if !saveOrErr(w, config) {
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		GoLog.Infof("share deleted: %s", subpath)
+
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		var req struct {
-			CurrentPassword string `json:"current_password"`
-			NewPassword     string `json:"new_password"`
+func handleAdminLogs(w http.ResponseWriter, r *http.Request) {
+	n := 100
+	if raw := r.URL.Query().Get("n"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			n = parsed
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Bad Request", http.StatusBadRequest)
-			return
-		}
-		config, err := shared.LoadConfig()
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
-			http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
-			return
-		}
-		if req.NewPassword == "" {
-			http.Error(w, "Password cannot be empty", http.StatusBadRequest)
-			return
-		}
-		hashed, err := shared.HashPassword(req.NewPassword)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		config.AdminPassword = hashed
-		if err := shared.SaveConfig(config); err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+
+	entries := shared.Logger.Recent(n)
+	if entries == nil {
+		entries = []shared.LogEntry{} // return [] instead of null
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entries)
+}
+
+func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // disable Nginx buffering
+
+	ch := shared.Logger.Subscribe()
+	defer shared.Logger.Unsubscribe(ch)
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case entry, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(entry)
+			if err != nil {
+				GoLog.Errorf("failed to marshal log entry for SSE: %v", err)
+				continue
+			}
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
+}
+
+func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	if req.NewPassword == "" {
+		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	config, ok := configOrErr(w)
+	if !ok {
+		return
+	}
+	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
+		GoLog.Warnf("admin password change rejected: wrong current password")
+		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+
+	hashed, err := shared.HashPassword(req.NewPassword)
+	if err != nil {
+		GoLog.Errorf("failed to hash new password: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	config.AdminPassword = hashed
+	if !saveOrErr(w, config) {
+		return
+	}
+	GoLog.Infof("admin password changed successfully")
 }
 
 func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
@@ -126,19 +204,22 @@ func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	config, err := shared.LoadConfig()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+
+	config, ok := configOrErr(w)
+	if !ok {
 		return
 	}
+
+	pruned := 0
 	for subpath, fileData := range config.Files {
 		if fileData.Expired {
 			delete(config.Files, subpath)
+			pruned++
 		}
 	}
-	if err := shared.SaveConfig(config); err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+
+	if !saveOrErr(w, config) {
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	GoLog.Infof("pruned %d expired share(s)", pruned)
 }

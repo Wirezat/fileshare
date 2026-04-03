@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -29,8 +30,10 @@ const (
 )
 
 // ── Config ────────────────────────────────────────────
-var dataPath = "/opt/fileshare/data.json"
-var randomSubpathLength = 12
+var (
+	dataPath            = "/opt/fileshare/data.json"
+	randomSubpathLength = 12
+)
 
 // ── Types ─────────────────────────────────────────────
 type JsonData struct {
@@ -39,17 +42,18 @@ type JsonData struct {
 	Files         map[string]shared.FileData `json:"files"`
 }
 
-// ── Helpers: I/O ──────────────────────────────────────
+// ── Data I/O ──────────────────────────────────────────
+
 func loadData() (*JsonData, error) {
 	f, err := os.Open(dataPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open %s: %v", dataPath, err)
+		return nil, fmt.Errorf("cannot open %s: %w", dataPath, err)
 	}
 	defer f.Close()
 
 	var d JsonData
 	if err := json.NewDecoder(f).Decode(&d); err != nil {
-		return nil, fmt.Errorf("cannot parse %s: %v", dataPath, err)
+		return nil, fmt.Errorf("cannot parse %s: %w", dataPath, err)
 	}
 	if d.Files == nil {
 		d.Files = make(map[string]shared.FileData)
@@ -60,7 +64,7 @@ func loadData() (*JsonData, error) {
 func saveData(d *JsonData) error {
 	f, err := os.Create(dataPath)
 	if err != nil {
-		return fmt.Errorf("cannot write %s: %v", dataPath, err)
+		return fmt.Errorf("cannot write %s: %w", dataPath, err)
 	}
 	defer f.Close()
 
@@ -69,24 +73,30 @@ func saveData(d *JsonData) error {
 	return enc.Encode(d)
 }
 
-// ── Helpers: formatting ───────────────────────────────
-
-// isExpired mirrors the UI's expiry logic exactly.
-func isExpired(s shared.FileData) bool {
-	if s.Expired {
-		return true
+// mustLoad loads data or exits with an error log.
+func mustLoad() *JsonData {
+	d, err := loadData()
+	if err != nil {
+		GoLog.Errorf("Failed to load data: %v", err)
+		os.Exit(1)
 	}
-	if s.Uses == 0 {
-		return true
-	}
-	if s.Expiration != 0 && s.Expiration < time.Now().Unix() {
-		return true
-	}
-	return false
+	return d
 }
 
-// fmtExpiration formats a unix timestamp the same way the UI does
-// (never / Xd Yh remaining / expired).
+// mustSave saves data or exits with an error log.
+func mustSave(d *JsonData) {
+	if err := saveData(d); err != nil {
+		GoLog.Errorf("Failed to save data: %v", err)
+		os.Exit(1)
+	}
+}
+
+// ── Formatting helpers ────────────────────────────────
+
+func isExpired(s shared.FileData) bool {
+	return s.Expired || s.Uses == 0 || (s.Expiration != 0 && s.Expiration < time.Now().Unix())
+}
+
 func fmtExpiration(ts int64) string {
 	if ts == 0 {
 		return colorGray + "never" + colorReset
@@ -96,21 +106,32 @@ func fmtExpiration(ts int64) string {
 		return colorRed + "expired" + colorReset
 	}
 	diff := time.Until(t)
-	days := int(diff.Hours()) / 24
-	hours := int(diff.Hours()) % 24
-	return fmt.Sprintf("%dd %dh", days, hours)
+	return fmt.Sprintf("%dd %dh", int(diff.Hours())/24, int(diff.Hours())%24)
 }
 
-// fmtUses mirrors the UI's ∞ / 0 / N display.
 func fmtUses(u int) string {
-	switch {
-	case u == -1:
+	switch u {
+	case -1:
 		return "∞"
-	case u == 0:
+	case 0:
 		return colorRed + "0" + colorReset
 	default:
 		return strconv.Itoa(u)
 	}
+}
+
+func fmtUpload(on bool) string {
+	if on {
+		return colorGreen + "on" + colorReset
+	}
+	return colorGray + "off" + colorReset
+}
+
+func truncatePath(p string, max int) string {
+	if len(p) > max {
+		return "…" + p[len(p)-(max-1):]
+	}
+	return p
 }
 
 func generateRandomSubpath(length int) string {
@@ -122,44 +143,41 @@ func generateRandomSubpath(length int) string {
 	return string(b)
 }
 
-// parseExpiration accepts: "" or "0" or "never" → 0 (no expiry),
-// a plain unix timestamp, or a duration string: 24h, 7d, 2w, 3m, 1y.
+// parseExpiration accepts "" / "0" / "never" → 0, a unix timestamp,
+// or a duration: 24h, 7d, 2w, 3m, 1y.
 func parseExpiration(s string) (int64, error) {
 	s = strings.TrimSpace(s)
 	if s == "" || s == "0" || s == "never" {
 		return 0, nil
 	}
-	// Plain unix timestamp
 	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return ts, nil
 	}
-	// Duration string
 	if len(s) < 2 {
 		return 0, fmt.Errorf("invalid expiration %q — use e.g. 24h, 7d, 2w, 3m, 1y or a unix timestamp", s)
 	}
-	unit := string(s[len(s)-1])
+	unit := s[len(s)-1]
 	num, err := strconv.Atoi(s[:len(s)-1])
 	if err != nil {
-		return 0, fmt.Errorf("invalid expiration %q: %v", s, err)
+		return 0, fmt.Errorf("invalid expiration %q: %w", s, err)
 	}
 	now := time.Now()
 	switch unit {
-	case "h":
+	case 'h':
 		return now.Add(time.Duration(num) * time.Hour).Unix(), nil
-	case "d":
+	case 'd':
 		return now.AddDate(0, 0, num).Unix(), nil
-	case "w":
+	case 'w':
 		return now.AddDate(0, 0, num*7).Unix(), nil
-	case "m":
+	case 'm':
 		return now.AddDate(0, num, 0).Unix(), nil
-	case "y":
+	case 'y':
 		return now.AddDate(num, 0, 0).Unix(), nil
 	default:
-		return 0, fmt.Errorf("unknown unit %q — use h, d, w, m or y", unit)
+		return 0, fmt.Errorf("unknown unit %q — use h, d, w, m or y", string(unit))
 	}
 }
 
-// confirmPrompt asks the user a yes/no question; returns true on y/yes.
 func confirmPrompt(msg string) bool {
 	fmt.Printf("%s [y/N] ", msg)
 	sc := bufio.NewScanner(os.Stdin)
@@ -170,22 +188,21 @@ func confirmPrompt(msg string) bool {
 	return false
 }
 
-func die(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, colorRed+"Error: "+colorReset+format+"\n", a...)
-	os.Exit(1)
+func sortedKeys(m map[string]shared.FileData) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
-// ── Command: list ─────────────────────────────────────
-//
-// Displays the same information as the Admin UI's Shares tab:
-// a stat summary row followed by a table with subpath, path, uses,
-// expiration, upload flag and status.
+var tableDivider = colorGray + strings.Repeat("─", 76) + colorReset
+
+// ── Commands ──────────────────────────────────────────
 
 func cmdList(asJSON bool) {
-	d, err := loadData()
-	if err != nil {
-		die("%v", err)
-	}
+	d := mustLoad()
 
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -195,8 +212,6 @@ func cmdList(asJSON bool) {
 	}
 
 	keys := sortedKeys(d.Files)
-
-	// ── stat summary (mirrors the UI's four stat-cards) ──────────
 	total := len(keys)
 	var active, expired, withUpload int
 	for _, k := range keys {
@@ -218,7 +233,7 @@ func cmdList(asJSON bool) {
 		colorRed, expired, colorReset,
 		colorBlue, withUpload, colorReset,
 	)
-	fmt.Println(colorGray + strings.Repeat("─", 76) + colorReset)
+	fmt.Println(tableDivider)
 
 	if total == 0 {
 		fmt.Println(colorGray + "  No shares yet. Add one with:  fileshare-cli add -f <path>" + colorReset)
@@ -226,7 +241,6 @@ func cmdList(asJSON bool) {
 		return
 	}
 
-	// ── table header ─────────────────────────────────────────────
 	fmt.Printf("%-22s %-28s %6s  %-14s %-8s %s\n",
 		colorBold+"SUBPATH"+colorReset,
 		colorBold+"PATH"+colorReset,
@@ -235,15 +249,13 @@ func cmdList(asJSON bool) {
 		colorBold+"UPLOAD"+colorReset,
 		colorBold+"STATUS"+colorReset,
 	)
-	fmt.Println(colorGray + strings.Repeat("─", 76) + colorReset)
+	fmt.Println(tableDivider)
 
 	for _, sub := range keys {
 		s := d.Files[sub]
 		exp := isExpired(s)
-		pathMissing := false
-		if _, statErr := os.Stat(s.Path); os.IsNotExist(statErr) {
-			pathMissing = true
-		}
+		_, statErr := os.Stat(s.Path)
+		pathMissing := os.IsNotExist(statErr)
 
 		subColor := colorGreen
 		status := colorGreen + "active" + colorReset
@@ -256,32 +268,17 @@ func cmdList(asJSON bool) {
 			status = colorYellow + "path missing" + colorReset
 		}
 
-		upload := colorGray + "off" + colorReset
-		if s.AllowPost {
-			upload = colorGreen + "on" + colorReset
-		}
-
-		path := s.Path
-		if len(path) > 27 {
-			path = "…" + path[len(path)-26:]
-		}
-
 		fmt.Printf("%s%-22s%s %-28s %6s  %-14s %-8s %s\n",
 			subColor, "/"+sub, colorReset,
-			path,
+			truncatePath(s.Path, 27),
 			fmtUses(s.Uses),
 			fmtExpiration(s.Expiration),
-			upload,
+			fmtUpload(s.AllowPost),
 			status,
 		)
 	}
 	fmt.Println()
 }
-
-// ── Command: add ─────────────────────────────────────
-//
-// Creates a new share. If -subpath is omitted a random one is generated,
-// matching the UI behaviour (leave Subpath field empty → random).
 
 func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool) {
 	if filePath == "" {
@@ -291,29 +288,24 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
-		die("cannot resolve path: %v", err)
+		GoLog.Errorf("Cannot resolve path: %v", err)
+		os.Exit(1)
 	}
 
-	// Mirror UI: empty subpath → generate random
 	if subpath == "" {
 		subpath = generateRandomSubpath(randomSubpathLength)
-		fmt.Printf("%sInfo:%s No subpath given — using random: %s%s%s\n",
-			colorCyan, colorReset, colorBold, subpath, colorReset)
+		GoLog.Infof("No subpath given — using random: %s", subpath)
 	}
 
-	// UI adds the share even if the path doesn't exist yet; we warn but continue.
 	if _, statErr := os.Stat(absPath); os.IsNotExist(statErr) {
-		fmt.Printf("%sWarning:%s %q does not exist on disk — share will be created anyway.\n",
-			colorYellow, colorReset, absPath)
+		GoLog.Warnf("%q does not exist on disk — share will be created anyway", absPath)
 	}
 
-	d, err := loadData()
-	if err != nil {
-		die("%v", err)
-	}
+	d := mustLoad()
 
 	if _, exists := d.Files[subpath]; exists {
-		die("subpath /%s already exists", subpath)
+		GoLog.Errorf("Subpath /%s already exists", subpath)
+		os.Exit(1)
 	}
 
 	d.Files[subpath] = shared.FileData{
@@ -323,28 +315,16 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 		Expiration: expiration,
 		AllowPost:  allowPost,
 	}
-
-	if err := saveData(d); err != nil {
-		die("%v", err)
-	}
-
-	uploadStr := colorGray + "off" + colorReset
-	if allowPost {
-		uploadStr = colorGreen + "on" + colorReset
-	}
+	mustSave(d)
 
 	fmt.Printf("%s✓%s Share added:\n", colorGreen, colorReset)
 	fmt.Printf("  Subpath : %s/%s%s\n", colorBold, subpath, colorReset)
 	fmt.Printf("  Path    : %s\n", absPath)
 	fmt.Printf("  Uses    : %s\n", fmtUses(uses))
 	fmt.Printf("  Expires : %s\n", fmtExpiration(expiration))
-	fmt.Printf("  Upload  : %s\n", uploadStr)
+	fmt.Printf("  Upload  : %s\n", fmtUpload(allowPost))
+	GoLog.Infof("Share added: /%s → %s", subpath, absPath)
 }
-
-// ── Command: delete ───────────────────────────────────
-//
-// Removes a share. Shows a confirmation prompt (like the UI's confirm dialog)
-// unless -y is passed.
 
 func cmdDelete(subpath string, yes bool) {
 	if subpath == "" {
@@ -352,14 +332,12 @@ func cmdDelete(subpath string, yes bool) {
 		os.Exit(1)
 	}
 
-	d, err := loadData()
-	if err != nil {
-		die("%v", err)
-	}
+	d := mustLoad()
 
 	s, exists := d.Files[subpath]
 	if !exists {
-		die("share /%s not found", subpath)
+		GoLog.Errorf("Share /%s not found", subpath)
+		os.Exit(1)
 	}
 
 	if !yes {
@@ -371,17 +349,11 @@ func cmdDelete(subpath string, yes bool) {
 	}
 
 	delete(d.Files, subpath)
-	if err := saveData(d); err != nil {
-		die("%v", err)
-	}
-	fmt.Printf("%s✓%s Share /%s deleted.\n", colorGreen, colorReset, subpath)
-}
+	mustSave(d)
 
-// ── Command: edit ─────────────────────────────────────
-//
-// Edits one or more properties of an existing share in-place.
-// The UI only supports delete+recreate; the CLI goes further and lets
-// you change any field without recreating the share.
+	fmt.Printf("%s✓%s Share /%s deleted.\n", colorGreen, colorReset, subpath)
+	GoLog.Infof("Share deleted: /%s", subpath)
+}
 
 func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPostStr string) {
 	if subpath == "" {
@@ -389,48 +361,46 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 		os.Exit(1)
 	}
 
-	d, err := loadData()
-	if err != nil {
-		die("%v", err)
-	}
+	d := mustLoad()
 
 	s, exists := d.Files[subpath]
 	if !exists {
-		die("share /%s not found", subpath)
+		GoLog.Errorf("Share /%s not found", subpath)
+		os.Exit(1)
 	}
 
 	changed := false
-
-	// ── subpath rename ────
 	targetSubpath := subpath
+
 	if newSubpath != "" && newSubpath != subpath {
 		if _, exists := d.Files[newSubpath]; exists {
-			die("subpath /%s already exists", newSubpath)
+			GoLog.Errorf("Subpath /%s already exists", newSubpath)
+			os.Exit(1)
 		}
 		fmt.Printf("  Subpath  : /%s → /%s\n", subpath, newSubpath)
 		targetSubpath = newSubpath
 		changed = true
 	}
 
-	// ── file path ─────────
 	if newFile != "" {
-		abs, absErr := filepath.Abs(newFile)
-		if absErr != nil {
-			die("cannot resolve path: %v", absErr)
+		abs, err := filepath.Abs(newFile)
+		if err != nil {
+			GoLog.Errorf("Cannot resolve path: %v", err)
+			os.Exit(1)
 		}
 		if _, statErr := os.Stat(abs); os.IsNotExist(statErr) {
-			fmt.Printf("%sWarning:%s %q does not exist on disk.\n", colorYellow, colorReset, abs)
+			GoLog.Warnf("%q does not exist on disk", abs)
 		}
 		fmt.Printf("  Path     : %s → %s\n", s.Path, abs)
 		s.Path = abs
 		changed = true
 	}
 
-	// ── uses ──────────────
 	if newUsesStr != "" {
-		newUses, parseErr := strconv.Atoi(newUsesStr)
-		if parseErr != nil {
-			die("invalid uses value %q: must be an integer (-1 = unlimited)", newUsesStr)
+		newUses, err := strconv.Atoi(newUsesStr)
+		if err != nil {
+			GoLog.Errorf("Invalid uses value %q: must be an integer (-1 = unlimited)", newUsesStr)
+			os.Exit(1)
 		}
 		if newUses != s.Uses {
 			fmt.Printf("  Uses     : %s → %s\n", fmtUses(s.Uses), fmtUses(newUses))
@@ -439,16 +409,15 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 		}
 	}
 
-	// ── expiration ────────
 	if newExpiresStr != "" {
-		ts, parseErr := parseExpiration(newExpiresStr)
-		if parseErr != nil {
-			die("%v", parseErr)
+		ts, err := parseExpiration(newExpiresStr)
+		if err != nil {
+			GoLog.Errorf("Invalid expiration: %v", err)
+			os.Exit(1)
 		}
 		if ts != s.Expiration {
 			fmt.Printf("  Expires  : %s → %s\n", fmtExpiration(s.Expiration), fmtExpiration(ts))
 			s.Expiration = ts
-			// Clear the expired flag if a new expiry is set
 			if ts == 0 || ts > time.Now().Unix() {
 				s.Expired = false
 			}
@@ -456,7 +425,6 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 		}
 	}
 
-	// ── allow-post ────────
 	if newAllowPostStr != "" {
 		newPost := newAllowPostStr == "true" || newAllowPostStr == "1" || newAllowPostStr == "yes" || newAllowPostStr == "on"
 		if newPost != s.AllowPost {
@@ -481,23 +449,14 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 		delete(d.Files, subpath)
 	}
 	d.Files[targetSubpath] = s
+	mustSave(d)
 
-	if err := saveData(d); err != nil {
-		die("%v", err)
-	}
 	fmt.Printf("%s✓%s Share updated.\n", colorGreen, colorReset)
+	GoLog.Infof("Share edited: /%s", targetSubpath)
 }
 
-// ── Command: prune ───────────────────────────────────
-//
-// Deletes all expired shares — mirrors the "Delete all expired shares"
-// button in the UI's Settings → Danger Zone.
-
 func cmdPrune(yes bool) {
-	d, err := loadData()
-	if err != nil {
-		die("%v", err)
-	}
+	d := mustLoad()
 
 	var toDelete []string
 	for k, s := range d.Files {
@@ -525,19 +484,11 @@ func cmdPrune(yes bool) {
 	for _, k := range toDelete {
 		delete(d.Files, k)
 	}
-	if err := saveData(d); err != nil {
-		die("%v", err)
-	}
-	fmt.Printf("%s✓%s Deleted %d expired share(s).\n", colorGreen, colorReset, len(toDelete))
-}
+	mustSave(d)
 
-// ── Command: setpassword ─────────────────────────────
-//
-// Sets the admin password (stored as a bcrypt hash in data.json).
-// The UI requires the current password because it validates over HTTP;
-// the CLI has direct file access so no current-password check is needed.
-// If -password is omitted the CLI prompts interactively (hides input
-// by not echoing — pipe-friendly).
+	fmt.Printf("%s✓%s Deleted %d expired share(s).\n", colorGreen, colorReset, len(toDelete))
+	GoLog.Infof("Pruned %d expired share(s)", len(toDelete))
+}
 
 func cmdSetPassword(password string) {
 	if password == "" {
@@ -548,23 +499,22 @@ func cmdSetPassword(password string) {
 		}
 	}
 	if password == "" {
-		die("password cannot be empty")
+		GoLog.Error("Password cannot be empty")
+		os.Exit(1)
 	}
 
 	hash, err := shared.HashPassword(password)
 	if err != nil {
-		die("hashing failed: %v", err)
+		GoLog.Errorf("Hashing failed: %v", err)
+		os.Exit(1)
 	}
 
-	d, err := loadData()
-	if err != nil {
-		die("%v", err)
-	}
+	d := mustLoad()
 	d.AdminPassword = hash
-	if err := saveData(d); err != nil {
-		die("%v", err)
-	}
+	mustSave(d)
+
 	fmt.Printf("%s✓%s Admin password updated.\n", colorGreen, colorReset)
+	GoLog.Info("Admin password updated")
 }
 
 // ── Help texts ────────────────────────────────────────
@@ -575,17 +525,17 @@ USAGE
   fileshare-cli add [options]
 
 OPTIONS
-  -subpath, -s    URL subpath for the share (omit or leave empty for random, same as Admin UI)
+  -subpath, -s    URL subpath (omit for random)
   -file,    -f    File or folder path on the server  [required]
   -uses,    -u    Max downloads; -1 = unlimited  (default: -1)
-  -expires, -e    Expiration: duration (24h, 7d, 2w, 3m, 1y), unix timestamp, or 0/never
+  -expires, -e    Expiration: 24h, 7d, 2w, 3m, 1y, unix timestamp, or 0/never
   -allow-post, -p Allow uploads to this share
 
 EXAMPLES
   fileshare-cli add -s music -f /home/user/music
   fileshare-cli add -f /tmp/report.pdf -e 7d -u 10
   fileshare-cli add -f /srv/uploads -allow-post
-  fileshare-cli add -f /tmp/secret.zip            # random subpath, like Admin UI
+  fileshare-cli add -f /tmp/secret.zip   # random subpath
 
 `)
 }
@@ -597,7 +547,7 @@ USAGE
 
 OPTIONS
   -subpath, -s   Subpath of the share to delete  [required]
-  -y             Skip the confirmation prompt
+  -y             Skip confirmation
 
 `)
 }
@@ -608,18 +558,17 @@ USAGE
   fileshare-cli edit -subpath=<subpath> [options]
 
 OPTIONS
-  -subFpath,     -s  Share to edit  [required]
+  -subpath,     -s  Share to edit  [required]
   -new-subpath, -n  Rename to a different subpath
   -file,        -f  Change the server file/folder path
   -uses,        -u  Change max uses (-1 = unlimited)
   -expires,     -e  Change expiration (duration, unix timestamp, or 0/never)
-  -allow-post       Change upload permission  (true/false)
+  -allow-post       Change upload permission (true/false)
 
 EXAMPLES
   fileshare-cli edit -s music -n music2024
   fileshare-cli edit -s docs  -e 30d -u 50
   fileshare-cli edit -s temp  -allow-post=false
-  fileshare-cli edit -s old   -f /new/path -e never
 
 `)
 }
@@ -629,11 +578,10 @@ func helpPrune() {
 USAGE
   fileshare-cli prune [-y]
 
-Deletes all expired shares from data.json.
-Mirrors "Delete all expired shares" in the Admin UI Settings tab.
+Deletes all expired shares. Mirrors "Delete all expired shares" in Admin UI.
 
 OPTIONS
-  -y   Skip the confirmation prompt
+  -y   Skip confirmation
 
 `)
 }
@@ -646,11 +594,11 @@ USAGE
   fileshare-cli <command> [options]
 
 COMMANDS
-  list         Show all shares with status summary  (mirrors Admin UI Shares tab)
+  list         Show all shares with status summary
   add          Create a new share
   delete       Delete a share
-  edit         Edit an existing share (subpath, path, uses, expiration, upload)
-  prune        Delete all expired shares  (mirrors Admin UI Settings → Danger Zone)
+  edit         Edit an existing share
+  prune        Delete all expired shares
   setpassword  Set the admin password
   help         Show this help or help for a specific command
 
@@ -661,24 +609,13 @@ EXAMPLES
   fileshare-cli list
   fileshare-cli list --json
   fileshare-cli add -f /home/user/music -s music -e 7d
-  fileshare-cli add -f /tmp/file.zip                    # random subpath
+  fileshare-cli add -f /tmp/file.zip
   fileshare-cli delete -s music
   fileshare-cli edit -s music -e 30d -u 100
   fileshare-cli prune -y
   fileshare-cli help add
 
 `)
-}
-
-// ── Misc ──────────────────────────────────────────────
-
-func sortedKeys(m map[string]shared.FileData) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // ── Main ──────────────────────────────────────────────
@@ -689,14 +626,16 @@ func main() {
 		return
 	}
 
-	// Strip a leading -data=<path> global flag before parsing sub-commands.
+	// Strip global -data flag before sub-command parsing.
 	remaining := os.Args[1:]
 	for i := 0; i < len(remaining); i++ {
-		if strings.HasPrefix(remaining[i], "-data=") {
-			dataPath = strings.TrimPrefix(remaining[i], "-data=")
+		arg := remaining[i]
+		if strings.HasPrefix(arg, "-data=") {
+			dataPath = strings.TrimPrefix(arg, "-data=")
 			remaining = append(remaining[:i], remaining[i+1:]...)
 			break
-		} else if (remaining[i] == "-data" || remaining[i] == "--data") && i+1 < len(remaining) {
+		}
+		if (arg == "-data" || arg == "--data") && i+1 < len(remaining) {
 			dataPath = remaining[i+1]
 			remaining = append(remaining[:i], remaining[i+2:]...)
 			break
@@ -708,19 +647,16 @@ func main() {
 		return
 	}
 
-	cmd := remaining[0]
-	args := remaining[1:]
+	cmd, args := remaining[0], remaining[1:]
 
 	switch cmd {
 
-	// ── list ─────────────────────────────────────────
 	case "list", "l", "ls":
 		fs := flag.NewFlagSet("list", flag.ExitOnError)
 		jsonOut := fs.Bool("json", false, "Output raw JSON")
 		_ = fs.Parse(args)
 		cmdList(*jsonOut)
 
-	// ── add (+ legacy addrandom aliases) ─────────────
 	case "add", "addrandom", "random", "add_random", "addr":
 		fs := flag.NewFlagSet("add", flag.ExitOnError)
 		subpath := fs.String("subpath", "", "")
@@ -740,18 +676,16 @@ func main() {
 		fs.BoolVar(allowPost, "p", false, "")
 		_ = fs.Parse(args)
 
-		// legacy addrandom → force empty subpath so a random one is generated
 		if cmd != "add" {
-			*subpath = ""
+			*subpath = "" // legacy addrandom → force random subpath
 		}
-
 		exp, err := parseExpiration(*expires)
 		if err != nil {
-			die("%v", err)
+			GoLog.Errorf("Invalid expiration: %v", err)
+			os.Exit(1)
 		}
 		cmdAdd(*subpath, *filePath, *uses, exp, *allowPost)
 
-	// ── delete ────────────────────────────────────────
 	case "delete", "del", "remove", "rm":
 		fs := flag.NewFlagSet("delete", flag.ExitOnError)
 		subpath := fs.String("subpath", "", "")
@@ -761,13 +695,11 @@ func main() {
 		_ = fs.Parse(args)
 		cmdDelete(*subpath, *yes)
 
-	// ── edit ──────────────────────────────────────────
 	case "edit":
 		fs := flag.NewFlagSet("edit", flag.ExitOnError)
 		subpath := fs.String("subpath", "", "")
 		fs.StringVar(subpath, "s", "", "")
-		// legacy flags
-		oldSubpath := fs.String("old_subpath", "", "")
+		oldSubpath := fs.String("old_subpath", "", "") // legacy
 		fs.StringVar(oldSubpath, "old", "", "")
 		fs.StringVar(oldSubpath, "o", "", "")
 		newSubpath := fs.String("new-subpath", "", "")
@@ -784,13 +716,11 @@ func main() {
 		fs.StringVar(newAllowPost, "p", "", "")
 		_ = fs.Parse(args)
 
-		// legacy: -old_subpath was used as the share to edit
 		if *subpath == "" && *oldSubpath != "" {
 			*subpath = *oldSubpath
 		}
 		cmdEdit(*subpath, *newSubpath, *newFile, *newUses, *newExpires, *newAllowPost)
 
-	// ── prune ─────────────────────────────────────────
 	case "prune", "cleanup", "clean":
 		fs := flag.NewFlagSet("prune", flag.ExitOnError)
 		yes := fs.Bool("y", false, "")
@@ -798,7 +728,6 @@ func main() {
 		_ = fs.Parse(args)
 		cmdPrune(*yes)
 
-	// ── setpassword ───────────────────────────────────
 	case "setpassword", "setpass", "password":
 		fs := flag.NewFlagSet("setpassword", flag.ExitOnError)
 		password := fs.String("password", "", "")
@@ -808,7 +737,6 @@ func main() {
 		_ = fs.Parse(args)
 		cmdSetPassword(*password)
 
-	// ── help ──────────────────────────────────────────
 	case "help", "--help", "-h":
 		if len(args) > 0 {
 			switch args[0] {
@@ -828,7 +756,7 @@ func main() {
 		}
 
 	default:
-		fmt.Fprintf(os.Stderr, "%sError:%s unknown command %q\n\n", colorRed, colorReset, cmd)
+		GoLog.Errorf("Unknown command %q", cmd)
 		printHelp()
 		os.Exit(1)
 	}
