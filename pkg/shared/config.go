@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"sync/atomic"
 )
 
 const defaultConfigPath = "./data.json"
@@ -35,9 +37,19 @@ type Config struct {
 	Files         map[string]FileData `json:"files"`
 }
 
+var configCache atomic.Pointer[Config]
+
 // LoadConfig loads the config from the default path.
 func LoadConfig() (*Config, error) {
-	return LoadConfigFrom(defaultConfigPath)
+	if p := configCache.Load(); p != nil {
+		return p, nil
+	}
+	cfg, err := LoadConfigFrom("./data.json")
+	if err != nil {
+		return nil, err
+	}
+	configCache.Store(cfg)
+	return cfg, nil
 }
 
 // LoadConfigFrom loads the config from the given path.
@@ -59,8 +71,12 @@ func LoadConfigFrom(path string) (*Config, error) {
 }
 
 // SaveConfig writes the config atomically to the default path.
-func SaveConfig(config *Config) error {
-	return SaveConfigTo(defaultConfigPath, config)
+func SaveConfig(cfg *Config) error {
+	if err := SaveConfigTo("./data.json", cfg); err != nil {
+		return err
+	}
+	configCache.Store(cfg)
+	return nil
 }
 
 // SaveConfigTo writes atomically: encodes to a temp file first, then renames.
