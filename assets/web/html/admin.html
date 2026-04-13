@@ -222,11 +222,33 @@
   <div id="tab-settings" class="tab-panel">
     <div class="page">
 
-      <!-- Admin password -->
+      <!-- Security -->
       <div>
         <p class="section-title">Security</p>
         <div class="card card-accent">
           <div class="card-body">
+
+            <div class="settings-group">
+              <div class="settings-label">Change admin username</div>
+              <div class="settings-desc">Username is stored in plain text in data.json.</div>
+              <div class="form-row-3">
+                <div class="field">
+                  <label>Current password</label>
+                  <input type="password" id="s-un-current" placeholder="••••••••" autocomplete="current-password" />
+                </div>
+                <div class="field">
+                  <label>New username</label>
+                  <input type="text" id="s-un-new" placeholder="admin" autocomplete="off" />
+                </div>
+              </div>
+              <div class="form-footer">
+                <button class="btn btn-primary" onclick="changeUsername()">Update username</button>
+                <span class="status-msg" id="status-un"></span>
+              </div>
+            </div>
+
+            <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;" />
+
             <div class="settings-group">
               <div class="settings-label">Change admin password</div>
               <div class="settings-desc">Password is stored as a bcrypt hash in data.json.</div>
@@ -253,7 +275,7 @@
         </div>
       </div>
 
-      <!-- TLS preview -->
+      <!-- Server -->
       <div>
         <p class="section-title">Server</p>
         <div class="card">

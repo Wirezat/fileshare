@@ -252,6 +252,37 @@ func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
+	if !methodOnly(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewUsername     string `json:"new_username"`
+	}
+	if !decodeOrErr(w, r, &req) {
+		return
+	}
+	if req.NewUsername == "" {
+		http.Error(w, "Username cannot be empty", http.StatusBadRequest)
+		return
+	}
+	config, ok := configOrErr(w)
+	if !ok {
+		return
+	}
+	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
+		GoLog.Warnf("admin username change rejected: wrong current password")
+		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+	config.AdminUsername = req.NewUsername
+	if !saveOrErr(w, config) {
+		return
+	}
+	GoLog.Infof("admin username changed successfully")
+}
+
 func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodPost) {
 		return

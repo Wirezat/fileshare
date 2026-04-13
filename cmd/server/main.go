@@ -30,6 +30,7 @@ func buildMux() *http.ServeMux {
 		"/admin/api/shares":                 handleAdminShares,
 		"/admin/api/logs":                   handleAdminLogs,
 		"/admin/api/logs/stream":            handleAdminLogsStream,
+		"/admin/api/settings/username":      handleAdminSettingsUsername,
 		"/admin/api/settings/password":      handleAdminSettingsPassword,
 		"/admin/api/settings/prune_expired": handleAdminFunctionPruneExpired,
 	}

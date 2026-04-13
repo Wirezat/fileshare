@@ -282,6 +282,24 @@ function resetForm() {
 }
 
 // ── Settings ──────────────────────────────────────────
+async function changeUsername() {
+    const current = document.getElementById('s-un-current').value;
+    const username = document.getElementById('s-un-new').value.trim();
+    if (!current)   { showStatus('status-un', 'Current password is required', 'err'); return; }
+    if (!username)  { showStatus('status-un', 'Username cannot be empty', 'err'); return; }
+    try {
+        const res = await fetch('/admin/api/settings/username', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_password: current, new_username: username })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        showStatus('status-un', 'Username updated!', 'ok');
+        document.getElementById('s-un-current').value = '';
+        document.getElementById('s-un-new').value = '';
+    } catch (err) { showStatus('status-un', err.message, 'err'); }
+}
+
 async function changePassword() {
     const current = document.getElementById('s-pw-current').value;
     const pw1 = document.getElementById('s-pw-new').value;
