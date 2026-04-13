@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"io"
 	"mime/multipart"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -176,25 +175,6 @@ var sensitiveHeaders = map[string]bool{
 	http.CanonicalHeaderKey("authorization"): true,
 	http.CanonicalHeaderKey("cookie"):        true,
 	http.CanonicalHeaderKey("x-auth-token"):  true,
-}
-
-// clientIP extracts the real client IP.
-// Priority: X-Forwarded-For (first entry) → CF-Connecting-IP → RemoteAddr.
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i != -1 {
-			return strings.TrimSpace(xff[:i])
-		}
-		return strings.TrimSpace(xff)
-	}
-	if cf := r.Header.Get("Cf-Connecting-Ip"); cf != "" {
-		return strings.TrimSpace(cf)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return r.RemoteAddr
 }
 
 // safeHeaders returns request headers with sensitive fields stripped.

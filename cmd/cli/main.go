@@ -70,7 +70,7 @@ func fmtExpiration(ts int64) string {
 
 func fmtUses(u int) string {
 	switch u {
-	case -1:
+	case shared.UnlimitedUses:
 		return "∞"
 	case 0:
 		return colorRed + "0" + colorReset

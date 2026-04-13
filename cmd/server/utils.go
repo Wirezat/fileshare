@@ -1,12 +1,17 @@
 package main
 
 import (
+	"net"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
+// startExpirationWatcher polls the config at the given interval and marks
+// shares as expired when IsExpired returns true. Runs as a background goroutine.
 func startExpirationWatcher(interval time.Duration) {
 	go func() {
 		GoLog.Infof("expiration watcher started (interval: %s)", interval)
@@ -36,4 +41,23 @@ func startExpirationWatcher(interval time.Duration) {
 			}
 		}
 	}()
+}
+
+// clientIP extracts the real client IP.
+// Priority: X-Forwarded-For (first entry) → CF-Connecting-IP → RemoteAddr.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.IndexByte(xff, ','); i != -1 {
+			return strings.TrimSpace(xff[:i])
+		}
+		return strings.TrimSpace(xff)
+	}
+	if cf := r.Header.Get("Cf-Connecting-Ip"); cf != "" {
+		return strings.TrimSpace(cf)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }

@@ -1,17 +1,22 @@
 package shared
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
 )
 
+const UnlimitedUses = -1
+
 // IsExpired reports whether a share has expired due to manual expiry,
 // exhausted uses, or a passed expiration timestamp.
 func IsExpired(fd FileData) bool {
-	return fd.Expired || fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix())
+	return fd.Expired ||
+		(fd.Uses != UnlimitedUses && fd.Uses <= 0) ||
+		(fd.Expiration != 0 && fd.Expiration < time.Now().Unix())
 }
 
 // ParseExpiration parses a human-readable expiration string into a Unix timestamp.
@@ -55,7 +60,11 @@ func GenerateRandomSubpath(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = chars[rand.Intn(len(chars))]
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			panic(fmt.Sprintf("crypto/rand failed: %v", err))
+		}
+		b[i] = chars[n.Int64()]
 	}
 	return string(b)
 }
