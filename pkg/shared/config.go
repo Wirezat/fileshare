@@ -30,6 +30,7 @@ type FileData struct {
 // Config is the top-level application configuration.
 type Config struct {
 	Port          int                 `json:"port"`
+	AdminUsername string              `json:"admin_username"`
 	AdminPassword string              `json:"admin_password"`
 	Files         map[string]FileData `json:"files"`
 }

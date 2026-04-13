@@ -432,6 +432,27 @@ func cmdSetPassword(password string) {
 	GoLog.Info("Admin password updated")
 }
 
+func cmdSetUsername(username string) {
+	if username == "" {
+		fmt.Print("New admin username: ")
+		sc := bufio.NewScanner(os.Stdin)
+		if sc.Scan() {
+			username = strings.TrimSpace(sc.Text())
+		}
+	}
+	if username == "" {
+		GoLog.Error("Username cannot be empty")
+		os.Exit(1)
+	}
+
+	d := mustLoad()
+	d.AdminUsername = username
+	mustSave(d)
+
+	fmt.Printf("%s✓%s Admin username updated.\n", colorGreen, colorReset)
+	GoLog.Info("Admin username updated")
+}
+
 // ── Help texts ────────────────────────────────────────
 
 func helpAdd() {
@@ -488,6 +509,36 @@ EXAMPLES
 `)
 }
 
+func helpAdminUsername() {
+	fmt.Print(`
+USAGE
+  fileshare setusername [options]
+
+OPTIONS
+  -username, -user, -u   New admin username (prompted if omitted)
+
+EXAMPLES
+  fileshare setusername -u myname
+  fileshare setusername
+
+`)
+}
+
+func helpAdminPassword() {
+	fmt.Print(`
+USAGE
+  fileshare setpassword [options]
+
+OPTIONS
+  -password, -pass, -pwd, -p   New admin password
+
+EXAMPLES
+  fileshare setpassword -p mypassword
+  fileshare setpassword
+
+`)
+}
+
 func helpPrune() {
 	fmt.Print(`
 USAGE
@@ -515,6 +566,7 @@ COMMANDS
   edit         Edit an existing share
   prune        Delete all expired shares
   setpassword  Set the admin password
+  setusername  Set the admin username
   help         Show this help or help for a specific command
 
 GLOBAL FLAGS
@@ -528,6 +580,8 @@ EXAMPLES
   fileshare delete -s music
   fileshare edit -s music -e 30d -u 100
   fileshare prune -y
+  fileshare setpassword
+  fileshare setusername -u myname
   fileshare help add
 
 `)
@@ -652,6 +706,14 @@ func main() {
 		_ = fs.Parse(args)
 		cmdSetPassword(*password)
 
+	case "setusername", "setuser", "username":
+		fs := flag.NewFlagSet("setusername", flag.ExitOnError)
+		username := fs.String("username", "", "")
+		fs.StringVar(username, "user", "", "")
+		fs.StringVar(username, "u", "", "")
+		_ = fs.Parse(args)
+		cmdSetUsername(*username)
+
 	case "help", "--help", "-h":
 		if len(args) > 0 {
 			switch args[0] {
@@ -661,6 +723,10 @@ func main() {
 				helpDelete()
 			case "edit":
 				helpEdit()
+			case "setusername", "setuser", "username":
+				helpAdminUsername()
+			case "setpassword", "setpass", "password":
+				helpAdminPassword()
 			case "prune", "cleanup":
 				helpPrune()
 			default:

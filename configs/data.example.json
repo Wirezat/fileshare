@@ -1,5 +1,6 @@
 {
   "port": 27182,
+  "admin_username":"",
   "admin_password": "",
   "files": {
     "example": {

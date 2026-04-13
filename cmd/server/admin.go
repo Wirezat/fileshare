@@ -24,7 +24,7 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		if username != "admin" || !shared.CheckPassword(password, config.AdminPassword) {
+		if username != config.AdminUsername || !shared.CheckPassword(password, config.AdminPassword) {
 			GoLog.Warnf("basicAuth: failed login attempt from %s", clientIP(r))
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
