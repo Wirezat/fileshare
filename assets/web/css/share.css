@@ -153,21 +153,63 @@ header {
     border-radius: var(--radius-lg);
     margin-bottom: 16px;
     flex-wrap: wrap;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+}
+
+.breadcrumb.uploading {
+    border-color: rgba(255, 193, 7, 0.45);
+}
+
+/* Hintergrund-Fill der mit dem Fortschritt wächst */
+.breadcrumb-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 0%;
+    height: 100%;          /* ← das fehlte */
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: var(--radius-lg);
+    pointer-events: none;
+    transition: width 0.35s ease;
+    z-index: 0;
+}
+
+.breadcrumb-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 2px;
+    background: var(--accent);
+    opacity: 0.6;
+    border-radius: 0 2px 2px 0;
+}
+
+.breadcrumb > *:not(.breadcrumb-fill) {
+    position: relative;
+    z-index: 1;
 }
 
 .breadcrumb-path {
-    flex: 1;
+    position: absolute;
+    left: 14px;
     font-size: 0.9rem;
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .breadcrumb-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
     margin-left: auto;
     flex-shrink: 0;
 }
@@ -232,6 +274,123 @@ header {
 
 .upload-label:hover {
     background: var(--accent-dark);
+}
+
+/* ── Upload Badge ── */
+.upload-badge {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 3px 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    position: relative;
+    user-select: none;
+}
+
+.upload-badge.visible {
+    display: flex;
+}
+
+#upload-badge-text {
+    color: var(--accent);
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+#upload-badge-text:hover {
+    opacity: 0.7;
+}
+
+.upload-badge-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: badgeblink 1s ease-in-out infinite alternate;
+    flex-shrink: 0;
+}
+
+@keyframes badgeblink {
+    to { opacity: 0.2; }
+}
+
+/* ── Upload Toast ── */
+.upload-toast {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 240px;
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+    opacity: 0;
+    transform: translateY(-3px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 200;
+}
+
+html.dark .upload-toast {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.upload-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.upload-toast-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.upload-toast-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.upload-toast-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.upload-toast-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.upload-toast-track {
+    height: 2px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.upload-toast-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.35s ease;
+}
+
+.upload-toast-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
 }
 
 /* ── File grid ── */

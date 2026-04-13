@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
-const configFilePath = "./data.json"
+const defaultConfigPath = "./data.json"
 
 // FileInfo holds the name, path, and type of a file or directory.
 type FileInfo struct {
@@ -33,8 +34,14 @@ type Config struct {
 	Files         map[string]FileData `json:"files"`
 }
 
+// LoadConfig loads the config from the default path.
 func LoadConfig() (*Config, error) {
-	file, err := os.Open(configFilePath)
+	return LoadConfigFrom(defaultConfigPath)
+}
+
+// LoadConfigFrom loads the config from the given path.
+func LoadConfigFrom(path string) (*Config, error) {
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open config: %w", err)
 	}
@@ -44,13 +51,23 @@ func LoadConfig() (*Config, error) {
 	if err := json.NewDecoder(file).Decode(&config); err != nil {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
 	}
+	if config.Files == nil {
+		config.Files = make(map[string]FileData)
+	}
 	return &config, nil
 }
 
-// SaveConfig writes atomically: encodes to a temp file first, then renames.
-// This prevents data.json from being corrupted if the process dies mid-write.
+// SaveConfig writes the config atomically to the default path.
 func SaveConfig(config *Config) error {
-	tmp, err := os.CreateTemp(".", ".data.json.tmp*")
+	return SaveConfigTo(defaultConfigPath, config)
+}
+
+// SaveConfigTo writes atomically: encodes to a temp file first, then renames.
+// The temp file is created in the same directory as path so the rename is
+// guaranteed to stay on the same filesystem (cross-device rename would fail).
+func SaveConfigTo(path string, config *Config) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".data.json.tmp*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
@@ -68,7 +85,7 @@ func SaveConfig(config *Config) error {
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	if err := os.Rename(tmpName, configFilePath); err != nil {
+	if err := os.Rename(tmpName, path); err != nil {
 		os.Remove(tmpName)
 		return fmt.Errorf("failed to replace config file: %w", err)
 	}

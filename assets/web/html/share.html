@@ -44,7 +44,10 @@
     <div class="container">
 
         <!-- Breadcrumb / toolbar -->
-        <div class="breadcrumb">
+        <div class="breadcrumb" id="breadcrumb">
+            <!-- upload progress -->
+            <div class="breadcrumb-fill" id="breadcrumb-fill"></div>
+
             {{if .HasParentDir}}
             <a href="/{{.Subpath}}{{.ParentDir}}/" class="btn btn-primary">📂 [..]</a>
             <span style="color:var(--border-strong);">/</span>
@@ -52,6 +55,29 @@
             <span class="breadcrumb-path">{{.Subpath}}{{.DirPath}}</span>
             <div class="breadcrumb-actions">
                 {{if .AllowPost}}
+                <!-- Upload-Badge -->
+                <!-- Upload-Badge -->
+                <div class="upload-badge" id="upload-badge">
+                    <div class="upload-badge-dot"></div>
+                    <span id="upload-badge-text" onclick="toggleUploadToast()" style="cursor:pointer">0%</span>
+
+                    <!-- Toast -->
+                    <div class="upload-toast" id="upload-toast">
+                        <div class="upload-toast-head">
+                            <div class="upload-toast-icon">📤</div>
+                            <div>
+                                <div class="upload-toast-title">Upload running…</div>
+                                <div class="upload-toast-sub" id="upload-toast-sub"></div>
+                            </div>
+                        </div>
+                        <div class="upload-toast-track">
+                            <div class="upload-toast-fill" id="upload-toast-fill"></div>
+                        </div>
+                        <div class="upload-toast-meta">
+                            <span id="upload-toast-pct">0%</span>
+                        </div>
+                    </div>
+                </div>
                 <form id="uploadForm" method="post" enctype="multipart/form-data" class="upload-form">
                     <label for="fileUpload" class="upload-label">
                         <span id="uploadButtonText">📤 Upload</span>

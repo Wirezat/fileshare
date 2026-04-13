@@ -299,7 +299,7 @@ func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
 	}
 	pruned := 0
 	for subpath, fd := range config.Files {
-		if fd.Expired {
+		if shared.IsExpired(fd) {
 			delete(config.Files, subpath)
 			pruned++
 		}

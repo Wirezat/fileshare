@@ -1,13 +1,15 @@
+// handler.go
 package main
 
 import (
+	"encoding/json"
 	"html/template"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
@@ -21,13 +23,24 @@ var (
 	dirTemplateOnce sync.Once
 )
 
-// handleRequest is the main entry point. Logs the request, then delegates to
-// prepareRequest and the appropriate method handler.
+// uploadResult holds the per-file result for the JSON upload response.
+type uploadResult struct {
+	Filename string `json:"filename"`
+	Ok       bool   `json:"ok"`
+	Error    string `json:"error,omitempty"`
+}
+
+// handleRequest is the main entry point, delegates to prepareRequest
+// and the appropriate method handler.
+// Logging and multipart parsing are handled upstream by middleware.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-	if data, err := requestToJSON(r); err == nil {
-		GoLog.Info(string(data))
-	} else {
-		GoLog.Warnf("failed to serialize request: %v", err)
+	if r.URL.Path == "/api/log" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handleLogEvent(w, r)
+		return
 	}
 
 	ctx, ok := prepareRequest(w, r)
@@ -105,7 +118,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	fd := ctx.fileData
 
-	if fd.Uses == 0 || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix()) {
+	if shared.IsExpired(fd) {
 		fd.Expired = true
 		ctx.config.Files[ctx.subpath] = fd
 		if err := shared.SaveConfig(ctx.config); err != nil {
@@ -144,35 +157,74 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 }
 
 // handlePost processes file uploads.
+// Multipart form is already parsed by multipartMiddleware — no second parse needed.
 func handlePost(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if !ctx.fileData.AllowPost {
 		http.Error(w, "POST Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
-		GoLog.Errorf("failed to parse multipart form: %v", err)
+	pm := multipartFromContext(r.Context())
+	if pm == nil {
+		GoLog.Errorf("handlePost: no parsed multipart in context")
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	for _, fh := range r.MultipartForm.File["files"] {
-		if err := saveUploadedFile(fh, ctx.diskPath); err != nil {
-			GoLog.Errorf("failed to save uploaded file %q: %v", fh.Filename, err)
-			http.Error(w, "Upload failed", http.StatusInternalServerError)
-			return
+	storage := &LocalStorage{Dir: ctx.diskPath}
+	results := make([]uploadResult, 0, len(pm.Files))
+
+	for _, fh := range pm.Files {
+		finalName, err := storage.Save(r.Context(), fh)
+		if err != nil {
+			GoLog.Errorf("failed to save %q: %v", fh.Filename, err)
+			results = append(results, uploadResult{
+				Filename: fh.Filename,
+				Ok:       false,
+				Error:    err.Error(),
+			})
+			continue
 		}
+		results = append(results, uploadResult{
+			Filename: finalName,
+			Ok:       true,
+		})
 	}
 
-	w.Write([]byte("Files uploaded successfully"))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"results": results})
 }
 
+// handleShareCSS and handleShareJS serve static assets.
 func handleShareCSS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, shareCssPath)
 }
 
 func handleShareJS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, shareJsPath)
+}
+
+// handleLogEvent allows the client to send log messages to the server.
+func handleLogEvent(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Message string `json:"message"`
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	if !isAllowedLogMessage(payload.Message) {
+		GoLog.Warnf("rejected disallowed log message: %q", payload.Message)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	GoLog.Infof("client: %s", payload.Message)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // serveDirectory renders the directory listing, or streams a ZIP if ?download=zip.
@@ -234,7 +286,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 	return infos, nil
 }
 
-// loadTemplate parses the directory template once on first use and reuses it for all directory listings.
+// loadTemplate parses the directory template once and reuses it for all directory listings.
 func loadTemplate() (*template.Template, error) {
 	dirTemplateOnce.Do(func() {
 		dirTemplate, dirTemplateErr = template.New("directory").

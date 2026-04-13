@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,7 +16,7 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// ── ANSI colours ──────────────────────────────────────
+// ── ANSI colors ──────────────────────────────────────
 const (
 	colorReset  = "\033[0m"
 	colorBold   = "\033[1m"
@@ -35,47 +34,11 @@ var (
 	randomSubpathLength = 12
 )
 
-// ── Types ─────────────────────────────────────────────
-type JsonData struct {
-	Port          int                        `json:"port"`
-	AdminPassword string                     `json:"admin_password"`
-	Files         map[string]shared.FileData `json:"files"`
-}
-
 // ── Data I/O ──────────────────────────────────────────
 
-func loadData() (*JsonData, error) {
-	f, err := os.Open(dataPath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open %s: %w", dataPath, err)
-	}
-	defer f.Close()
-
-	var d JsonData
-	if err := json.NewDecoder(f).Decode(&d); err != nil {
-		return nil, fmt.Errorf("cannot parse %s: %w", dataPath, err)
-	}
-	if d.Files == nil {
-		d.Files = make(map[string]shared.FileData)
-	}
-	return &d, nil
-}
-
-func saveData(d *JsonData) error {
-	f, err := os.Create(dataPath)
-	if err != nil {
-		return fmt.Errorf("cannot write %s: %w", dataPath, err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "    ")
-	return enc.Encode(d)
-}
-
-// mustLoad loads data or exits with an error log.
-func mustLoad() *JsonData {
-	d, err := loadData()
+// mustLoad loads the config or exits with an error log.
+func mustLoad() *shared.Config {
+	d, err := shared.LoadConfigFrom(dataPath)
 	if err != nil {
 		GoLog.Errorf("Failed to load data: %v", err)
 		os.Exit(1)
@@ -83,19 +46,15 @@ func mustLoad() *JsonData {
 	return d
 }
 
-// mustSave saves data or exits with an error log.
-func mustSave(d *JsonData) {
-	if err := saveData(d); err != nil {
+// mustSave saves the config or exits with an error log.
+func mustSave(d *shared.Config) {
+	if err := shared.SaveConfigTo(dataPath, d); err != nil {
 		GoLog.Errorf("Failed to save data: %v", err)
 		os.Exit(1)
 	}
 }
 
 // ── Formatting helpers ────────────────────────────────
-
-func isExpired(s shared.FileData) bool {
-	return s.Expired || s.Uses == 0 || (s.Expiration != 0 && s.Expiration < time.Now().Unix())
-}
 
 func fmtExpiration(ts int64) string {
 	if ts == 0 {
@@ -132,50 +91,6 @@ func truncatePath(p string, max int) string {
 		return "…" + p[len(p)-(max-1):]
 	}
 	return p
-}
-
-func generateRandomSubpath(length int) string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = chars[rand.Intn(len(chars))]
-	}
-	return string(b)
-}
-
-// parseExpiration accepts "" / "0" / "never" → 0, a unix timestamp,
-// or a duration: 24h, 7d, 2w, 3m, 1y.
-func parseExpiration(s string) (int64, error) {
-	s = strings.TrimSpace(s)
-	if s == "" || s == "0" || s == "never" {
-		return 0, nil
-	}
-	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return ts, nil
-	}
-	if len(s) < 2 {
-		return 0, fmt.Errorf("invalid expiration %q — use e.g. 24h, 7d, 2w, 3m, 1y or a unix timestamp", s)
-	}
-	unit := s[len(s)-1]
-	num, err := strconv.Atoi(s[:len(s)-1])
-	if err != nil {
-		return 0, fmt.Errorf("invalid expiration %q: %w", s, err)
-	}
-	now := time.Now()
-	switch unit {
-	case 'h':
-		return now.Add(time.Duration(num) * time.Hour).Unix(), nil
-	case 'd':
-		return now.AddDate(0, 0, num).Unix(), nil
-	case 'w':
-		return now.AddDate(0, 0, num*7).Unix(), nil
-	case 'm':
-		return now.AddDate(0, num, 0).Unix(), nil
-	case 'y':
-		return now.AddDate(num, 0, 0).Unix(), nil
-	default:
-		return 0, fmt.Errorf("unknown unit %q — use h, d, w, m or y", string(unit))
-	}
 }
 
 func confirmPrompt(msg string) bool {
@@ -216,7 +131,7 @@ func cmdList(asJSON bool) {
 	var active, expired, withUpload int
 	for _, k := range keys {
 		s := d.Files[k]
-		if isExpired(s) {
+		if shared.IsExpired(s) {
 			expired++
 		} else {
 			active++
@@ -253,7 +168,7 @@ func cmdList(asJSON bool) {
 
 	for _, sub := range keys {
 		s := d.Files[sub]
-		exp := isExpired(s)
+		exp := shared.IsExpired(s)
 		_, statErr := os.Stat(s.Path)
 		pathMissing := os.IsNotExist(statErr)
 
@@ -293,7 +208,7 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 	}
 
 	if subpath == "" {
-		subpath = generateRandomSubpath(randomSubpathLength)
+		subpath = shared.GenerateRandomSubpath(randomSubpathLength)
 		GoLog.Infof("No subpath given — using random: %s", subpath)
 	}
 
@@ -410,7 +325,7 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 	}
 
 	if newExpiresStr != "" {
-		ts, err := parseExpiration(newExpiresStr)
+		ts, err := shared.ParseExpiration(newExpiresStr)
 		if err != nil {
 			GoLog.Errorf("Invalid expiration: %v", err)
 			os.Exit(1)
@@ -460,7 +375,7 @@ func cmdPrune(yes bool) {
 
 	var toDelete []string
 	for k, s := range d.Files {
-		if isExpired(s) {
+		if shared.IsExpired(s) {
 			toDelete = append(toDelete, k)
 		}
 	}
@@ -679,7 +594,7 @@ func main() {
 		if cmd != "add" {
 			*subpath = "" // legacy addrandom → force random subpath
 		}
-		exp, err := parseExpiration(*expires)
+		exp, err := shared.ParseExpiration(*expires)
 		if err != nil {
 			GoLog.Errorf("Invalid expiration: %v", err)
 			os.Exit(1)

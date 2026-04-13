@@ -1,25 +1,36 @@
+// logging.go
 package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/Wirezat/GoLog"
 )
+
+type contextKey string
 
 const (
-	maxBodyBytes     = 1 << 20  // 1 MB
-	maxMultipartSize = 32 << 20 // 32 MB
+	maxBodyBytes            = 1 << 20 // 1 MB
+	multipartKey contextKey = "multipart"
+
+	// Log messages that are allowed to be sent from the client,
+	// in order to prevent exploits like injections.
+	logMsgUploadInitiated = "Upload initiated"
 )
 
-// Headers excluded from request logs.
-var sensitiveHeaders = map[string]bool{
-	http.CanonicalHeaderKey("authorization"): true,
-	http.CanonicalHeaderKey("cookie"):        true,
-	http.CanonicalHeaderKey("x-auth-token"):  true,
+// parsedMultipart holds the result of a single multipart parse,
+// shared between middleware, logger, and handler via context.
+type parsedMultipart struct {
+	Form  *multipart.Form
+	Files []*multipart.FileHeader
 }
 
 // requestLog is the structured log entry for an HTTP request.
@@ -32,21 +43,145 @@ type requestLog struct {
 	Body          any               `json:"body,omitempty"`
 	BodyError     string            `json:"body_error,omitempty"`
 	FormFields    map[string]string `json:"form_fields,omitempty"`
-	UploadedFiles []fileInfo        `json:"uploaded_files,omitempty"`
+	UploadedFiles []uploadedFile    `json:"uploaded_files,omitempty"`
 }
 
-type fileInfo struct {
+type uploadedFile struct {
 	Field       string `json:"field"`
 	Filename    string `json:"filename"`
 	SizeBytes   int64  `json:"size_bytes"`
 	ContentType string `json:"content_type"`
 }
 
+// multipartFromContext retrieves the parsed multipart from the request context.
+// Returns nil if the request was not a multipart upload.
+func multipartFromContext(ctx context.Context) *parsedMultipart {
+	pm, _ := ctx.Value(multipartKey).(*parsedMultipart)
+	return pm
+}
+
+// multipartMiddleware parses multipart/form-data requests exactly once
+// and stores the result in the request context for downstream handlers.
+func multipartMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost &&
+			strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+
+			if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+				GoLog.Errorf("multipartMiddleware: failed to parse: %v", err)
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+
+			pm := &parsedMultipart{
+				Form:  r.MultipartForm,
+				Files: r.MultipartForm.File["files"],
+			}
+
+			r = r.WithContext(context.WithValue(r.Context(), multipartKey, pm))
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// loggingMiddleware logs every request. For multipart uploads it reads
+// file metadata from the context instead of parsing the body again.
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/log" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if data, err := buildRequestLog(r).toJSON(); err == nil {
+			GoLog.Info(string(data))
+		} else {
+			GoLog.Warnf("loggingMiddleware: failed to serialize request: %v", err)
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (rl *requestLog) toJSON() ([]byte, error) {
+	return json.Marshal(rl)
+}
+
+// buildRequestLog constructs a requestLog from the incoming request.
+// Multipart metadata is read from context (already parsed by multipartMiddleware).
+// Other body types are read and restored for downstream handlers.
+func buildRequestLog(r *http.Request) *requestLog {
+	decodedURL, err := url.QueryUnescape(r.URL.RequestURI())
+	if err != nil {
+		decodedURL = r.URL.RequestURI()
+	}
+
+	entry := &requestLog{
+		Method:   r.Method,
+		URL:      decodedURL,
+		ClientIP: clientIP(r),
+		Headers:  safeHeaders(r),
+	}
+
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		return entry
+	}
+
+	ct := r.Header.Get("Content-Type")
+	switch {
+
+	case strings.HasPrefix(ct, "application/json"):
+		body, err := readAndRestoreBody(r)
+		if err != nil {
+			entry.BodyError = err.Error()
+			break
+		}
+		var parsed any
+		if json.Unmarshal(body, &parsed) == nil {
+			entry.Body = parsed
+		} else {
+			entry.Body = string(body)
+		}
+
+	case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
+		body, err := readAndRestoreBody(r)
+		if err != nil {
+			entry.BodyError = err.Error()
+			break
+		}
+		if form, err := url.ParseQuery(string(body)); err == nil {
+			entry.FormFields = flattenValues(form)
+		}
+
+	case strings.HasPrefix(ct, "multipart/form-data"):
+		// Body already parsed by multipartMiddleware — read from context only.
+		if pm := multipartFromContext(r.Context()); pm != nil {
+			for _, fh := range pm.Files {
+				entry.UploadedFiles = append(entry.UploadedFiles, uploadedFile{
+					Field:       "files",
+					Filename:    fh.Filename,
+					SizeBytes:   fh.Size,
+					ContentType: fh.Header.Get("Content-Type"),
+				})
+			}
+		}
+	}
+
+	return entry
+}
+
+// Headers excluded from request logs.
+var sensitiveHeaders = map[string]bool{
+	http.CanonicalHeaderKey("authorization"): true,
+	http.CanonicalHeaderKey("cookie"):        true,
+	http.CanonicalHeaderKey("x-auth-token"):  true,
+}
+
 // clientIP extracts the real client IP.
 // Priority: X-Forwarded-For (first entry) → CF-Connecting-IP → RemoteAddr.
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Avoid SplitN allocation — just find the first comma.
 		if i := strings.IndexByte(xff, ','); i != -1 {
 			return strings.TrimSpace(xff[:i])
 		}
@@ -74,73 +209,6 @@ func safeHeaders(r *http.Request) map[string]string {
 	return headers
 }
 
-// requestToJSON serializes an HTTP request to JSON.
-// POST/PUT bodies are parsed by content type; the body is always restored
-// so downstream handlers can read it again.
-func requestToJSON(r *http.Request) ([]byte, error) {
-	decodedURL, err := url.QueryUnescape(r.URL.RequestURI())
-	if err != nil {
-		decodedURL = r.URL.RequestURI()
-	}
-
-	entry := requestLog{
-		Method:   r.Method,
-		URL:      decodedURL,
-		ClientIP: clientIP(r),
-		Headers:  safeHeaders(r),
-	}
-
-	if r.Method == http.MethodPost || r.Method == http.MethodPut {
-		ct := r.Header.Get("Content-Type")
-		switch {
-
-		case strings.HasPrefix(ct, "application/json"):
-			body, err := readAndRestoreBody(r)
-			if err != nil {
-				entry.BodyError = err.Error()
-				break
-			}
-			var parsed any
-			if json.Unmarshal(body, &parsed) == nil {
-				entry.Body = parsed
-			} else {
-				entry.Body = string(body) // keep raw on invalid JSON
-			}
-
-		case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
-			body, err := readAndRestoreBody(r)
-			if err != nil {
-				entry.BodyError = err.Error()
-				break
-			}
-			// ParseQuery directly avoids ParseForm's second body read + extra restore.
-			if form, err := url.ParseQuery(string(body)); err == nil {
-				entry.FormFields = flattenValues(form)
-			}
-
-		case strings.HasPrefix(ct, "multipart/form-data"):
-			if err := r.ParseMultipartForm(maxMultipartSize); err != nil || r.MultipartForm == nil {
-				break
-			}
-			if len(r.MultipartForm.Value) > 0 {
-				entry.FormFields = flattenValues(r.MultipartForm.Value)
-			}
-			for field, fhs := range r.MultipartForm.File {
-				for _, fh := range fhs {
-					entry.UploadedFiles = append(entry.UploadedFiles, fileInfo{
-						Field:       field,
-						Filename:    fh.Filename,
-						SizeBytes:   fh.Size,
-						ContentType: fh.Header.Get("Content-Type"),
-					})
-				}
-			}
-		}
-	}
-
-	return json.Marshal(entry)
-}
-
 // readAndRestoreBody reads up to maxBodyBytes and resets r.Body for downstream handlers.
 func readAndRestoreBody(r *http.Request) ([]byte, error) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
@@ -157,4 +225,12 @@ func flattenValues(m map[string][]string) map[string]string {
 		}
 	}
 	return out
+}
+
+func isAllowedLogMessage(message string) bool {
+	switch message {
+	case logMsgUploadInitiated:
+		return true
+	}
+	return false
 }

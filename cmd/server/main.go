@@ -1,3 +1,4 @@
+// main.go
 package main
 
 import (
@@ -9,6 +10,15 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
+
+// chain applies middleware in order: first wraps outermost, last wraps innermost.
+// Request flows: multipart → logging → handler
+func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.Handler {
+	for i := len(middleware) - 1; i >= 0; i-- {
+		h = middleware[i](h)
+	}
+	return h
+}
 
 func buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -27,8 +37,13 @@ func buildMux() *http.ServeMux {
 		mux.HandleFunc(path, basicAuth(h))
 	}
 
-	// Public routes
-	mux.HandleFunc("/", handleRequest)
+	// Public routes – multipart and logging middleware applied to all
+	public := chain(
+		http.HandlerFunc(handleRequest),
+		multipartMiddleware,
+		loggingMiddleware,
+	)
+	mux.Handle("/", public)
 	mux.HandleFunc("/static/share.css", handleShareCSS)
 	mux.HandleFunc("/static/share.js", handleShareJS)
 
@@ -50,7 +65,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// load log history and start tailing
 	if path := GoLog.LogPath(); path != "" {
 		if err := shared.Logger.Load(path); err != nil {
 			GoLog.Errorf("failed to load log history: %v", err)

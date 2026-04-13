@@ -19,10 +19,9 @@ func startExpirationWatcher(interval time.Duration) {
 				continue
 			}
 
-			now := time.Now().Unix()
 			changed := false
 			for subpath, fd := range config.Files {
-				if !fd.Expired && fd.Expiration != 0 && fd.Expiration < now {
+				if !fd.Expired && shared.IsExpired(fd) {
 					fd.Expired = true
 					config.Files[subpath] = fd
 					changed = true

@@ -30,8 +30,8 @@ var Logger = &LogStore{
 	entries: make([]LogEntry, 0, maxLogEntries),
 }
 
-// ParseLine parses a log line of the form: [LEVEL] [timestamp] message
-func ParseLine(line string) (LogEntry, bool) {
+// parseLine parses a log line of the form: [LEVEL] [timestamp] message
+func parseLine(line string) (LogEntry, bool) {
 	line = strings.TrimSpace(line)
 	if len(line) < 2 || line[0] != '[' {
 		return LogEntry{}, false
@@ -59,7 +59,6 @@ func (l *LogStore) add(entry LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if len(l.entries) >= maxLogEntries {
-		// Shift left without reallocating
 		copy(l.entries, l.entries[1:])
 		l.entries = l.entries[:len(l.entries)-1]
 	}
@@ -119,7 +118,7 @@ func (l *LogStore) Load(path string) error {
 	defer f.Close()
 	s := bufio.NewScanner(f)
 	for s.Scan() {
-		if entry, ok := ParseLine(s.Text()); ok {
+		if entry, ok := parseLine(s.Text()); ok {
 			l.add(entry)
 		}
 	}
@@ -146,7 +145,7 @@ func (l *LogStore) Tail(path string) error {
 				time.Sleep(tailInterval)
 				continue
 			}
-			if entry, ok := ParseLine(strings.TrimRight(line, "\n")); ok {
+			if entry, ok := parseLine(strings.TrimRight(line, "\n")); ok {
 				l.add(entry)
 			}
 		}

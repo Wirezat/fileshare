@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,21 +24,31 @@ var bufPool = sync.Pool{
 	},
 }
 
-// saveUploadedFile saves an uploaded file to uploadDir.
-// Collisions are resolved atomically via O_EXCL + UnixNano retry loop.
-// Copy buffers are reused via sync.Pool to reduce GC pressure.
-func saveUploadedFile(fh *multipart.FileHeader, uploadDir string) error {
+// Storage is the interface for saving uploaded files.
+// LocalStorage is the only implementation for now, but the interface
+// makes the code testable and leaves the door open for future backends.
+type Storage interface {
+	Save(ctx context.Context, fh *multipart.FileHeader) (string, error)
+}
+
+// LocalStorage saves files to a directory on the local filesystem.
+type LocalStorage struct {
+	Dir string
+}
+
+// Save writes an uploaded file to LocalStorage.Dir atomically.
+// Returns the final filename (may differ from fh.Filename on collision).
+func (s *LocalStorage) Save(_ context.Context, fh *multipart.FileHeader) (string, error) {
 	src, err := fh.Open()
 	if err != nil {
-		GoLog.Errorf("failed to open upload %q: %v", fh.Filename, err)
-		return fmt.Errorf("opening uploaded file: %w", err)
+		return "", fmt.Errorf("opening upload %q: %w", fh.Filename, err)
 	}
 	defer src.Close()
 
 	base := filepath.Base(fh.Filename)
 	ext := filepath.Ext(base)
 	stem := strings.TrimSuffix(base, ext)
-	dst := filepath.Join(uploadDir, base)
+	dst := filepath.Join(s.Dir, base)
 
 	var f *os.File
 	for i := 0; ; i++ {
@@ -46,14 +57,12 @@ func saveUploadedFile(fh *multipart.FileHeader, uploadDir string) error {
 			break
 		}
 		if !errors.Is(err, os.ErrExist) {
-			GoLog.Errorf("failed to create %q: %v", dst, err)
-			return fmt.Errorf("creating destination file: %w", err)
+			return "", fmt.Errorf("creating %q: %w", dst, err)
 		}
 		if i >= maxCollisionRetries {
-			GoLog.Errorf("exceeded %d retries for %q", maxCollisionRetries, base)
-			return fmt.Errorf("too many name collisions for %q", base)
+			return "", fmt.Errorf("too many name collisions for %q", base)
 		}
-		dst = filepath.Join(uploadDir, fmt.Sprintf("%s_%d%s", stem, time.Now().UnixNano(), ext))
+		dst = filepath.Join(s.Dir, fmt.Sprintf("%s_%d%s", stem, time.Now().UnixNano(), ext))
 		GoLog.Debugf("collision #%d → retrying as %q", i+1, filepath.Base(dst))
 	}
 	defer f.Close()
@@ -62,10 +71,10 @@ func saveUploadedFile(fh *multipart.FileHeader, uploadDir string) error {
 	defer bufPool.Put(buf)
 
 	if _, err = io.CopyBuffer(f, src, *buf); err != nil {
-		GoLog.Errorf("failed to write %q: %v", dst, err)
-		return fmt.Errorf("writing file: %w", err)
+		os.Remove(dst) // cleanup partial file
+		return "", fmt.Errorf("writing %q: %w", dst, err)
 	}
 
 	GoLog.Infof("saved %q → %q", fh.Filename, dst)
-	return nil
+	return filepath.Base(dst), nil
 }
