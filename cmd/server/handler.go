@@ -218,12 +218,7 @@ func handleLogEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	if !isAllowedLogMessage(payload.Message) {
-		GoLog.Warnf("rejected disallowed log message: %q", payload.Message)
-		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return
-	}
-	GoLog.Infof("client: %s", payload.Message)
+	GoLog.Infof("%s: Client:%s", clientIP(r), preventClientLogInjection(payload.Message))
 	w.WriteHeader(http.StatusNoContent)
 }
 

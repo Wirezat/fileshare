@@ -154,7 +154,7 @@ header {
     margin-bottom: 16px;
     flex-wrap: wrap;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     transition: border-color 0.3s;
 }
 
@@ -169,7 +169,7 @@ header {
     left: 0;
     bottom: 0;
     width: 0%;
-    height: 100%;          /* ← das fehlte */
+    height: 100%;
     background: color-mix(in srgb, var(--accent) 12%, transparent);
     border-radius: var(--radius-lg);
     pointer-events: none;

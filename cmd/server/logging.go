@@ -19,10 +19,8 @@ type contextKey string
 const (
 	maxBodyBytes            = 1 << 20 // 1 MB
 	multipartKey contextKey = "multipart"
-
-	// Log messages that are allowed to be sent from the client,
-	// in order to prevent exploits like injections.
-	logMsgUploadInitiated = "Upload initiated"
+	//TODO: this should be configurable
+	logmaxLen = 4096
 )
 
 // parsedMultipart holds the result of a single multipart parse,
@@ -207,10 +205,27 @@ func flattenValues(m map[string][]string) map[string]string {
 	return out
 }
 
-func isAllowedLogMessage(message string) bool {
-	switch message {
-	case logMsgUploadInitiated:
-		return true
+func preventClientLogInjection(input string) string {
+	if len(input) > logmaxLen {
+		input = input[:logmaxLen]
 	}
-	return false
+	var builder strings.Builder
+	builder.Grow(len(input))
+	insideAnsiEscape := false
+	for offset, char := range input {
+		if char == 0x1b && offset+1 < len(input) && input[offset+1] == '[' {
+			insideAnsiEscape = true
+			continue
+		}
+		if insideAnsiEscape {
+			if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' {
+				insideAnsiEscape = false
+			}
+			continue
+		}
+		if char >= 32 && char != 127 {
+			builder.WriteRune(char)
+		}
+	}
+	return builder.String()
 }
