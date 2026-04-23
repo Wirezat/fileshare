@@ -163,7 +163,7 @@ function finishUploadProgress(succeeded, failed) {
 
     if (fill) {
         fill.style.width = "100%";
-        fill.style.background = `color-mix(in srgb, ${color} 12%, transparent)`;
+        fill.style.setProperty('--_breadcrumb-fill_color', color);
     }
     if (toastFill) {
         toastFill.style.background = color;

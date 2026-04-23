@@ -52,10 +52,9 @@ body {
     transition: background 0.25s, color 0.25s;
 }
 
-/* ── Header ── */
 header {
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--accent);
+    border-bottom: 1px solid var(--accent-dark);
     padding: 0 32px;
     display: flex;
     align-items: center;
@@ -67,13 +66,51 @@ header {
     flex-shrink: 0;
 }
 
+header .header-brand,
+header .header-sub,
+header .header-info,
+header .header-info strong {
+    color: var(--accent-text);
+}
+
+header .theme-btn {
+    color: var(--accent-text);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+header .theme-btn:hover {
+    background: var(--accent-dark);
+    color: var(--accent-text);
+}
+
+html.dark header {
+    background: var(--bg);
+    border-bottom-color: var(--border);
+}
+
+html.dark header .header-brand,
+html.dark header .header-sub,
+html.dark header .header-info,
+html.dark header .header-info strong {
+    color: var(--text);
+}
+
+html.dark header .theme-btn {
+    color: var(--text-muted);
+    border-color: var(--border-strong);
+}
+
+html.dark header .theme-btn:hover {
+    background: var(--bg-page);
+    color: var(--text);
+}
+
 .header-brand {
     display: flex;
     align-items: center;
     gap: 10px;
     font-weight: 600;
     font-size: 15px;
-    color: var(--text);
     text-decoration: none;
 }
 
@@ -91,7 +128,6 @@ header {
 
 .header-sub {
     font-size: 12px;
-    color: var(--text-muted);
     font-weight: 400;
 }
 
@@ -107,13 +143,11 @@ header {
     align-items: center;
     gap: 16px;
     font-size: 12px;
-    color: var(--text-muted);
     margin: 0 24px;
     flex-wrap: wrap;
 }
 
 .header-info strong {
-    color: var(--text);
     font-weight: 600;
 }
 
@@ -124,17 +158,10 @@ header {
     padding: 3px 8px;
     font-size: 13px;
     cursor: pointer;
-    color: var(--text-muted);
     line-height: 1.4;
     transition: background 0.15s, color 0.15s;
 }
 
-.theme-btn:hover {
-    background: var(--bg-page);
-    color: var(--text);
-}
-
-/* ── Main container ── */
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -142,7 +169,6 @@ header {
     margin-top: 0;
 }
 
-/* ── Breadcrumb / toolbar ── */
 .breadcrumb {
     display: flex;
     align-items: center;
@@ -162,7 +188,6 @@ header {
     border-color: rgba(255, 193, 7, 0.45);
 }
 
-/* Hintergrund-Fill der mit dem Fortschritt wächst */
 .breadcrumb-fill {
     position: absolute;
     top: 0;
@@ -170,11 +195,13 @@ header {
     bottom: 0;
     width: 0%;
     height: 100%;
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    --_breadcrumb-fill_color: var(--accent);
+    background: color-mix(in srgb, var(--_breadcrumb-fill_color) 12%, transparent);
     border-radius: var(--radius-lg);
     pointer-events: none;
     transition: width 0.35s ease;
     z-index: 0;
+    clip-path: inset(0 round var(--radius-lg));
 }
 
 .breadcrumb-fill::after {
@@ -184,9 +211,8 @@ header {
     bottom: 0;
     right: 0;
     width: 2px;
-    background: var(--accent);
+    background: var(--_breadcrumb-fill_color);
     opacity: 0.6;
-    border-radius: 0 2px 2px 0;
 }
 
 .breadcrumb > *:not(.breadcrumb-fill) {
@@ -251,7 +277,6 @@ header {
     color: var(--text);
 }
 
-/* Upload form styled as button */
 .upload-form {
     display: inline-flex;
 }
@@ -276,7 +301,6 @@ header {
     background: var(--accent-dark);
 }
 
-/* ── Upload Badge ── */
 .upload-badge {
     display: none;
     align-items: center;
@@ -319,7 +343,6 @@ header {
     to { opacity: 0.2; }
 }
 
-/* ── Upload Toast ── */
 .upload-toast {
     position: absolute;
     top: calc(100% + 6px);
@@ -393,7 +416,6 @@ html.dark .upload-toast {
     text-align: right;
 }
 
-/* ── File grid ── */
 .file-grid {
     display: grid;
     grid-template-columns: repeat(5, minmax(180px, 1fr));
@@ -439,7 +461,6 @@ html.dark .upload-toast {
     color: var(--text);
 }
 
-/* ── Section separator ── */
 .section-break {
     grid-column: 1 / -1;
     height: 0 !important;
@@ -448,7 +469,6 @@ html.dark .upload-toast {
     border: 0 !important;
 }
 
-/* ── Media items ── */
 .media-item {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -481,7 +501,6 @@ audio {
     border-top: 1px solid var(--border);
 }
 
-/* ── Overlay ── */
 .overlay {
     position: absolute;
     top: 0;
@@ -523,7 +542,6 @@ audio {
     transform: translateY(-2px);
 }
 
-/* ── Lightbox ── */
 .lightbox {
     display: none;
     position: fixed;
@@ -564,7 +582,6 @@ audio {
     color: var(--accent);
 }
 
-/* ── Responsive ── */
 @media (max-width: 1024px) {
     .file-grid {
         grid-template-columns: repeat(4, 1fr);
