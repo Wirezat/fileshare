@@ -45,7 +45,6 @@
 
         <!-- Breadcrumb / toolbar -->
         <div class="breadcrumb" id="breadcrumb">
-            <!-- upload progress -->
             <div class="breadcrumb-fill" id="breadcrumb-fill"></div>
 
             {{if .HasParentDir}}
@@ -56,37 +55,47 @@
             <div class="breadcrumb-actions">
                 {{if .AllowPost}}
                 <!-- Upload-Badge -->
-                <!-- Upload-Badge -->
                 <div class="upload-badge" id="upload-badge">
                     <div class="upload-badge-dot"></div>
-                    <span id="upload-badge-text" onclick="toggleUploadToast()" style="cursor:pointer">0%</span>
+                    <span id="upload-badge-text" onclick="toggleUploadToast()">0%</span>
 
                     <!-- Toast -->
                     <div class="upload-toast" id="upload-toast">
-                        <div class="upload-toast-head">
-                            <div class="upload-toast-icon">📤</div>
-                            <div>
-                                <div class="upload-toast-title">Upload running…</div>
-                                <div class="upload-toast-sub" id="upload-toast-sub"></div>
+                        <div class="upload-toast-header">
+                            <div class="upload-toast-title-row">
+                                <div class="upload-badge-dot"></div>
+                                <span class="upload-toast-title">Uploading…</span>
+                            </div>
+                            <div class="upload-toast-header-right">
+                                <span id="upload-toast-pct">0%</span>
+                                <span class="upload-toast-close" onclick="toggleUploadToast()">×</span>
                             </div>
                         </div>
-                        <div class="upload-toast-track">
-                            <div class="upload-toast-fill" id="upload-toast-fill"></div>
+                        <div class="upload-toast-progress">
+                            <div id="upload-toast-fill"></div>
                         </div>
-                        <div class="upload-toast-meta">
-                            <span id="upload-toast-pct">0%</span>
+                        <div id="upload-toast-file-list"></div>
+                        <div class="upload-toast-footer">
+                            <div class="upload-toast-footer-left">
+                                <span id="upload-toast-sub"></span>
+                                <span id="upload-toast-eta"></span>
+                            </div>
+                            <div class="upload-toast-footer-right">
+                                <span id="upload-toast-speed"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
+                {{end}}
+
                 <form id="uploadForm" method="post" enctype="multipart/form-data" class="upload-form">
                     <label for="fileUpload" class="upload-label">
-                        <span id="uploadButtonText">📤 Upload</span>
+                        <span id="uploadButtonText">Upload</span>
                         <input id="fileUpload" name="files" type="file" multiple style="display:none"
                             onchange="submitUpload()" />
                     </label>
                 </form>
-                {{end}}
-                <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">📦 ZIP</a>
+                <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">ZIP</a>
             </div>
         </div>
 

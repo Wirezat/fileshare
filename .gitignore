@@ -6,8 +6,11 @@ fileshare-interface
 *.test
 go.sum
 
-# Laufzeit-Konfiguration (bleibt auf dem Server)
+# Runtime config
 data.json
+
+# Dev-data
+fileshare-architektur.html
 
 # Logs
 *.log
