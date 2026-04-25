@@ -20,7 +20,7 @@ func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.H
 	return h
 }
 
-func buildMux() *http.ServeMux {
+func buildMux(config *shared.Config) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	adminRoutes := map[string]http.HandlerFunc{
@@ -41,7 +41,7 @@ func buildMux() *http.ServeMux {
 	// Public routes – multipart and logging middleware applied to all
 	public := chain(
 		http.HandlerFunc(handleRequest),
-		multipartMiddleware,
+		multipartMiddleware(config),
 		loggingMiddleware,
 	)
 	mux.Handle("/", public)
@@ -51,10 +51,10 @@ func buildMux() *http.ServeMux {
 	return mux
 }
 
-func startServer(port int) {
-	addr := fmt.Sprintf(":%d", port)
+func startServer(config *shared.Config) {
+	addr := fmt.Sprintf(":%d", config.Port)
 	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, buildMux()); err != nil {
+	if err := http.ListenAndServe(addr, buildMux(config)); err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
 		os.Exit(1)
 	}
@@ -82,5 +82,5 @@ func main() {
 	}
 
 	startExpirationWatcher(5 * time.Minute)
-	startServer(config.Port)
+	startServer(config)
 }

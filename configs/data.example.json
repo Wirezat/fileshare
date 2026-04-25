@@ -1,5 +1,6 @@
 {
   "port": 27182,
+  "maxPostSize": 107374182400,
   "admin_username":"",
   "admin_password": "",
   "files": {

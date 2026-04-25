@@ -15,8 +15,6 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-const maxUploadSize = 100 << 30 // 100 GB – intentionally high for private use
-
 var (
 	dirTemplate     *template.Template
 	dirTemplateErr  error
@@ -218,7 +216,7 @@ func handleLogEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	GoLog.Infof("%s: Client:%s", clientIP(r), preventClientLogInjection(payload.Message))
+	GoLog.Infof("%s: Client: %s", clientIP(r), preventClientLogInjection(payload.Message))
 	w.WriteHeader(http.StatusNoContent)
 }
 

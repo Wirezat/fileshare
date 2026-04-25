@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 type contextKey string
@@ -59,27 +60,25 @@ func multipartFromContext(ctx context.Context) *parsedMultipart {
 
 // multipartMiddleware parses multipart/form-data requests exactly once
 // and stores the result in the request context for downstream handlers.
-func multipartMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost &&
-			strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-
-			if err := r.ParseMultipartForm(maxUploadSize); err != nil {
-				GoLog.Errorf("multipartMiddleware: failed to parse: %v", err)
-				http.Error(w, "Bad Request", http.StatusBadRequest)
-				return
+func multipartMiddleware(config *shared.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost &&
+				strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+				if err := r.ParseMultipartForm(int64(config.MaxPostSize)); err != nil {
+					GoLog.Errorf("multipartMiddleware: failed to parse: %v", err)
+					http.Error(w, "Bad Request", http.StatusBadRequest)
+					return
+				}
+				pm := &parsedMultipart{
+					Form:  r.MultipartForm,
+					Files: r.MultipartForm.File["files"],
+				}
+				r = r.WithContext(context.WithValue(r.Context(), multipartKey, pm))
 			}
-
-			pm := &parsedMultipart{
-				Form:  r.MultipartForm,
-				Files: r.MultipartForm.File["files"],
-			}
-
-			r = r.WithContext(context.WithValue(r.Context(), multipartKey, pm))
-		}
-
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // loggingMiddleware logs every request. For multipart uploads it reads
