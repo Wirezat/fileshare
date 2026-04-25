@@ -1,4 +1,3 @@
-// main.go
 package main
 
 import (
@@ -11,8 +10,9 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
+var storage *LocalStorage
+
 // chain applies middleware in order: first wraps outermost, last wraps innermost.
-// Request flows: multipart → logging → handler
 func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.Handler {
 	for i := len(middleware) - 1; i >= 0; i-- {
 		h = middleware[i](h)
@@ -20,28 +20,33 @@ func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.H
 	return h
 }
 
-func buildMux(config *shared.Config) *http.ServeMux {
+func buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	adminRoutes := map[string]http.HandlerFunc{
-		"/admin":                            handleAdminUI,
-		"/admin/static/admin.css":           handleAdminCSS,
-		"/admin/static/admin.js":            handleAdminJS,
-		"/admin/api/shares":                 handleAdminShares,
-		"/admin/api/logs":                   handleAdminLogs,
-		"/admin/api/logs/stream":            handleAdminLogsStream,
-		"/admin/api/settings/username":      handleAdminSettingsUsername,
-		"/admin/api/settings/password":      handleAdminSettingsPassword,
-		"/admin/api/settings/prune_expired": handleAdminFunctionPruneExpired,
+		"/admin":                                       handleAdminUI,
+		"/admin/static/admin.css":                      handleAdminCSS,
+		"/admin/static/admin.js":                       handleAdminJS,
+		"/admin/api/shares":                            handleAdminShares,
+		"/admin/api/logs":                              handleAdminLogs,
+		"/admin/api/logs/stream":                       handleAdminLogsStream,
+		"/admin/api/settings/username":                 handleAdminSettingsUsername,
+		"/admin/api/settings/password":                 handleAdminSettingsPassword,
+		"/admin/api/settings/max_post_size":            handleAdminSettingsMaxPostSize,
+		"/admin/api/settings/chunk_inactivity_timeout": handleAdminSettingsChunkInactivityTimeout,
+		"/admin/api/settings/prune_expired":            handleAdminFunctionPruneExpired,
 	}
 	for path, h := range adminRoutes {
 		mux.HandleFunc(path, basicAuth(h))
 	}
 
-	// Public routes – multipart and logging middleware applied to all
+	// Chunk upload endpoints — no multipart middleware, handlers parse themselves.
+	mux.HandleFunc("POST /{subpath}/chunk-init", handleChunkInit)
+	mux.HandleFunc("POST /{subpath}/chunk", handleChunkReceive)
+
+	// Public routes — only logging middleware, multipart is gone.
 	public := chain(
 		http.HandlerFunc(handleRequest),
-		multipartMiddleware(config),
 		loggingMiddleware,
 	)
 	mux.Handle("/", public)
@@ -54,7 +59,7 @@ func buildMux(config *shared.Config) *http.ServeMux {
 func startServer(config *shared.Config) {
 	addr := fmt.Sprintf(":%d", config.Port)
 	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, buildMux(config)); err != nil {
+	if err := http.ListenAndServe(addr, buildMux()); err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
 		os.Exit(1)
 	}
@@ -80,6 +85,9 @@ func main() {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
+
+	storage = NewLocalStorage(config)
+	storage.StartReaper()
 
 	startExpirationWatcher(5 * time.Minute)
 	startServer(config)

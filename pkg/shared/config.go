@@ -5,11 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"sync/atomic"
 )
 
 const defaultConfigPath = "./data.json"
+
+var configDefaults = Config{
+	Port:                   27182,
+	MaxPostSize:            94371840,
+	ChunkInactivityTimeout: 1800,
+	AdminUsername:          "admin",
+	AdminPassword:          "admin",
+}
 
 // FileInfo holds the name, path, and type of a file or directory.
 type FileInfo struct {
@@ -31,11 +40,12 @@ type FileData struct {
 
 // Config is the top-level application configuration.
 type Config struct {
-	Port          int                 `json:"port"`
-	MaxPostSize   int                 `json:"maxPostSize"`
-	AdminUsername string              `json:"admin_username"`
-	AdminPassword string              `json:"admin_password"`
-	Files         map[string]FileData `json:"files"`
+	Port                   int                 `json:"port"`
+	MaxPostSize            int                 `json:"maxPostSize"`
+	ChunkInactivityTimeout int                 `json:"chunkInactivityTimeout"`
+	AdminUsername          string              `json:"admin_username"`
+	AdminPassword          string              `json:"admin_password"`
+	Files                  map[string]FileData `json:"files"`
 }
 
 var configCache atomic.Pointer[Config]
@@ -45,7 +55,7 @@ func LoadConfig() (*Config, error) {
 	if p := configCache.Load(); p != nil {
 		return p, nil
 	}
-	cfg, err := LoadConfigFrom("./data.json")
+	cfg, err := LoadConfigFrom(defaultConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -68,12 +78,26 @@ func LoadConfigFrom(path string) (*Config, error) {
 	if config.Files == nil {
 		config.Files = make(map[string]FileData)
 	}
+	applyDefaults(&config)
 	return &config, nil
+}
+
+// applyDefaults fills in zero-value fields that would break the server if left unset.
+func applyDefaults(cfg *Config) {
+	defaults := reflect.ValueOf(configDefaults)
+	target := reflect.ValueOf(cfg).Elem()
+
+	for i := range target.NumField() {
+		f := target.Field(i)
+		if f.IsZero() {
+			f.Set(defaults.Field(i))
+		}
+	}
 }
 
 // SaveConfig writes the config atomically to the default path.
 func SaveConfig(cfg *Config) error {
-	if err := SaveConfigTo("./data.json", cfg); err != nil {
+	if err := SaveConfigTo(defaultConfigPath, cfg); err != nil {
 		return err
 	}
 	configCache.Store(cfg)
@@ -90,7 +114,6 @@ func SaveConfigTo(path string, config *Config) error {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpName := tmp.Name()
-
 	enc := json.NewEncoder(tmp)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(config); err != nil {
@@ -102,7 +125,6 @@ func SaveConfigTo(path string, config *Config) error {
 		os.Remove(tmpName)
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
-
 	if err := os.Rename(tmpName, path); err != nil {
 		os.Remove(tmpName)
 		return fmt.Errorf("failed to replace config file: %w", err)

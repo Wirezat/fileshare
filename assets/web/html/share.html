@@ -10,7 +10,6 @@
     <meta property="og:type" content="website" />
     <link rel="stylesheet" href="/static/share.css" />
     <script>
-        // Run before paint to prevent dark mode flash
         (function () {
             const saved = localStorage.getItem('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -22,6 +21,11 @@
 </head>
 
 <body>
+
+    <!-- Page-level upload progress stripe (browser-style, fixed just below header) -->
+    <div id="upload-stripe">
+        <div id="upload-stripe-fill"></div>
+    </div>
 
     <header>
         <a class="header-brand" href="/{{.Subpath}}">
@@ -45,8 +49,6 @@
 
         <!-- Breadcrumb / toolbar -->
         <div class="breadcrumb" id="breadcrumb">
-            <div class="breadcrumb-fill" id="breadcrumb-fill"></div>
-
             {{if .HasParentDir}}
             <a href="/{{.Subpath}}{{.ParentDir}}/" class="btn btn-primary">📂 [..]</a>
             <span style="color:var(--border-strong);">/</span>
@@ -54,7 +56,6 @@
             <span class="breadcrumb-path">{{.Subpath}}{{.DirPath}}</span>
             <div class="breadcrumb-actions">
                 {{if .AllowPost}}
-                <!-- Upload-Badge -->
                 <div class="upload-badge" id="upload-badge">
                     <div class="upload-badge-dot"></div>
                     <span id="upload-badge-text" onclick="toggleUploadToast()">0%</span>
@@ -63,26 +64,25 @@
                     <div class="upload-toast" id="upload-toast">
                         <div class="upload-toast-header">
                             <div class="upload-toast-title-row">
-                                <div class="upload-badge-dot"></div>
+                                <span id="upload-toast-pct">0%</span>
                                 <span class="upload-toast-title">Uploading…</span>
                             </div>
-                            <div class="upload-toast-header-right">
-                                <span id="upload-toast-pct">0%</span>
-                                <span class="upload-toast-close" onclick="toggleUploadToast()">×</span>
+                            <!-- Global pause + close -->
+                            <div class="upload-toast-header-actions">
+                                <button class="toast-icon-btn" id="toast-pause-btn" onclick="togglePauseUpload()"
+                                    title="Pause">⏸</button>
+                                <button class="toast-icon-btn" onclick="toggleUploadToast()" title="Close">×</button>
                             </div>
                         </div>
-                        <div class="upload-toast-progress">
-                            <div id="upload-toast-fill"></div>
-                        </div>
+
                         <div id="upload-toast-file-list"></div>
+
                         <div class="upload-toast-footer">
                             <div class="upload-toast-footer-left">
                                 <span id="upload-toast-sub"></span>
                                 <span id="upload-toast-eta"></span>
                             </div>
-                            <div class="upload-toast-footer-right">
-                                <span id="upload-toast-speed"></span>
-                            </div>
+                            <span id="upload-toast-speed"></span>
                         </div>
                     </div>
                 </div>
@@ -110,44 +110,36 @@
 
         <!-- File list -->
         <ul class="file-grid">
-
-            <!-- Folders -->
             {{range .Files}}{{if .IsDir}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📁 {{.Name}}/</a></li>
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Archives -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if eq $ext ".zip" ".rar" ".7z" ".tar" ".gz"}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}" download>📦 {{.Name}}</a></li>
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- PDFs -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if eq $ext ".pdf"}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📄 {{.Name}}</a></li>
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Word -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".doc") (eq $ext ".docx")}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📑 {{.Name}}</a></li>
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Excel -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".xls") (eq $ext ".xlsx")}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📊 {{.Name}}</a></li>
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Text -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if eq $ext ".txt"}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📝 {{.Name}}</a></li>
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Images -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext
             ".png") (eq $ext ".gif")}}
             <li class="media-item lazy media-container">
@@ -160,7 +152,6 @@
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Audio -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".mp3") (eq $ext ".wav") (eq $ext
             ".flac") (eq $ext ".aac")}}
             <li class="media-item media-container">
@@ -175,7 +166,6 @@
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Video -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if or (eq $ext ".mp4") (eq $ext ".avi") (eq $ext ".mov")
             (eq $ext ".mkv") (eq $ext ".wmv")}}
             <li class="media-item media-container">
@@ -190,7 +180,6 @@
             {{end}}{{end}}
             <li class="section-break"></li>
 
-            <!-- Unknown -->
             {{range .Files}}{{$ext := getFileExtension .Name}}{{if not .IsDir}}
             {{if not (or (eq $ext ".pdf") (eq $ext ".doc") (eq $ext ".docx") (eq $ext ".xls") (eq $ext ".xlsx") (eq $ext
             ".txt") (eq $ext ".jpg") (eq $ext ".jpeg") (eq $ext ".png") (eq $ext ".gif") (eq $ext ".mp3") (eq $ext
@@ -199,8 +188,8 @@
             ".gz"))}}
             <li class="file-item"><a href="/{{$.Subpath}}{{.Path}}">📎 {{.Name}}</a></li>
             {{end}}{{end}}{{end}}
-
         </ul>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.min.js"></script>

@@ -1,8 +1,9 @@
 {
   "port": 27182,
   "maxPostSize": 107374182400,
-  "admin_username":"",
-  "admin_password": "",
+  "chunkInactivityTimeout": 3600,
+  "admin_username":"admin",
+  "admin_password": "admin",
   "files": {
     "example": {
       "path": "/path/to/your/file/or/folder",
