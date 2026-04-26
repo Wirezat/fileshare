@@ -34,7 +34,6 @@
 
   <nav class="tabs-bar">
     <button class="tab-btn active" onclick="switchTab('shares')">📋 Shares</button>
-    <button class="tab-btn" onclick="switchTab('stats')">📊 Stats <span class="demo-badge">demo</span></button>
     <button class="tab-btn" onclick="switchTab('logs')">🗒 Logs</button>
     <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
   </nav>
@@ -89,6 +88,13 @@
                 <label for="f-allowpost">Allow uploads</label>
               </div>
             </div>
+            <div class="form-row">
+              <div class="field">
+                <label>Password <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+                <input type="password" id="f-password" placeholder="Leave empty for no password"
+                  autocomplete="new-password" />
+              </div>
+            </div>
             <div class="form-footer">
               <button class="btn btn-primary" onclick="addShare()">Add share</button>
               <button class="btn btn-ghost" onclick="resetForm()">Clear</button>
@@ -107,6 +113,7 @@
             <thead>
               <tr>
                 <th>Subpath</th>
+                <th></th>
                 <th>Path</th>
                 <th class="hide-sm">Uses</th>
                 <th class="hide-sm">Expires</th>
@@ -117,78 +124,11 @@
             </thead>
             <tbody id="shares-body">
               <tr>
-                <td colspan="7" class="table-info"><span class="table-info-icon">⏳</span>Loading…</td>
+                <td colspan="8" class="table-info"><span class="table-info-icon">⏳</span>Loading…</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══ TAB: STATS ══ -->
-  <div id="tab-stats" class="tab-panel">
-    <div class="page">
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-label">Total downloads</div>
-          <div class="stat-value">1,284</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">This week</div>
-          <div class="stat-value">142</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total uploaded</div>
-          <div class="stat-value">38</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Data served</div>
-          <div class="stat-value">4.2 GB</div>
-        </div>
-      </div>
-      <div>
-        <p class="section-title">Downloads per share <span class="demo-badge">demo data</span></p>
-        <div class="card">
-          <table>
-            <thead>
-              <tr>
-                <th>Subpath</th>
-                <th>Downloads</th>
-                <th>Uploads</th>
-                <th>Last access</th>
-                <th>Data served</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><a class="subpath" href="/music" target="_blank">/music</a></td>
-                <td>482</td>
-                <td>12</td>
-                <td><span style="font-size:12px;color:var(--text-muted);">2 hours ago</span></td>
-                <td><span style="font-size:12px;">1.8 GB</span></td>
-              </tr>
-              <tr>
-                <td><a class="subpath" href="/docs" target="_blank">/docs</a></td>
-                <td>231</td>
-                <td>0</td>
-                <td><span style="font-size:12px;color:var(--text-muted);">yesterday</span></td>
-                <td><span style="font-size:12px;">240 MB</span></td>
-              </tr>
-              <tr>
-                <td><a class="subpath" href="/photos" target="_blank">/photos</a></td>
-                <td>571</td>
-                <td>26</td>
-                <td><span style="font-size:12px;color:var(--text-muted);">3 days ago</span></td>
-                <td><span style="font-size:12px;">2.1 GB</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card card-body" style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px;">
-        <span style="font-size:28px;display:block;margin-bottom:8px;opacity:0.4;">🚧</span>
-        Stats tracking not yet implemented in the backend.<br>The data above is for demonstration only.
       </div>
     </div>
   </div>
@@ -199,7 +139,6 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <p class="section-title" style="margin:0;">Server log</p>
         <div style="display:flex;gap:8px;align-items:center;">
-          <!-- Filter checkboxes -->
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
             <input type="checkbox" class="log-filter" value="INFO" checked onchange="applyFilter()"> INFO
           </label>
@@ -209,7 +148,8 @@
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
             <input type="checkbox" class="log-filter" value="ERROR" checked onchange="applyFilter()"> ERROR
           </label>
-          <button class="btn btn-ghost" title="Clear only affects the current UI. Logs remain on the server.">
+          <button class="btn btn-ghost" title="Clear only affects the current UI. Logs remain on the server."
+            onclick="clearLog()">
             Clear
           </button>
         </div>
@@ -225,73 +165,77 @@
       <!-- Security -->
       <div>
         <p class="section-title">Security</p>
-        <div class="card card-accent">
-          <div class="card-body">
 
-            <div class="settings-group">
-              <div class="settings-label">Change admin username</div>
-              <div class="settings-desc">Username is stored in plain text in data.json.</div>
-              <div class="form-row-3">
-                <div class="field">
-                  <label>Current password</label>
-                  <input type="password" id="s-un-current" placeholder="••••••••" autocomplete="current-password" />
-                </div>
-                <div class="field">
-                  <label>New username</label>
-                  <input type="text" id="s-un-new" placeholder="admin" autocomplete="off" />
+        <!-- Change Username -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="settings-card-icon">👤</div>
+            <div>
+              <div class="settings-card-title">Change username</div>
+              <div class="settings-card-desc">Username is stored in plain text in data.json.</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="cred-form">
+              <div class="cred-field">
+                <label>Current password</label>
+                <div class="input-wrap">
+                  <input type="password" id="s-un-current" placeholder="Enter your current password"
+                    autocomplete="current-password" />
                 </div>
               </div>
-              <div class="form-footer">
+              <div class="cred-field">
+                <label>New username</label>
+                <div class="input-wrap">
+                  <input type="text" id="s-un-new" placeholder="Enter new username" autocomplete="off" />
+                </div>
+              </div>
+              <div class="cred-actions">
                 <button class="btn btn-primary" onclick="changeUsername()">Update username</button>
                 <span class="status-msg" id="status-un"></span>
               </div>
             </div>
-
-            <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;" />
-
-            <div class="settings-group">
-              <div class="settings-label">Change admin password</div>
-              <div class="settings-desc">Password is stored as a bcrypt hash in data.json.</div>
-              <div class="form-row-3">
-                <div class="field">
-                  <label>Current password</label>
-                  <input type="password" id="s-pw-current" placeholder="••••••••" autocomplete="current-password" />
-                </div>
-                <div class="field">
-                  <label>New password</label>
-                  <input type="password" id="s-pw-new" placeholder="••••••••" autocomplete="new-password" />
-                </div>
-                <div class="field">
-                  <label>Confirm new password</label>
-                  <input type="password" id="s-pw-confirm" placeholder="••••••••" autocomplete="new-password" />
-                </div>
-              </div>
-              <div class="form-footer">
-                <button class="btn btn-primary" onclick="changePassword()">Update password</button>
-                <span class="status-msg" id="status-pw"></span>
-              </div>
-            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Server -->
-      <div>
-        <p class="section-title">Server</p>
-        <div class="card">
-          <div class="card-body">
-            <div class="settings-group">
-              <div class="settings-label">TLS / HTTPS <span class="demo-badge">coming soon</span></div>
-              <div class="settings-desc">Enable HTTPS with a custom certificate. Upload your .crt and .key files.</div>
-              <div class="form-row-2" style="opacity:0.4;pointer-events:none;">
-                <div class="field">
-                  <label>Certificate (.crt)</label>
-                  <input type="text" placeholder="/opt/fileshare/server.crt" disabled />
+        <!-- Change Password -->
+        <div class="settings-card" style="margin-top:16px;">
+          <div class="settings-card-header">
+            <div class="settings-card-icon">🔑</div>
+            <div>
+              <div class="settings-card-title">Change password</div>
+              <div class="settings-card-desc">Password is stored as a bcrypt hash in data.json.</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="cred-form">
+              <div class="cred-field">
+                <label>Current password</label>
+                <div class="input-wrap">
+                  <input type="password" id="s-pw-current" placeholder="Enter your current password"
+                    autocomplete="current-password" />
                 </div>
-                <div class="field">
-                  <label>Key (.key)</label>
-                  <input type="text" placeholder="/opt/fileshare/server.key" disabled />
+              </div>
+              <div class="cred-field-row">
+                <div class="cred-field">
+                  <label>New password</label>
+                  <div class="input-wrap">
+                    <input type="password" id="s-pw-new" placeholder="Choose a new password"
+                      autocomplete="new-password" />
+                  </div>
                 </div>
+                <div class="cred-field">
+                  <label>Confirm new password</label>
+                  <div class="input-wrap" id="pw-confirm-wrap">
+                    <input type="password" id="s-pw-confirm" placeholder="Repeat new password"
+                      autocomplete="new-password" oninput="checkPasswordMatch()" />
+                    <span class="input-indicator" id="pw-match-icon"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="cred-actions">
+                <button class="btn btn-primary" onclick="changePassword()">Update password</button>
+                <span class="status-msg" id="status-pw"></span>
               </div>
             </div>
           </div>
@@ -301,13 +245,20 @@
       <!-- Danger zone -->
       <div>
         <p class="section-title">Danger zone</p>
-        <div class="card" style="border-color: rgba(192,57,43,0.3);">
-          <div class="card-body">
-            <div class="settings-label" style="color:var(--danger);">Delete all expired shares</div>
-            <div class="settings-desc">Removes all shares marked as expired from data.json permanently.</div>
-            <button class="btn btn-danger-ghost" style="height:32px;padding:0 14px;font-size:13px;"
-              onclick="pruneExpired()">Delete expired shares</button>
-            <span class="status-msg" id="status-prune"></span>
+        <div class="settings-card settings-card-danger">
+          <div class="settings-card-header">
+            <div class="settings-card-icon settings-card-icon-danger">🗑</div>
+            <div>
+              <div class="settings-card-title" style="color:var(--danger);">Delete all expired shares</div>
+              <div class="settings-card-desc">Removes all shares marked as expired from data.json permanently. This
+                cannot be undone.</div>
+            </div>
+          </div>
+          <div class="settings-card-body">
+            <div class="cred-actions">
+              <button class="btn btn-danger-ghost" onclick="pruneExpired()">Delete expired shares</button>
+              <span class="status-msg" id="status-prune"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -315,7 +266,97 @@
     </div>
   </div>
 
+  <!-- ══ SHARE PASSWORD MODAL ══ -->
+  <div id="pw-modal-backdrop" class="pw-modal-backdrop" onclick="closePwModal()"></div>
+  <div id="pw-modal" class="pw-modal" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title">
+    <div class="pw-modal-header">
+      <div class="pw-modal-title-row">
+        <span id="pw-modal-icon">🔒</span>
+        <span id="pw-modal-title">Share password</span>
+      </div>
+      <button class="pw-modal-close" onclick="closePwModal()" aria-label="Close">✕</button>
+    </div>
+    <div class="pw-modal-body">
+      <div class="pw-modal-subpath" id="pw-modal-subpath"></div>
+      <div class="pw-modal-field">
+        <label for="pw-modal-input">New password</label>
+        <div class="pw-modal-input-wrap">
+          <input type="password" id="pw-modal-input" placeholder="Leave empty to remove password"
+            autocomplete="new-password" />
+          <button class="pw-modal-toggle" id="pw-modal-toggle" onclick="togglePwVisibility()" title="Show/hide password"
+            tabindex="-1">👁</button>
+        </div>
+        <span class="pw-modal-hint" id="pw-modal-hint"></span>
+      </div>
+    </div>
+    <div class="pw-modal-footer">
+      <button class="btn btn-ghost" onclick="closePwModal()">Cancel</button>
+      <button class="btn btn-danger-ghost" id="pw-modal-remove" onclick="savePwModal(true)" style="display:none;">Remove
+        password</button>
+      <button class="btn btn-primary" onclick="savePwModal(false)">Save</button>
+    </div>
+  </div>
+
   <script src="/admin/static/admin.js"></script>
+  <script>
+    // ── Share password modal ──────────────────────────
+    let _pwModalSub = null;
+
+    function editPassword(sub, hasPassword) {
+      _pwModalSub = sub;
+      document.getElementById('pw-modal-subpath').textContent = '/' + sub;
+      document.getElementById('pw-modal-icon').textContent = hasPassword ? '🔒' : '🔓';
+      document.getElementById('pw-modal-title').textContent = hasPassword ? 'Change share password' : 'Set share password';
+      document.getElementById('pw-modal-hint').textContent = hasPassword ? 'Leave empty and click "Remove password" to unprotect this share.' : '';
+      document.getElementById('pw-modal-remove').style.display = hasPassword ? '' : 'none';
+      const input = document.getElementById('pw-modal-input');
+      input.value = '';
+      input.type = 'password';
+      document.getElementById('pw-modal-toggle').textContent = '👁';
+      document.getElementById('pw-modal-backdrop').classList.add('open');
+      document.getElementById('pw-modal').classList.add('open');
+      setTimeout(() => input.focus(), 80);
+      input.onkeydown = e => { if (e.key === 'Enter') savePwModal(false); if (e.key === 'Escape') closePwModal(); };
+    }
+
+    function closePwModal() {
+      document.getElementById('pw-modal-backdrop').classList.remove('open');
+      document.getElementById('pw-modal').classList.remove('open');
+      _pwModalSub = null;
+    }
+
+    function savePwModal(remove) {
+      if (!_pwModalSub) return;
+      const val = remove ? '' : document.getElementById('pw-modal-input').value;
+      updateShare(_pwModalSub, { password: val });
+      closePwModal();
+    }
+
+    function togglePwVisibility() {
+      const input = document.getElementById('pw-modal-input');
+      const btn = document.getElementById('pw-modal-toggle');
+      if (input.type === 'password') { input.type = 'text'; btn.textContent = '🙈'; }
+      else { input.type = 'password'; btn.textContent = '👁'; }
+      input.focus();
+    }
+
+    function checkPasswordMatch() {
+      const pw1 = document.getElementById('s-pw-new').value;
+      const pw2 = document.getElementById('s-pw-confirm').value;
+      const icon = document.getElementById('pw-match-icon');
+      const wrap = document.getElementById('pw-confirm-wrap');
+      if (!pw2) { icon.textContent = ''; wrap.classList.remove('input-wrap-ok', 'input-wrap-err'); return; }
+      if (pw1 === pw2) {
+        icon.textContent = '✓';
+        wrap.classList.add('input-wrap-ok');
+        wrap.classList.remove('input-wrap-err');
+      } else {
+        icon.textContent = '✗';
+        wrap.classList.add('input-wrap-err');
+        wrap.classList.remove('input-wrap-ok');
+      }
+    }
+  </script>
 </body>
 
 </html>

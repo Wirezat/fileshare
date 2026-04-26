@@ -87,6 +87,16 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "subpath and path are required", http.StatusBadRequest)
 			return
 		}
+		// Hash the share password before storing, if one was provided.
+		if req.FileData.Password != "" {
+			hashed, err := shared.HashPassword(req.FileData.Password)
+			if err != nil {
+				GoLog.Errorf("failed to hash share password: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			req.FileData.Password = hashed
+		}
 		config, ok := configOrErr(w)
 		if !ok {
 			return
@@ -168,8 +178,20 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if patch.Password != nil {
-			track("password", "***")
-			entry.Password = *patch.Password
+			if *patch.Password == "" {
+				// Empty string = remove password protection.
+				track("password", "<removed>")
+				entry.Password = ""
+			} else {
+				hashed, err := shared.HashPassword(*patch.Password)
+				if err != nil {
+					GoLog.Errorf("failed to hash share password: %v", err)
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+				track("password", "***")
+				entry.Password = hashed
+			}
 		}
 
 		if len(changes) == 0 {

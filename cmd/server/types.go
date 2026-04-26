@@ -16,6 +16,7 @@ const (
 	setupHtmlPath = "./web/html/setup.html"
 	setupJsPath   = "./web/js/setup.js"
 	setupCssPath  = "./web/css/setup.css"
+	gateHtmlPath  = "./web/html/gate.html"
 )
 
 // requestContext holds all resolved data for an incoming request,

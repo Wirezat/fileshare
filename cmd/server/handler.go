@@ -1,10 +1,12 @@
 package main
 
 import (
+	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
@@ -70,6 +72,12 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 
 	if fileData.Expired {
 		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		return nil, false
+	}
+
+	// Password gate — checked after expiry so expired shares still 410 first.
+	if fileData.Password != "" && !hasPasswordCookie(r, subpath) {
+		serveGatePage(w, subpath, false)
 		return nil, false
 	}
 
@@ -171,4 +179,85 @@ func setSessionCookie(w http.ResponseWriter, subpath string) {
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	})
+}
+
+var (
+	gateTemplate     *template.Template
+	gateTemplateErr  error
+	gateTemplateOnce sync.Once
+)
+
+type gateData struct {
+	Subpath       string
+	WrongPassword bool
+}
+
+func loadGateTemplate() (*template.Template, error) {
+	gateTemplateOnce.Do(func() {
+		gateTemplate, gateTemplateErr = template.ParseFiles(gateHtmlPath)
+	})
+	return gateTemplate, gateTemplateErr
+}
+
+func serveGatePage(w http.ResponseWriter, subpath string, wrongPassword bool) {
+	tmpl, err := loadGateTemplate()
+	if err != nil {
+		GoLog.Errorf("failed to load gate template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "gate.html", gateData{
+		Subpath:       subpath,
+		WrongPassword: wrongPassword,
+	}); err != nil {
+		GoLog.Errorf("failed to render gate template: %v", err)
+	}
+}
+
+// handleUnlock handles POST /{subpath}/unlock — verifies the share password,
+// issues a token cookie on success, and redirects to the share.
+// Not wrapped in loggingMiddleware intentionally — form body contains the password.
+func handleUnlock(w http.ResponseWriter, r *http.Request) {
+	subpath := r.PathValue("subpath")
+
+	config, err := shared.LoadConfig()
+	if err != nil {
+		GoLog.Errorf("handleUnlock: load config: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	fd, exists := config.Files[subpath]
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	if fd.Password == "" {
+		// Share has no password — redirect directly.
+		http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	if !shared.CheckPassword(r.FormValue("password"), fd.Password) {
+		GoLog.Warnf("failed unlock attempt for share /%s", subpath)
+		serveGatePage(w, subpath, true)
+		return
+	}
+
+	token, err := generateShareToken()
+	if err != nil {
+		GoLog.Errorf("handleUnlock: generate token: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	storeShareToken(token, subpath)
+	setPasswordCookie(w, subpath, token)
+	http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
 }

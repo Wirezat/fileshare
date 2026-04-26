@@ -40,17 +40,20 @@ func buildMux() *http.ServeMux {
 		mux.HandleFunc(path, basicAuth(h))
 	}
 
-	// Setup routes — no auth, but also no logging middleware to avoid logging password setup attempts.
+	// Setup routes — no auth, and no logging to avoid capturing password setup attempts.
 	mux.HandleFunc("GET /setup", handleSetupUI)
 	mux.HandleFunc("GET /setup/static/setup.css", handleSetupCSS)
 	mux.HandleFunc("GET /setup/static/setup.js", handleSetupJS)
 	mux.HandleFunc("POST /setup/api/init", handleSetupInit)
 
-	// Chunk upload endpoints — no multipart middleware, handlers parse themselves.
+	// Chunk upload endpoints — handlers parse multipart themselves.
 	mux.HandleFunc("POST /{subpath}/chunk-init", handleChunkInit)
 	mux.HandleFunc("POST /{subpath}/chunk", handleChunkReceive)
 
-	// Public routes — only logging middleware, multipart is gone.
+	// Share unlock — not wrapped in loggingMiddleware (form body contains password).
+	mux.HandleFunc("POST /{subpath}/unlock", handleUnlock)
+
+	// Public routes.
 	public := chain(
 		http.HandlerFunc(handleRequest),
 		loggingMiddleware,
@@ -94,7 +97,6 @@ func main() {
 
 	storage = NewLocalStorage(config)
 	storage.StartReaper()
-
 	startExpirationWatcher(5 * time.Minute)
 	startServer(config)
 }
