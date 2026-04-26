@@ -40,6 +40,12 @@ func buildMux() *http.ServeMux {
 		mux.HandleFunc(path, basicAuth(h))
 	}
 
+	// Setup routes — no auth, but also no logging middleware to avoid logging password setup attempts.
+	mux.HandleFunc("GET /setup", handleSetupUI)
+	mux.HandleFunc("GET /setup/static/setup.css", handleSetupCSS)
+	mux.HandleFunc("GET /setup/static/setup.js", handleSetupJS)
+	mux.HandleFunc("POST /setup/api/init", handleSetupInit)
+
 	// Chunk upload endpoints — no multipart middleware, handlers parse themselves.
 	mux.HandleFunc("POST /{subpath}/chunk-init", handleChunkInit)
 	mux.HandleFunc("POST /{subpath}/chunk", handleChunkReceive)

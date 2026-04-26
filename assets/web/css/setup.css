@@ -1,0 +1,137 @@
+:root {
+    --text: #1a1a1a;
+    --text-muted: #888;
+    --border: #e0e0e0;
+    --bg: #fff;
+    --accent: #ffc107;
+    --accent-dark: #e6a800;
+    --accent-text: #3a2000;
+    --danger: #c0392b;
+    --success: #2e7d32;
+    --radius: 6px;
+}
+
+html.dark {
+    --text: #f0ede8;
+    --text-muted: #888;
+    --border: #2e2e2c;
+    --bg: #141412;
+    --accent: #e6a800;
+    --accent-dark: #cc9600;
+    --accent-text: #faeeda;
+    --danger: #e57373;
+    --success: #81c784;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+main {
+    width: 100%;
+    max-width: 320px;
+    padding: 0 16px;
+}
+
+h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+}
+
+.subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.field label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.field input {
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s;
+    width: 100%;
+}
+
+.field input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+button {
+    width: 100%;
+    height: 36px;
+    background: var(--accent);
+    color: var(--accent-text);
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+button:hover:not(:disabled) {
+    background: var(--accent-dark);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.status {
+    margin-top: 12px;
+    font-size: 12px;
+    text-align: center;
+    min-height: 18px;
+}
+
+.status.err {
+    color: var(--danger);
+}
+
+.status.ok {
+    color: var(--success);
+}

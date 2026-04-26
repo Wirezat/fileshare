@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fileshare — Setup</title>
+    <link rel="stylesheet" href="/setup/static/setup.css" />
+    <script>
+        (function () {
+            const saved = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+</head>
+
+<body>
+    <main>
+        <h1>Fileshare</h1>
+        <p class="subtitle">Create your admin account to get started.</p>
+
+        <div class="fields">
+            <div class="field">
+                <label for="f-username">Username</label>
+                <input type="text" id="f-username" value="admin" autocomplete="username" spellcheck="false" />
+            </div>
+            <div class="field">
+                <label for="f-password">Password</label>
+                <input type="password" id="f-password" placeholder="••••••••" autocomplete="new-password" autofocus />
+            </div>
+            <div class="field">
+                <label for="f-confirm">Confirm password</label>
+                <input type="password" id="f-confirm" placeholder="••••••••" autocomplete="new-password" />
+            </div>
+        </div>
+
+        <button id="submit-btn" onclick="submitSetup()">Continue</button>
+        <p class="status" id="status"></p>
+    </main>
+
+    <script src="/setup/static/setup.js"></script>
+</body>
+
+</html>

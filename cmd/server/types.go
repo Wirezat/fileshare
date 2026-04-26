@@ -13,6 +13,9 @@ const (
 	adminHtmlPath = "./web/html/admin.html"
 	adminCssPath  = "./web/css/admin.css"
 	adminJsPath   = "./web/js/admin.js"
+	setupHtmlPath = "./web/html/setup.html"
+	setupJsPath   = "./web/js/setup.js"
+	setupCssPath  = "./web/css/setup.css"
 )
 
 // requestContext holds all resolved data for an incoming request,

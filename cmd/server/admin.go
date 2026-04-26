@@ -12,27 +12,29 @@ import (
 // basicAuth wraps a handler with HTTP Basic Auth against the admin credentials.
 func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username, password, ok := r.BasicAuth()
-		if !ok {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		config, err := shared.LoadConfig()
 		if err != nil {
 			GoLog.Errorf("basicAuth: failed to load config: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-
+		// redirect to setup page if no admin password is set — forces user to set a password on first run.
+		if config.AdminPassword == "" {
+			http.Redirect(w, r, "/setup", http.StatusFound)
+			return
+		}
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 		if username != config.AdminUsername || !shared.CheckPassword(password, config.AdminPassword) {
 			GoLog.Warnf("basicAuth: failed login attempt from %s", clientIP(r))
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-
 	"sync/atomic"
 )
 
@@ -17,7 +16,8 @@ var configDefaults = Config{
 	MaxPostSize:            94371840,
 	ChunkInactivityTimeout: 1800,
 	AdminUsername:          "admin",
-	AdminPassword:          "admin",
+	// AdminPassword intentionally has no default.
+	// A blank password means the user will be redirected to a setup page to set a password on first run.
 }
 
 // FileInfo holds the name, path, and type of a file or directory.
@@ -86,7 +86,6 @@ func LoadConfigFrom(path string) (*Config, error) {
 func applyDefaults(cfg *Config) {
 	defaults := reflect.ValueOf(configDefaults)
 	target := reflect.ValueOf(cfg).Elem()
-
 	for i := range target.NumField() {
 		f := target.Field(i)
 		if f.IsZero() {
