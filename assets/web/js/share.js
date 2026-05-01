@@ -104,9 +104,17 @@ document.addEventListener("click", e => {
     if (!$("upload-badge")?.contains(e.target)) {
         uploadToastOpen = false;
         $("upload-toast")?.classList.remove("visible");
+
+        const saved = localStorage.getItem("uploadResult");
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                data.toastWasOpen = false;
+                localStorage.setItem("uploadResult", JSON.stringify(data));
+            } catch {}
+        }
     }
 });
-
 // ── Format helpers ────────────────────────────────────
 // Single base function — suffix "" = bytes, "/s" = speed
 const _fmt = (b, sfx = "") =>
@@ -506,3 +514,47 @@ document.addEventListener("DOMContentLoaded", () => {
             finishUploadProgress(succeeded, failed, totalBytes, durationMs);
     };
 });
+
+(function () {
+    if (!document.getElementById('fileUpload')) return;
+
+    const dropZone = document.querySelector('.container');
+
+    function onDragEnter(e) {
+        e.preventDefault();
+        if (!e.dataTransfer.types.includes('Files')) return;
+        dropZone.classList.add('drag-over');
+    }
+
+    function onDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    }
+
+    function onDragLeave(e) {
+        if (dropZone.contains(e.relatedTarget)) return;
+        dropZone.classList.remove('drag-over');
+    }
+
+    function onDrop(e) {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (!files.length) return;
+
+        const input = document.getElementById('fileUpload');
+        const dt = new DataTransfer();
+        for (const file of files) dt.items.add(file);
+        input.files = dt.files;
+        submitUpload();
+    }
+
+    // Fix 2: Escape / externer dragend
+    document.addEventListener('dragend', () => dropZone.classList.remove('drag-over'));
+
+    dropZone.addEventListener('dragenter', onDragEnter);
+    dropZone.addEventListener('dragover',  onDragOver);
+    dropZone.addEventListener('dragleave', onDragLeave);
+    dropZone.addEventListener('drop',      onDrop);
+})();
