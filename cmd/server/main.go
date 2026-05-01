@@ -42,8 +42,6 @@ func buildMux() *http.ServeMux {
 
 	// Setup routes — no auth, and no logging to avoid capturing password setup attempts.
 	mux.HandleFunc("GET /setup", handleSetupUI)
-	mux.HandleFunc("GET /setup/static/setup.css", handleSetupCSS)
-	mux.HandleFunc("GET /setup/static/setup.js", handleSetupJS)
 	mux.HandleFunc("POST /setup/api/init", handleSetupInit)
 
 	// Chunk upload endpoints — handlers parse multipart themselves.

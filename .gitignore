@@ -10,7 +10,8 @@ go.sum
 data.json
 
 # Dev-data
-fileshare-architektur.html
+fileshare-architektur.md
+diff.txt
 
 # Logs
 *.log

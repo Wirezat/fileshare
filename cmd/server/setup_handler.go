@@ -21,9 +21,6 @@ func handleSetupUI(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, setupHtmlPath)
 }
 
-func handleSetupCSS(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, setupCssPath) }
-func handleSetupJS(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, r, setupJsPath) }
-
 // POST /setup/api/init — set initial admin username and password.
 // Only allowed if no password is set yet, otherwise 403 Forbidden.
 func handleSetupInit(w http.ResponseWriter, r *http.Request) {
