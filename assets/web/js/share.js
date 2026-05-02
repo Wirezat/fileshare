@@ -111,31 +111,31 @@ document.addEventListener("click", e => {
                 const data = JSON.parse(saved);
                 data.toastWasOpen = false;
                 localStorage.setItem("uploadResult", JSON.stringify(data));
-            } catch {}
+            } catch { }
         }
     }
 });
 // ── Format helpers ────────────────────────────────────
 // Single base function — suffix "" = bytes, "/s" = speed
 const _fmt = (b, sfx = "") =>
-    b < 1024     ? `${b} B${sfx}`
-    : b < 1048576 ? `${(b / 1024).toFixed(1)} KB${sfx}`
-                  : `${(b / 1048576).toFixed(1)} MB${sfx}`;
+    b < 1024 ? `${b} B${sfx}`
+        : b < 1048576 ? `${(b / 1024).toFixed(1)} KB${sfx}`
+            : `${(b / 1048576).toFixed(1)} MB${sfx}`;
 const formatBytes = b => _fmt(b);
 const formatSpeed = b => _fmt(b, "/s");
 
 const formatEta = s => !isFinite(s) || s <= 0 ? null
     : s < 60 ? `~${Math.ceil(s)}s remaining`
-             : `~${Math.floor(s / 60)}m ${Math.ceil(s % 60)}s remaining`;
+        : `~${Math.floor(s / 60)}m ${Math.ceil(s % 60)}s remaining`;
 
 // Allocated once, not per call
 const EXT_MAP = {
-    jpg:"JPG", jpeg:"JPG", png:"PNG", gif:"GIF", webp:"WEBP", svg:"SVG",
-    mp4:"MP4", mov:"MOV", avi:"AVI", webm:"WEBM", mp3:"MP3", wav:"WAV", ogg:"OGG",
-    pdf:"PDF", zip:"ZIP", rar:"RAR", "7z":"7Z", tar:"TAR", gz:"GZ",
-    doc:"DOC", docx:"DOCX", xls:"XLS", xlsx:"XLSX", ppt:"PPT", pptx:"PPTX",
-    txt:"TXT", md:"MD", json:"JSON", csv:"CSV",
-    js:"JS", ts:"TS", html:"HTML", css:"CSS", py:"PY",
+    jpg: "JPG", jpeg: "JPG", png: "PNG", gif: "GIF", webp: "WEBP", svg: "SVG",
+    mp4: "MP4", mov: "MOV", avi: "AVI", webm: "WEBM", mp3: "MP3", wav: "WAV", ogg: "OGG",
+    pdf: "PDF", zip: "ZIP", rar: "RAR", "7z": "7Z", tar: "TAR", gz: "GZ",
+    doc: "DOC", docx: "DOCX", xls: "XLS", xlsx: "XLSX", ppt: "PPT", pptx: "PPTX",
+    txt: "TXT", md: "MD", json: "JSON", csv: "CSV",
+    js: "JS", ts: "TS", html: "HTML", css: "CSS", py: "PY",
 };
 const fileTypeLabel = name => {
     const ext = name.split(".").pop().toLowerCase();
@@ -166,14 +166,14 @@ function updatePauseButton() {
     if (!btn) return;
     const paused = uploadControlState === "paused";
     btn.textContent = paused ? "▶" : "⏸";
-    btn.title      = paused ? "Resume" : "Pause";
+    btn.title = paused ? "Resume" : "Pause";
     btn.classList.toggle("pause-active", paused);
     btn.style.display = uploadControlState === "idle" ? "none" : "";
 }
 
 const waitIfPaused = () =>
     uploadControlState !== "paused" ? Promise.resolve()
-    : new Promise(r => pauseResolvers.push(r));
+        : new Promise(r => pauseResolvers.push(r));
 
 window.togglePauseUpload = function () {
     const dot = $q(".upload-badge-dot");
@@ -194,10 +194,10 @@ window.togglePauseUpload = function () {
 // ── File list rendering ───────────────────────────────
 // Lookup table avoids switch/case per row
 const FILE_STATUS = {
-    done:     ["--done",     "done"],
-    error:    ["--error",    "failed"],
-    uploading:["--uploading", null],     // text set dynamically
-    skipped:  ["--skipped",  "skipped"],
+    done: ["--done", "done"],
+    error: ["--error", "failed"],
+    uploading: ["--uploading", null],     // text set dynamically
+    skipped: ["--skipped", "skipped"],
 };
 
 function renderFileList() {
@@ -211,7 +211,7 @@ function renderFileList() {
             <div class="upload-file-info">
                 <span class="upload-file-name">${escapeHtml(f.name)}</span>
                 ${f.status === "uploading"
-                    ? `<div class="upload-file-minibar"><div class="upload-file-minibar-fill" style="width:${f.progress}%"></div></div>` : ""}
+                ? `<div class="upload-file-minibar"><div class="upload-file-minibar-fill" style="width:${f.progress}%"></div></div>` : ""}
                 ${f.error ? `<span class="upload-file-error">${escapeHtml(f.error)}</span>` : ""}
             </div>
             <div class="upload-file-right">
@@ -244,7 +244,7 @@ function stripe(pct, done) {
 function setUploadProgress(pct, loaded, total) {
     if (!$("upload-badge")) return;
     $("upload-badge").classList.add("visible");
-    const bt = $("upload-badge-text"),  tp = $("upload-toast-pct");
+    const bt = $("upload-badge-text"), tp = $("upload-toast-pct");
     if (bt) bt.textContent = pct + "%";
     if (tp) tp.textContent = pct + "%";
     stripe(pct);
@@ -257,7 +257,7 @@ function setUploadProgress(pct, loaded, total) {
         if (dt > 0.1) {
             const spd = dl / dt;
             const ts = $("upload-toast-speed"); if (ts) ts.textContent = formatSpeed(spd);
-            const te = $("upload-toast-eta");   if (te) te.textContent = formatEta(spd > 0 ? (total - loaded) / spd : Infinity) ?? "";
+            const te = $("upload-toast-eta"); if (te) te.textContent = formatEta(spd > 0 ? (total - loaded) / spd : Infinity) ?? "";
             uploadStats.lastSnapshot = { bytes: loaded, time: now };
         }
     } else {
@@ -282,11 +282,11 @@ function finishUploadProgress(succeeded, failed, totalBytes, durationMs) {
     const tp = $("upload-toast-pct");
     if (tp) { tp.textContent = "100%"; tp.classList.add("done"); }
 
-    const bt  = $("upload-badge-text"),  tt  = $q(".upload-toast-title");
-    const te  = $("upload-toast-eta"),   sub = $("upload-toast-sub");
-    if (bt)  bt.textContent  = failed > 0 ? `${succeeded}/${succeeded + failed}` : "Done";
-    if (tt)  tt.textContent  = failed > 0 ? `${succeeded} uploaded, ${failed} failed` : "Upload complete";
-    if (te && durationMs) te.textContent  = `Completed in ${(durationMs / 1000).toFixed(1)}s`;
+    const bt = $("upload-badge-text"), tt = $q(".upload-toast-title");
+    const te = $("upload-toast-eta"), sub = $("upload-toast-sub");
+    if (bt) bt.textContent = failed > 0 ? `${succeeded}/${succeeded + failed}` : "Done";
+    if (tt) tt.textContent = failed > 0 ? `${succeeded} uploaded, ${failed} failed` : "Upload complete";
+    if (te && durationMs) te.textContent = `Completed in ${(durationMs / 1000).toFixed(1)}s`;
     if (sub && totalBytes && durationMs)
         sub.textContent = `${formatBytes(totalBytes)} · avg ${formatSpeed(totalBytes / (durationMs / 1000))}`;
 
@@ -303,7 +303,7 @@ function finishUploadProgress(succeeded, failed, totalBytes, durationMs) {
 function handleUploadError(reason) {
     _finalize("var(--color-error)");
     const bt = $("upload-badge-text"), tt = $q(".upload-toast-title"),
-          te = $("upload-toast-eta");
+        te = $("upload-toast-eta");
     if (bt) bt.textContent = "Error";
     if (tt) tt.textContent = `Upload failed: ${reason}`;
     if (te) te.textContent = "";
@@ -318,13 +318,16 @@ function handleUploadError(reason) {
 }
 
 // ── Chunked upload core ───────────────────────────────
-function sendChunk(base, uploadId, index, blob) {
+function sendChunk(base, uploadId, index, blob, onProgress) {
     return new Promise((resolve, reject) => {
         const fd = new FormData();
         fd.append("uploadId", uploadId);
         fd.append("chunkIndex", index);
         fd.append("chunk", blob);
         const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = e => {
+            if (e.lengthComputable) onProgress(e.loaded);
+        };
         xhr.onload = () => (xhr.status === 202 || xhr.status === 204) ? resolve() : reject(new Error(`chunk ${index}: HTTP ${xhr.status}`));
         xhr.onerror = () => reject(new Error("network error"));
         xhr.open("POST", `${base}/chunk`);
@@ -352,7 +355,6 @@ async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
 
     const alreadyDone = totalChunks - missingChunks.length;
     if (alreadyDone > 0) {
-        // Last chunk may be smaller than CHUNK_SIZE; handle with modulo trick
         const lastSize = file.size % CHUNK_SIZE || CHUNK_SIZE;
         onChunkDone((alreadyDone - 1) * CHUNK_SIZE + (alreadyDone === totalChunks ? lastSize : CHUNK_SIZE));
     }
@@ -366,11 +368,16 @@ async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
 
             const index = missingChunks[next++];
             const start = index * CHUNK_SIZE;
-            const blob  = file.slice(start, Math.min(start + CHUNK_SIZE, file.size));
-            await sendChunk(base, uploadId, index, blob);
+            const blob = file.slice(start, Math.min(start + CHUNK_SIZE, file.size));
+
+            let lastReported = 0;
+            await sendChunk(base, uploadId, index, blob, loaded => {
+                onChunkDone(loaded - lastReported);
+                lastReported = loaded;
+            });
 
             if (uploadControlState === "cancelled" || fileSkipFlags[fileIndex]) return;
-            onChunkDone(blob.size);
+            onChunkDone(blob.size - lastReported);
         }
     };
     await Promise.all(Array.from({ length: Math.min(MAX_PARALLEL, missingChunks.length || 1) }, worker));
@@ -389,9 +396,9 @@ document.addEventListener("DOMContentLoaded", () => {
     $("lightbox")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeLightbox(); });
     document.addEventListener("keydown", e => {
         if (!isLightboxOpen) return;
-        if      (e.key === "Escape")     closeLightbox();
+        if (e.key === "Escape") closeLightbox();
         else if (e.key === "ArrowRight") navigateLightbox(1);
-        else if (e.key === "ArrowLeft")  navigateLightbox(-1);
+        else if (e.key === "ArrowLeft") navigateLightbox(-1);
     });
 
     updatePauseButton();
@@ -403,15 +410,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const { succeeded, failed, ok, toastWasOpen, totalBytes, durationMs, fileStates: sf } = JSON.parse(saved);
         if (sf) { fileStates = sf; renderFileList(); }
 
-        const dot  = $q(".upload-badge-dot");
+        const dot = $q(".upload-badge-dot");
         const color = ok ? "var(--color-success)" : "var(--color-warning)";
-        const tp   = $("upload-toast-pct"), tt  = $q(".upload-toast-title"),
-              bt   = $("upload-badge-text"), sub = $("upload-toast-sub"),
-              te   = $("upload-toast-eta");
+        const tp = $("upload-toast-pct"), tt = $q(".upload-toast-title"),
+            bt = $("upload-badge-text"), sub = $("upload-toast-sub"),
+            te = $("upload-toast-eta");
 
         if (tp) { tp.textContent = "100%"; tp.classList.add("done"); }
-        if (tt) tt.textContent  = failed > 0 ? `${succeeded} uploaded, ${failed} failed` : "Upload complete";
-        if (bt) bt.textContent  = failed > 0 ? `${succeeded}/${succeeded + failed}` : "Done";
+        if (tt) tt.textContent = failed > 0 ? `${succeeded} uploaded, ${failed} failed` : "Upload complete";
+        if (bt) bt.textContent = failed > 0 ? `${succeeded}/${succeeded + failed}` : "Done";
         if (dot) { dot.style.animation = "none"; dot.style.background = color; }
         if (sub && totalBytes && durationMs)
             sub.textContent = `${formatBytes(totalBytes)} · avg ${formatSpeed(totalBytes / (durationMs / 1000))}`;
@@ -426,7 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ── Upload handler ────────────────────────────────
-    const subpath  = location.pathname.split("/").filter(Boolean)[0] ?? "";
+    const subpath = location.pathname.split("/").filter(Boolean)[0] ?? "";
     const chunkBase = `${location.origin}/${subpath}`;
 
     window.submitUpload = async function () {
@@ -483,11 +490,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         if (uploadControlState === "cancelled") break;
                         if (fileSkipFlags[i]) { fileStates[i].status = "skipped"; fileStates[i].skipped = true; }
-                        else                  { fileStates[i].status = "done"; fileStates[i].progress = 100; succeeded++; }
+                        else { fileStates[i].status = "done"; fileStates[i].progress = 100; succeeded++; }
                     } catch (err) {
                         if (uploadControlState === "cancelled") break;
                         fileStates[i].status = "error";
-                        fileStates[i].error  = err.message;
+                        fileStates[i].error = err.message;
                         failed++;
                     }
                     renderFileList();
@@ -554,7 +561,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener('dragend', () => dropZone.classList.remove('drag-over'));
 
     dropZone.addEventListener('dragenter', onDragEnter);
-    dropZone.addEventListener('dragover',  onDragOver);
+    dropZone.addEventListener('dragover', onDragOver);
     dropZone.addEventListener('dragleave', onDragLeave);
-    dropZone.addEventListener('drop',      onDrop);
+    dropZone.addEventListener('drop', onDrop);
 })();
