@@ -115,8 +115,8 @@ document.addEventListener("click", e => {
         }
     }
 });
+
 // ── Format helpers ────────────────────────────────────
-// Single base function — suffix "" = bytes, "/s" = speed
 const _fmt = (b, sfx = "") =>
     b < 1024 ? `${b} B${sfx}`
         : b < 1048576 ? `${(b / 1024).toFixed(1)} KB${sfx}`
@@ -128,7 +128,6 @@ const formatEta = s => !isFinite(s) || s <= 0 ? null
     : s < 60 ? `~${Math.ceil(s)}s remaining`
         : `~${Math.floor(s / 60)}m ${Math.ceil(s % 60)}s remaining`;
 
-// Allocated once, not per call
 const EXT_MAP = {
     jpg: "JPG", jpeg: "JPG", png: "PNG", gif: "GIF", webp: "WEBP", svg: "SVG",
     mp4: "MP4", mov: "MOV", avi: "AVI", webm: "WEBM", mp3: "MP3", wav: "WAV", ogg: "OGG",
@@ -142,7 +141,6 @@ const fileTypeLabel = name => {
     return (EXT_MAP[ext] ?? ext.toUpperCase().slice(0, 4)) || "FILE";
 };
 
-// Single replace pass via Map lookup
 const _ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 const escapeHtml = s => s.replace(/[&<>"]/g, c => _ESC[c]);
 
@@ -150,23 +148,55 @@ const escapeHtml = s => s.replace(/[&<>"]/g, c => _ESC[c]);
 const uploadStats = { totalBytes: 0, startTime: null, bytesUploaded: 0, lastSnapshot: null };
 let fileStates = [], uploadControlState = "idle", pauseResolvers = [], cancelReject = null;
 const fileSkipFlags = {};
+const fileXhrs = {}; // fileIndex -> Set<XMLHttpRequest>
+// Per-file pause: set of paused file indices
+const filePausedFlags = {};
+const filePauseResolvers = {};
 
-window.skipFile = i => {
+// ── Per-file controls ─────────────────────────────────
+window.abortFile = i => {
     const f = fileStates[i];
-    if (!f || f.status === "done" || f.status === "error") return;
+    if (!f || f.status === "done" || f.status === "error" || f.status === "skipped" || f.status === "cancelled") return;
+    if (filePausedFlags[i]) {
+        delete filePausedFlags[i];
+        (filePauseResolvers[i] ?? []).splice(0).forEach(r => r());
+        delete filePauseResolvers[i];
+    }
+    fileXhrs[i]?.forEach(x => x.abort());
+    delete fileXhrs[i];
     fileSkipFlags[i] = true;
     f.status = "skipped";
     f.skipped = true;
     renderFileList();
 };
 
-// ── Pause / resume ────────────────────────────────────
+window.togglePauseFile = i => {
+    const f = fileStates[i];
+    if (!f || f.status !== "uploading") return;
+    if (filePausedFlags[i]) {
+        delete filePausedFlags[i];
+        (filePauseResolvers[i] ?? []).splice(0).forEach(r => r());
+        delete filePauseResolvers[i];
+    } else {
+        filePausedFlags[i] = true;
+    }
+    renderFileList();
+};
+
+const waitIfFilePaused = i =>
+    !filePausedFlags[i] ? Promise.resolve()
+        : new Promise(r => {
+            filePauseResolvers[i] = filePauseResolvers[i] ?? [];
+            filePauseResolvers[i].push(r);
+        });
+
+// ── Global pause / resume ─────────────────────────────
 function updatePauseButton() {
     const btn = $("toast-pause-btn");
     if (!btn) return;
     const paused = uploadControlState === "paused";
     btn.textContent = paused ? "▶" : "⏸";
-    btn.title = paused ? "Resume" : "Pause";
+    btn.title = paused ? "Resume all" : "Pause all";
     btn.classList.toggle("pause-active", paused);
     btn.style.display = uploadControlState === "idle" ? "none" : "";
 }
@@ -191,13 +221,21 @@ window.togglePauseUpload = function () {
     updatePauseButton();
 };
 
+window.abortAllUploads = function () {
+    if (uploadControlState === "idle") return;
+    uploadControlState = "cancelled";
+    cancelReject?.(new Error("cancelled")); // erst rejecten, bevor Worker resolve() erreichen können
+    fileStates.forEach((_, i) => abortFile(i));
+    pauseResolvers.splice(0).forEach(r => r());
+};
+
 // ── File list rendering ───────────────────────────────
-// Lookup table avoids switch/case per row
 const FILE_STATUS = {
     done: ["--done", "done"],
     error: ["--error", "failed"],
-    uploading: ["--uploading", null],     // text set dynamically
+    uploading: ["--uploading", null],
     skipped: ["--skipped", "skipped"],
+    cancelled: ["--cancelled", "cancelled"],
 };
 
 function renderFileList() {
@@ -205,26 +243,36 @@ function renderFileList() {
     if (!list) return;
     list.innerHTML = fileStates.map((f, i) => {
         const [cls, txt] = FILE_STATUS[f.status] ?? ["--pending", "waiting"];
-        const canSkip = f.status === "uploading" || f.status === "pending";
+        const active = f.status === "uploading" || f.status === "pending";
+        const paused = !!filePausedFlags[i];
         return `<div class="upload-file-row" data-index="${i}">
             <span class="upload-file-type">${fileTypeLabel(f.name)}</span>
             <div class="upload-file-info">
-                <span class="upload-file-name">${escapeHtml(f.name)}</span>
+                <div class="upload-file-name-row">
+                    <span class="upload-file-name">${escapeHtml(f.name)}</span>
+                    <span class="upload-file-size">${formatBytes(f.size)}</span>
+                </div>
                 ${f.status === "uploading"
                 ? `<div class="upload-file-minibar"><div class="upload-file-minibar-fill" style="width:${f.progress}%"></div></div>` : ""}
                 ${f.error ? `<span class="upload-file-error">${escapeHtml(f.error)}</span>` : ""}
             </div>
-            <div class="upload-file-right">
-                <span class="upload-file-size">${formatBytes(f.size)}</span>
-                <span class="upload-file-status upload-file-status${cls}">${txt ?? `${f.progress}%`}</span>
-            </div>
-            ${canSkip ? `<button class="upload-file-skip" onclick="skipFile(${i})" title="Skip">✕</button>` : ""}
+            <span class="upload-file-status upload-file-status${cls}">${txt ?? `${f.progress}%`}</span>
+            ${active ? `
+            <div class="upload-file-actions">
+                <button class="upload-file-btn upload-file-btn--pause${paused ? " is-paused" : ""}"
+                    onclick="togglePauseFile(${i})" title="${paused ? "Resume" : "Pause"}">${paused ? "▶" : "⏸"}</button>
+                <button class="upload-file-btn upload-file-btn--abort"
+                    onclick="abortFile(${i})" title="Abort">✕</button>
+            </div>` : ""}
         </div>`;
     }).join("");
+
+    list.querySelectorAll(".upload-file-name").forEach(el => {
+        el.classList.toggle("is-overflow", el.scrollWidth > el.clientWidth);
+    });
 }
 
 // ── Stripe progress bar ───────────────────────────────
-// done=undefined → active/progress, done=true/false → completed
 function stripe(pct, done) {
     const s = $("upload-stripe"), f = $("upload-stripe-fill");
     if (!s) return;
@@ -249,7 +297,7 @@ function setUploadProgress(pct, loaded, total) {
     if (tp) tp.textContent = pct + "%";
     stripe(pct);
 
-    if (uploadControlState === "paused" || loaded == null) return;
+    if (uploadControlState !== "uploading" || loaded == null) return;
 
     const now = Date.now(), snap = uploadStats.lastSnapshot;
     if (snap) {
@@ -273,6 +321,7 @@ function _finalize(dotColor) {
     cancelReject = null;
     updatePauseButton();
     const ts = $("upload-toast-speed"); if (ts) ts.textContent = "";
+    const te = $("upload-toast-eta"); if (te) te.textContent = "";
 }
 
 function finishUploadProgress(succeeded, failed, totalBytes, durationMs) {
@@ -318,18 +367,22 @@ function handleUploadError(reason) {
 }
 
 // ── Chunked upload core ───────────────────────────────
-function sendChunk(base, uploadId, index, blob, onProgress) {
+function sendChunk(base, uploadId, index, blob, onProgress, fileIndex) {
     return new Promise((resolve, reject) => {
         const fd = new FormData();
         fd.append("uploadId", uploadId);
         fd.append("chunkIndex", index);
         fd.append("chunk", blob);
         const xhr = new XMLHttpRequest();
+        if (!fileXhrs[fileIndex]) fileXhrs[fileIndex] = new Set();
+        fileXhrs[fileIndex].add(xhr);
+        const cleanup = () => fileXhrs[fileIndex]?.delete(xhr);
         xhr.upload.onprogress = e => {
             if (e.lengthComputable) onProgress(e.loaded);
         };
-        xhr.onload = () => (xhr.status === 202 || xhr.status === 204) ? resolve() : reject(new Error(`chunk ${index}: HTTP ${xhr.status}`));
-        xhr.onerror = () => reject(new Error("network error"));
+        xhr.onload = () => { cleanup(); (xhr.status === 202 || xhr.status === 204) ? resolve() : reject(new Error(`chunk ${index}: HTTP ${xhr.status}`)); };
+        xhr.onerror = () => { cleanup(); reject(new Error("network error")); };
+        xhr.onabort = () => { cleanup(); resolve(); }; // Worker prüft danach selbst fileSkipFlags
         xhr.open("POST", `${base}/chunk`);
         xhr.send(fd);
     });
@@ -364,6 +417,7 @@ async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
         while (next < missingChunks.length) {
             if (fileSkipFlags[fileIndex]) return;
             await waitIfPaused();
+            await waitIfFilePaused(fileIndex);
             if (uploadControlState === "cancelled" || fileSkipFlags[fileIndex]) return;
 
             const index = missingChunks[next++];
@@ -374,7 +428,7 @@ async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
             await sendChunk(base, uploadId, index, blob, loaded => {
                 onChunkDone(loaded - lastReported);
                 lastReported = loaded;
-            });
+            }, fileIndex);
 
             if (uploadControlState === "cancelled" || fileSkipFlags[fileIndex]) return;
             onChunkDone(blob.size - lastReported);
@@ -444,6 +498,8 @@ document.addEventListener("DOMContentLoaded", () => {
         let totalBytes = 0;
         fileStates = files.map(f => { totalBytes += f.size; return { name: f.name, size: f.size, status: "pending", progress: 0, error: null, skipped: false }; });
         Object.keys(fileSkipFlags).forEach(k => delete fileSkipFlags[k]);
+        Object.keys(filePausedFlags).forEach(k => delete filePausedFlags[k]);
+        Object.keys(filePauseResolvers).forEach(k => delete filePauseResolvers[k]);
 
         Object.assign(uploadStats, { totalBytes, startTime: Date.now(), bytesUploaded: 0, lastSnapshot: null });
         uploadControlState = "uploading";
@@ -481,6 +537,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     try {
                         await uploadFileChunked(i, files[i], chunkBase, chunkBytes => {
+                            if (uploadControlState !== "uploading") return; // kein UI-Update nach Cancel
                             fileBytesUploaded += chunkBytes;
                             uploadStats.bytesUploaded += chunkBytes;
                             fileStates[i].progress = Math.round(fileBytesUploaded / files[i].size * 100);
@@ -502,11 +559,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 resolve();
             });
         } catch {
-            // Cancelled branch
             _finalize("var(--text-faint)");
             const bt = $("upload-badge-text"); if (bt) bt.textContent = "—";
             $q(".upload-toast-title").textContent = "Upload cancelled — chunks saved for resume";
-            fileStates.forEach(f => { if (f.status === "uploading" || f.status === "pending") f.status = "error"; });
+            fileStates.forEach(f => {
+                if (f.status === "uploading" || f.status === "pending")
+                    f.status = "cancelled";
+            });
             renderFileList();
             stripe(100, false);
             $("uploadButtonText").textContent = "Upload";
@@ -557,7 +616,6 @@ document.addEventListener("DOMContentLoaded", () => {
         submitUpload();
     }
 
-    // Fix 2: Escape / externer dragend
     document.addEventListener('dragend', () => dropZone.classList.remove('drag-over'));
 
     dropZone.addEventListener('dragenter', onDragEnter);

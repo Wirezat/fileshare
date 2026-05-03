@@ -56,9 +56,9 @@
             <span class="breadcrumb-path">{{.Subpath}}{{.DirPath}}</span>
             <div class="breadcrumb-actions">
                 {{if .AllowPost}}
-                <div class="upload-badge" id="upload-badge">
+                <div class="upload-badge" id="upload-badge" onclick="toggleUploadToast()">
                     <div class="upload-badge-dot"></div>
-                    <span id="upload-badge-text" onclick="toggleUploadToast()">0%</span>
+                    <span id="upload-badge-text">0%</span>
 
                     <!-- Toast -->
                     <div class="upload-toast" id="upload-toast">
@@ -67,16 +67,15 @@
                                 <span id="upload-toast-pct">0%</span>
                                 <span class="upload-toast-title">Uploading…</span>
                             </div>
-                            <!-- Global pause + close -->
+                            <!-- Header Buttons -->
                             <div class="upload-toast-header-actions">
                                 <button class="toast-icon-btn" id="toast-pause-btn" onclick="togglePauseUpload()"
-                                    title="Pause">⏸</button>
-                                <button class="toast-icon-btn" onclick="toggleUploadToast()" title="Close">×</button>
+                                    title="Pause all">⏸</button>
+                                <button class="toast-icon-btn" onclick="abortAllUploads()" title="Abort all">×</button>
+                                <button class="toast-icon-btn" onclick="toggleUploadToast()" title="Close">✕</button>
                             </div>
                         </div>
-
                         <div id="upload-toast-file-list"></div>
-
                         <div class="upload-toast-footer">
                             <div class="upload-toast-footer-left">
                                 <span id="upload-toast-sub"></span>
