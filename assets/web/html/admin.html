@@ -51,7 +51,7 @@
           <div class="stat-value" id="stat-active">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Expired</div>
+          <div class="stat-label">Deactivated</div>
           <div class="stat-value" id="stat-expired">—</div>
         </div>
         <div class="stat-card">
@@ -80,8 +80,10 @@
                 <input type="number" id="f-uses" value="-1" min="-1" />
               </div>
               <div class="field">
-                <label>Expires (unix timestamp, 0 = never)</label>
-                <input type="number" id="f-expiration" value="0" min="0" />
+                <label>Expires <span id="exp-never-badge" class="badge-never">never</span></label>
+                <input type="datetime-local" id="f-expiration-dt" oninput="onExpirationChange()" />
+                <input type="hidden" id="f-expiration" value="0" />
+                <span class="field-hint" id="exp-ts-hint"></span>
               </div>
               <div class="field-check">
                 <input type="checkbox" id="f-allowpost" />

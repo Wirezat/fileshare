@@ -35,7 +35,7 @@ function switchTab(name) {
 function fmtExp(ts) {
     if (!ts || ts === 0) return '<span style="color:var(--text-faint);font-size:12px;">never</span>';
     const d = new Date(ts * 1000);
-    if (d < new Date()) return pill('expired', 'inactive');
+    if (d < new Date()) return pill('expired', 'expired');
     const diff = d - Date.now();
     const days = Math.floor(diff / 86400000);
     const hours = Math.floor((diff % 86400000) / 3600000);
@@ -65,6 +65,38 @@ async function apiFetch(url, options = {}) {
     const res = await fetch(url, options);
     if (!res.ok) throw new Error(await res.text() || res.statusText);
     return res;
+}
+
+// ── Expiration helpers ────────────────────────────────
+// Convert unix timestamp to datetime-local value (local time)
+function tsToDatetimeLocal(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+}
+
+// Convert datetime-local value to unix timestamp (0 if empty)
+function datetimeLocalToTs(val) {
+    return val ? Math.floor(new Date(val).getTime() / 1000) : 0;
+}
+
+// ── Expiration change handler (new share form) ────────
+function onExpirationChange() {
+    const v = document.getElementById('f-expiration-dt').value;
+    const hidden = document.getElementById('f-expiration');
+    const hint = document.getElementById('exp-ts-hint');
+    const badge = document.getElementById('exp-never-badge');
+    if (!v) {
+        hidden.value = '0';
+        hint.textContent = '';
+        badge.style.display = 'inline-block';
+        return;
+    }
+    badge.style.display = 'none';
+    const ts = datetimeLocalToTs(v);
+    hidden.value = ts;
+    hint.textContent = '→ ' + ts;
 }
 
 // ── Inline editing ────────────────────────────────────
@@ -103,6 +135,27 @@ function makeEditable(td, currentValue, type, onSave) {
         const val = type === 'number' ? parseInt(input.value, 10) : input.value;
         (!isNaN(val) || type !== 'number') ? onSave(val) : restore();
     }
+    function restore() { td.innerHTML = displayHTML; }
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { e.preventDefault(); restore(); }
+    });
+    input.addEventListener('blur', save);
+}
+
+// datetime-local variant of makeEditable for expiration cells
+function makeEditableExpiration(td, currentTs, onSave) {
+    if (td.querySelector('input')) return;
+    const displayHTML = td.innerHTML;
+    const input = document.createElement('input');
+    input.type = 'datetime-local';
+    input.value = tsToDatetimeLocal(currentTs);
+    td.innerHTML = '';
+    td.appendChild(input);
+    input.focus();
+
+    function save() { onSave(datetimeLocalToTs(input.value)); }
     function restore() { td.innerHTML = displayHTML; }
 
     input.addEventListener('keydown', e => {
@@ -173,12 +226,12 @@ async function loadShares() {
             tdUses.innerHTML = fmtUses(s.uses);
             tdUses.addEventListener('click', () => makeEditable(tdUses, s.uses, 'number', val => updateShare(sub, { uses: val })));
 
-            // Expiration (editable)
+            // Expiration (editable, datetime-local)
             const tdExp = document.createElement('td');
             tdExp.className = 'hide-sm editable-cell';
-            tdExp.title = 'Click to edit (unix timestamp, 0 = never)';
+            tdExp.title = 'Click to edit';
             tdExp.innerHTML = fmtExp(s.expiration);
-            tdExp.addEventListener('click', () => makeEditable(tdExp, s.expiration, 'number', val => updateShare(sub, { expiration: val })));
+            tdExp.addEventListener('click', () => makeEditableExpiration(tdExp, s.expiration, val => updateShare(sub, { expiration: val })));
 
             // Upload toggle
             const tdUpload = document.createElement('td');
@@ -259,12 +312,14 @@ function resetForm() {
     ['f-subpath', 'f-path', 'f-password'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('f-uses').value = '-1';
     document.getElementById('f-expiration').value = '0';
+    document.getElementById('f-expiration-dt').value = '';
+    document.getElementById('exp-never-badge').style.display = 'inline-block';
+    document.getElementById('exp-ts-hint').textContent = '';
     document.getElementById('f-allowpost').checked = false;
 }
 
 // ── Settings ──────────────────────────────────────────
 
-// Generalized credential update — both username and password follow the same pattern
 async function updateCredential({ url, payload, statusId, clearIds, successMsg }) {
     try {
         await apiFetch(url, {

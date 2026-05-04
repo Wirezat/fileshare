@@ -213,7 +213,6 @@ body {
 }
 
 /* ── Cards ───────────────────────────────────────────── */
-/* .settings-card is an alias — both share the same base style */
 .card,
 .settings-card {
     background: var(--bg);
@@ -281,7 +280,6 @@ body {
 }
 
 /* ── Shared label style ──────────────────────────────── */
-/* Used by: .field label, .cred-field label, .pw-modal-field label, .pw-modal-label */
 .field label,
 .cred-field label,
 .pw-modal-field label,
@@ -296,7 +294,6 @@ body {
 }
 
 /* ── Shared input style ──────────────────────────────── */
-/* Base for all text/password/number inputs inside wrappers */
 .input-wrap input,
 .pw-modal-input-wrap input {
     width: 100%;
@@ -448,7 +445,8 @@ body {
 
 .field input[type="text"],
 .field input[type="number"],
-.field input[type="password"] {
+.field input[type="password"],
+.field input[type="datetime-local"] {
     height: 34px;
     padding: 0 10px;
     border: 1px solid var(--border-strong);
@@ -458,6 +456,11 @@ body {
     background: var(--bg);
     transition: border-color 0.15s;
     width: 100%;
+    color-scheme: light;
+}
+
+html.dark .field input[type="datetime-local"] {
+    color-scheme: dark;
 }
 
 .field-check {
@@ -467,7 +470,6 @@ body {
     padding-top: 18px;
 }
 
-/* Overrides shared label style for inline checkbox labels */
 .field-check label {
     font-size: 13px;
     font-weight: 400;
@@ -496,6 +498,40 @@ body {
     align-items: center;
     gap: 12px;
     padding-top: 4px;
+}
+
+/* ── badge-never (expires label) ─────────────────────── */
+.badge-never {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 20px;
+    background: var(--bg-page);
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    vertical-align: middle;
+    margin-left: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* ── datetime-local in table cells ───────────────────── */
+td input[type="datetime-local"] {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 2px 6px;
+    outline: none;
+    color-scheme: light;
+}
+
+html.dark td input[type="datetime-local"] {
+    color-scheme: dark;
 }
 
 /* ── Buttons ─────────────────────────────────────────── */
@@ -535,7 +571,6 @@ body {
     color: var(--text);
 }
 
-/* Inherits height/padding/font-size from .btn */
 .btn-danger-ghost {
     background: transparent;
     color: var(--danger);
