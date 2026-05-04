@@ -200,7 +200,7 @@ type gateData struct {
 
 func loadGateTemplate() (*template.Template, error) {
 	gateTemplateOnce.Do(func() {
-		gateTemplate, gateTemplateErr = template.ParseFiles(gateHtmlPath)
+		gateTemplate, gateTemplateErr = template.New("gate").ParseFiles(gateHtmlPath)
 	})
 	return gateTemplate, gateTemplateErr
 }

@@ -28,6 +28,7 @@
     <div class="header-right">
       <span class="live-label" id="uptime-label">↑ …</span>
       <button class="btn btn-ghost btn-sm" id="theme-toggle" onclick="toggleTheme()">🌙</button>
+      <button class="btn btn-ghost btn-sm" onclick="confirmLogout()" title="Abmelden">⏏</button>
     </div>
   </header>
 
@@ -355,6 +356,12 @@
         icon.textContent = '✗';
         wrap.classList.add('input-wrap-err');
         wrap.classList.remove('input-wrap-ok');
+      }
+    }
+    // ── logout confirmation ───────────────────────────
+    function confirmLogout() {
+      if (confirm('Are you sure you want to log out?')) {
+        window.location.href = '/admin/logout';
       }
     }
   </script>

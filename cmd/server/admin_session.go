@@ -77,7 +77,8 @@ func clearAdminCookie(w http.ResponseWriter) {
 		Path:     "/admin",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   -1,
+		MaxAge:   0,
+		Expires:  time.Unix(0, 0),
 	})
 }
 
