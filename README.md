@@ -23,7 +23,6 @@ Because there were no proper tools that were able to do this in a simple way wit
 ### 1. Install
 
 Just use the installer provided in the release. If you want to build it yourself, the install script is the same I've used in the development process, you can find it in the same place in the code itself.
-```
 
 ### 3. First-time setup
 
