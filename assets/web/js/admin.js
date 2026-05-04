@@ -1,5 +1,16 @@
 const API = '/admin/api/shares';
-
+// ── Uptime ──────────────────────────────────────────
+async function loadUptime() {
+    const res = await fetch('/admin/api/uptime');
+    const { uptime_seconds } = await res.json();
+    const d = Math.floor(uptime_seconds / 86400);
+    const h = Math.floor((uptime_seconds % 86400) / 3600);
+    const m = Math.floor((uptime_seconds % 3600) / 60);
+    document.getElementById('uptime-label').textContent =
+        d > 0 ? `↑ ${d}d ${h}h` : h > 0 ? `↑ ${h}h ${m}m` : `↑ ${m}m`;
+}
+loadUptime();
+setInterval(loadUptime, 60_000);
 // ── Dark mode ──────────────────────────────────────────
 function updateThemeBtn() {
     const btn = document.getElementById('theme-toggle');
