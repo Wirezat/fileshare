@@ -337,6 +337,7 @@ function appendLogLine(entry) {
         const detail = document.createElement('pre');
         detail.textContent = JSON.stringify(parsed, null, 2);
         detail.className = 'log-detail';
+        detail.style.display = 'none';
         div.appendChild(detail);
         div.addEventListener('click', () => {
             detail.style.display = detail.style.display === 'block' ? 'none' : 'block';

@@ -20,6 +20,7 @@
     --radius-lg: 12px;
     --mono: "Courier New", monospace;
     --focus-shadow: 0 0 0 3px rgba(255, 193, 7, 0.15);
+    --row-hover: #fffdf4;
 }
 
 html.dark {
@@ -38,10 +39,7 @@ html.dark {
     --danger-muted: #2a1010;
     --success: #81c784;
     --success-muted: #0f2010;
-}
-
-html.dark tbody tr:hover td {
-    background: #222010;
+    --row-hover: #222010;
 }
 
 html.dark .subpath {
@@ -70,6 +68,10 @@ html.dark .pill-yes {
 html.dark .pill-no {
     background: #1e1d1b;
     border-color: rgba(255, 255, 255, 0.1);
+}
+
+html.dark .settings-card-danger {
+    border-color: rgba(229, 115, 115, 0.2);
 }
 
 *,
@@ -211,7 +213,9 @@ body {
 }
 
 /* ── Cards ───────────────────────────────────────────── */
-.card {
+/* .settings-card is an alias — both share the same base style */
+.card,
+.settings-card {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -227,19 +231,8 @@ body {
 }
 
 /* ── Settings cards ──────────────────────────────────── */
-.settings-card {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-}
-
 .settings-card-danger {
     border-color: rgba(192, 57, 43, 0.25);
-}
-
-html.dark .settings-card-danger {
-    border-color: rgba(229, 115, 115, 0.2);
 }
 
 .settings-card-header {
@@ -288,20 +281,39 @@ html.dark .settings-card-danger {
 }
 
 /* ── Shared label style ──────────────────────────────── */
-/* Used by: .field label, .cred-field label, .pw-modal-field label */
+/* Used by: .field label, .cred-field label, .pw-modal-field label, .pw-modal-label */
 .field label,
 .cred-field label,
-.pw-modal-field label {
+.pw-modal-field label,
+.pw-modal-label {
     font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* ── Shared input style ──────────────────────────────── */
+/* Base for all text/password/number inputs inside wrappers */
+.input-wrap input,
+.pw-modal-input-wrap input {
+    width: 100%;
+    height: 38px;
+    padding: 0 36px 0 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 /* ── Shared focus style ──────────────────────────────── */
 .field input:focus,
 .cred-field input:focus,
+.input-wrap input:focus,
 .pw-modal-input-wrap input:focus {
     outline: none;
     border-color: var(--accent);
@@ -354,18 +366,6 @@ html.dark .settings-card-danger {
     position: relative;
     display: flex;
     align-items: center;
-}
-
-.input-wrap input {
-    width: 100%;
-    height: 38px;
-    padding: 0 36px 0 11px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    font-size: 13px;
-    color: var(--text);
-    background: var(--bg);
-    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .input-wrap-ok input {
@@ -467,14 +467,15 @@ html.dark .settings-card-danger {
     padding-top: 18px;
 }
 
+/* Overrides shared label style for inline checkbox labels */
 .field-check label {
     font-size: 13px;
     font-weight: 400;
     color: var(--text);
     cursor: pointer;
-    /* overrides shared label style */
     text-transform: none;
     letter-spacing: 0;
+    margin-bottom: 0;
 }
 
 .field-check input[type="checkbox"] {
@@ -534,13 +535,11 @@ html.dark .settings-card-danger {
     color: var(--text);
 }
 
+/* Inherits height/padding/font-size from .btn */
 .btn-danger-ghost {
     background: transparent;
     color: var(--danger);
     border-color: rgba(192, 57, 43, 0.25);
-    height: 36px;
-    padding: 0 14px;
-    font-size: 13px;
 }
 
 .btn-danger-ghost:hover {
@@ -606,7 +605,7 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover td {
-    background: #fffdf4;
+    background: var(--row-hover);
 }
 
 /* ── Pills ───────────────────────────────────────────── */
@@ -643,9 +642,8 @@ tbody tr:hover td {
     border-color: var(--border);
 }
 
-/* ── Monospace badge (subpath, path, modal subpath) ──── */
-.subpath,
-.pw-modal-subpath {
+/* ── Monospace badge (subpath in table) ──────────────── */
+.subpath {
     font-family: var(--mono);
     font-size: 12px;
     font-weight: 600;
@@ -655,19 +653,11 @@ tbody tr:hover td {
     padding: 2px 7px;
     border-radius: 5px;
     display: inline-block;
-}
-
-.subpath {
     text-decoration: none;
 }
 
 .subpath:hover {
     background: #f5e090;
-}
-
-.pw-modal-subpath {
-    padding: 3px 9px;
-    align-self: flex-start;
 }
 
 .path-text {
@@ -800,4 +790,83 @@ tbody tr:hover td {
     justify-content: space-between;
     padding: 16px 18px 14px;
     border-bottom: 1px solid var(--border);
+}
+
+.pw-modal-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pw-modal-icon-wrap {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius);
+    background: var(--accent-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.pw-modal-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.pw-modal-subpath {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    display: block;
+}
+
+.pw-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-faint);
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.pw-modal-close:hover {
+    color: var(--text);
+    background: var(--bg-page);
+}
+
+.pw-modal-body {
+    padding: 18px;
+}
+
+.pw-modal-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.pw-modal-toggle {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-faint);
+    font-size: 14px;
+    padding: 0;
+    line-height: 1;
+}
+
+.pw-modal-toggle:hover {
+    color: var(--text-muted);
+}
+
+.pw-modal-footer {
+    padding: 0 18px 16px;
+    display: flex;
+    justify-content: flex-end;
 }

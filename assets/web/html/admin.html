@@ -271,29 +271,24 @@
   <div id="pw-modal" class="pw-modal" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title">
     <div class="pw-modal-header">
       <div class="pw-modal-title-row">
-        <span id="pw-modal-icon">🔒</span>
-        <span id="pw-modal-title">Share password</span>
+        <div class="pw-modal-icon-wrap" id="pw-modal-icon-wrap">🔒</div>
+        <div>
+          <span id="pw-modal-title">Share password</span>
+          <div class="pw-modal-subpath" id="pw-modal-subpath"></div>
+        </div>
       </div>
-      <button class="pw-modal-close" onclick="closePwModal()" aria-label="Close">✕</button>
+      <button class="pw-modal-close" onclick="closePwModal()" aria-label="Close">×</button>
     </div>
     <div class="pw-modal-body">
-      <div class="pw-modal-subpath" id="pw-modal-subpath"></div>
-      <div class="pw-modal-field">
-        <label for="pw-modal-input">New password</label>
-        <div class="pw-modal-input-wrap">
-          <input type="password" id="pw-modal-input" placeholder="Leave empty to remove password"
-            autocomplete="new-password" />
-          <button class="pw-modal-toggle" id="pw-modal-toggle" onclick="togglePwVisibility()" title="Show/hide password"
-            tabindex="-1">👁</button>
-        </div>
-        <span class="pw-modal-hint" id="pw-modal-hint"></span>
+      <label class="pw-modal-label">New password</label>
+      <div class="pw-modal-input-wrap">
+        <input type="password" id="pw-modal-input" placeholder="Leave empty to remove password"
+          autocomplete="new-password" />
+        <button class="pw-modal-toggle" id="pw-modal-toggle" onclick="togglePwVisibility()" tabindex="-1">👁</button>
       </div>
     </div>
     <div class="pw-modal-footer">
-      <button class="btn btn-ghost" onclick="closePwModal()">Cancel</button>
-      <button class="btn btn-danger-ghost" id="pw-modal-remove" onclick="savePwModal(true)" style="display:none;">Remove
-        password</button>
-      <button class="btn btn-primary" onclick="savePwModal(false)">Save</button>
+      <button class="btn btn-primary" onclick="savePwModal()">Save</button>
     </div>
   </div>
 
@@ -305,10 +300,8 @@
     function editPassword(sub, hasPassword) {
       _pwModalSub = sub;
       document.getElementById('pw-modal-subpath').textContent = '/' + sub;
-      document.getElementById('pw-modal-icon').textContent = hasPassword ? '🔒' : '🔓';
-      document.getElementById('pw-modal-title').textContent = hasPassword ? 'Change share password' : 'Set share password';
-      document.getElementById('pw-modal-hint').textContent = hasPassword ? 'Leave empty and click "Remove password" to unprotect this share.' : '';
-      document.getElementById('pw-modal-remove').style.display = hasPassword ? '' : 'none';
+      document.getElementById('pw-modal-icon-wrap').textContent = hasPassword ? '🔒' : '🔓';
+      document.getElementById('pw-modal-title').textContent = hasPassword ? 'Change password' : 'Set password';
       const input = document.getElementById('pw-modal-input');
       input.value = '';
       input.type = 'password';
@@ -316,7 +309,7 @@
       document.getElementById('pw-modal-backdrop').classList.add('open');
       document.getElementById('pw-modal').classList.add('open');
       setTimeout(() => input.focus(), 80);
-      input.onkeydown = e => { if (e.key === 'Enter') savePwModal(false); if (e.key === 'Escape') closePwModal(); };
+      input.onkeydown = e => { if (e.key === 'Enter') savePwModal(); if (e.key === 'Escape') closePwModal(); };
     }
 
     function closePwModal() {
@@ -325,10 +318,9 @@
       _pwModalSub = null;
     }
 
-    function savePwModal(remove) {
+    function savePwModal() {
       if (!_pwModalSub) return;
-      const val = remove ? '' : document.getElementById('pw-modal-input').value;
-      updateShare(_pwModalSub, { password: val });
+      updateShare(_pwModalSub, { password: document.getElementById('pw-modal-input').value });
       closePwModal();
     }
 
