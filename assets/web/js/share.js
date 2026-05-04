@@ -586,26 +586,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const dropZone = document.querySelector('.container');
 
-    function onDragEnter(e) {
-        e.preventDefault();
-        if (!e.dataTransfer.types.includes('Files')) return;
-        dropZone.classList.add('drag-over');
+    const breadcrumb = document.getElementById('breadcrumb');
+    const rect = breadcrumb.getBoundingClientRect();
+
+    const hitArea = document.createElement('div');
+    hitArea.style.cssText = `position:fixed;top:${rect.bottom}px;left:${rect.left}px;right:${window.innerWidth - rect.right}px;bottom:0;z-index:499;pointer-events:none;`;
+    document.body.appendChild(hitArea);
+
+    function updateHitArea() {
+        const r = breadcrumb.getBoundingClientRect();
+        hitArea.style.top = `${r.bottom}px`;
+        hitArea.style.left = `${r.left}px`;
+        hitArea.style.right = `${window.innerWidth - r.right}px`;
     }
 
-    function onDragOver(e) {
+    document.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        hitArea.style.pointerEvents = 'all';
+    });
+    document.addEventListener('dragleave', (e) => {
+        if (e.relatedTarget === null) hitArea.style.pointerEvents = 'none';
+    });
+
+    hitArea.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        updateHitArea();
+        dropZone.style.setProperty('--drag-top', hitArea.style.top);
+        dropZone.style.setProperty('--drag-left', hitArea.style.left);
+        dropZone.style.setProperty('--drag-right', hitArea.style.right);
+        dropZone.classList.add('drag-over');
+    });
+    hitArea.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
-    }
-
-    function onDragLeave(e) {
-        if (dropZone.contains(e.relatedTarget)) return;
+    });
+    hitArea.addEventListener('dragleave', () => {
         dropZone.classList.remove('drag-over');
-    }
-
-    function onDrop(e) {
+        hitArea.style.pointerEvents = 'none';
+    });
+    hitArea.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('drag-over');
-
+        hitArea.style.pointerEvents = 'none';
         const files = e.dataTransfer.files;
         if (!files.length) return;
 
@@ -614,12 +636,9 @@ document.addEventListener("DOMContentLoaded", () => {
         for (const file of files) dt.items.add(file);
         input.files = dt.files;
         submitUpload();
-    }
-
-    document.addEventListener('dragend', () => dropZone.classList.remove('drag-over'));
-
-    dropZone.addEventListener('dragenter', onDragEnter);
-    dropZone.addEventListener('dragover', onDragOver);
-    dropZone.addEventListener('dragleave', onDragLeave);
-    dropZone.addEventListener('drop', onDrop);
+    });
+    document.addEventListener('dragend', () => {
+        dropZone.classList.remove('drag-over');
+        hitArea.style.pointerEvents = 'none';
+    });
 })();

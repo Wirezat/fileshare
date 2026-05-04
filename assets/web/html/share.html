@@ -85,7 +85,6 @@
                         </div>
                     </div>
                 </div>
-                {{end}}
 
                 <form id="uploadForm" method="post" enctype="multipart/form-data" class="upload-form">
                     <label for="fileUpload" class="upload-label">
@@ -94,6 +93,8 @@
                             onchange="submitUpload()" />
                     </label>
                 </form>
+                {{end}}
+
                 <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">ZIP</a>
             </div>
         </div>
