@@ -207,7 +207,7 @@ func serveGatePage(w http.ResponseWriter, subpath string, wrongPassword bool) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "gate.html", gateData{
+	if err := tmpl.ExecuteTemplate(w, "gate", gateData{
 		Subpath:       subpath,
 		WrongPassword: wrongPassword,
 	}); err != nil {
