@@ -10,6 +10,7 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
+var startTime = time.Now()
 var storage *LocalStorage
 
 // chain applies middleware in order: first wraps outermost, last wraps innermost.
@@ -35,6 +36,7 @@ func buildMux() *http.ServeMux {
 		"/admin/api/settings/max_post_size":            handleAdminSettingsMaxPostSize,
 		"/admin/api/settings/chunk_inactivity_timeout": handleAdminSettingsChunkInactivityTimeout,
 		"/admin/api/settings/prune_expired":            handleAdminFunctionPruneExpired,
+		"/admin/api/runtime":                           handleAdminRuntime,
 	}
 	for path, h := range adminRoutes {
 		mux.HandleFunc(path, basicAuth(h))

@@ -65,6 +65,15 @@ func handleAdminUI(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, 
 func handleAdminCSS(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminCssPath) }
 func handleAdminJS(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, r, adminJsPath) }
 
+func handleAdminRuntime(w http.ResponseWriter, r *http.Request) {
+    if !methodOnly(w, r, http.MethodGet) {
+        return
+    }
+    jsonResponse(w, map[string]any{
+        "uptime_seconds": int(time.Since(startTime).Seconds()),
+    })
+}
+
 func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
