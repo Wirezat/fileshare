@@ -77,7 +77,10 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 
 	// Password gate — checked after expiry so expired shares still 410 first.
 	if fileData.Password != "" && !hasPasswordCookie(r, subpath) {
-		serveGatePage(w, subpath, false)
+		serveGatePage(w, gateData{
+			Subpath:    subpath,
+			FormAction: "/" + subpath + "/unlock",
+		})
 		return nil, false
 	}
 
@@ -187,9 +190,12 @@ var (
 	gateTemplateOnce sync.Once
 )
 
+// gateData is the template context for both the share gate and the admin login page.
 type gateData struct {
-	Subpath       string
-	WrongPassword bool
+	Subpath          string
+	FormAction       string
+	ShowUsername     bool
+	WrongCredentials bool
 }
 
 func loadGateTemplate() (*template.Template, error) {
@@ -199,7 +205,7 @@ func loadGateTemplate() (*template.Template, error) {
 	return gateTemplate, gateTemplateErr
 }
 
-func serveGatePage(w http.ResponseWriter, subpath string, wrongPassword bool) {
+func serveGatePage(w http.ResponseWriter, data gateData) {
 	tmpl, err := loadGateTemplate()
 	if err != nil {
 		GoLog.Errorf("failed to load gate template: %v", err)
@@ -207,10 +213,7 @@ func serveGatePage(w http.ResponseWriter, subpath string, wrongPassword bool) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "gate", gateData{
-		Subpath:       subpath,
-		WrongPassword: wrongPassword,
-	}); err != nil {
+	if err := tmpl.ExecuteTemplate(w, "gate", data); err != nil {
 		GoLog.Errorf("failed to render gate template: %v", err)
 	}
 }
@@ -247,7 +250,11 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 
 	if !shared.CheckPassword(r.FormValue("password"), fd.Password) {
 		GoLog.Warnf("failed unlock attempt for share /%s", subpath)
-		serveGatePage(w, subpath, true)
+		serveGatePage(w, gateData{
+			Subpath:          subpath,
+			FormAction:       "/" + subpath + "/unlock",
+			WrongCredentials: true,
+		})
 		return
 	}
 

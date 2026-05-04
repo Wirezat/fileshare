@@ -5,11 +5,22 @@ import (
 	"encoding/hex"
 	"net/http"
 	"sync"
+	"time"
 )
+
+const (
+	shareTokenTTL  = 24 * time.Hour
+	shareTokenReap = 5 * time.Minute
+)
+
+type tokenEntry struct {
+	subpath   string
+	expiresAt time.Time
+}
 
 var (
 	shareTokensMu sync.RWMutex
-	shareTokens   = map[string]string{} // token → subpath
+	shareTokens   = map[string]tokenEntry{}
 )
 
 func generateShareToken() (string, error) {
@@ -22,15 +33,36 @@ func generateShareToken() (string, error) {
 
 func storeShareToken(token, subpath string) {
 	shareTokensMu.Lock()
-	shareTokens[token] = subpath
+	shareTokens[token] = tokenEntry{
+		subpath:   subpath,
+		expiresAt: time.Now().Add(shareTokenTTL),
+	}
 	shareTokensMu.Unlock()
 }
 
+// validateShareToken checks if the provided token is valid for the given subpath and not expired.
 func validateShareToken(token, subpath string) bool {
 	shareTokensMu.RLock()
-	stored, ok := shareTokens[token]
+	entry, ok := shareTokens[token]
 	shareTokensMu.RUnlock()
-	return ok && stored == subpath
+	return ok && entry.subpath == subpath && time.Now().Before(entry.expiresAt)
+}
+
+func startTokenReaper() {
+	go func() {
+		ticker := time.NewTicker(shareTokenReap)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			shareTokensMu.Lock()
+			for token, entry := range shareTokens {
+				if now.After(entry.expiresAt) {
+					delete(shareTokens, token)
+				}
+			}
+			shareTokensMu.Unlock()
+		}
+	}()
 }
 
 func hasPasswordCookie(r *http.Request, subpath string) bool {

@@ -39,8 +39,12 @@ func buildMux() *http.ServeMux {
 		"/admin/api/uptime":                            handleAdminUptime,
 	}
 	for path, h := range adminRoutes {
-		mux.HandleFunc(path, basicAuth(h))
+		mux.HandleFunc(path, adminAuth(h))
 	}
+
+	// Admin login/logout — no auth middleware.
+	mux.HandleFunc("/admin/login", handleAdminLogin)
+	mux.HandleFunc("/admin/logout", handleAdminLogout)
 
 	// Setup routes — no auth, and no logging to avoid capturing password setup attempts.
 	mux.HandleFunc("GET /setup", handleSetupUI)
@@ -97,6 +101,8 @@ func main() {
 
 	storage = NewLocalStorage(config)
 	storage.StartReaper()
+	startTokenReaper()
+	startAdminTokenReaper()
 	startExpirationWatcher(5 * time.Minute)
 	startServer(config)
 }

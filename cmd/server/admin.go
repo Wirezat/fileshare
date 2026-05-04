@@ -9,34 +9,84 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// basicAuth wraps a handler with HTTP Basic Auth against the admin credentials.
-func basicAuth(next http.HandlerFunc) http.HandlerFunc {
+// adminAuth redirects to /setup if no password is set, to /admin/login if no valid session cookie exists.
+func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		config, err := shared.LoadConfig()
 		if err != nil {
-			GoLog.Errorf("basicAuth: failed to load config: %v", err)
+			GoLog.Errorf("adminAuth: failed to load config: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		// redirect to setup page if no admin password is set — forces user to set a password on first run.
 		if config.AdminPassword == "" {
 			http.Redirect(w, r, "/setup", http.StatusFound)
 			return
 		}
-		username, password, ok := r.BasicAuth()
-		if !ok {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		if username != config.AdminUsername || !shared.CheckPassword(password, config.AdminPassword) {
-			GoLog.Warnf("basicAuth: failed login attempt from %s", clientIP(r))
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if !hasAdminCookie(r) {
+			http.Redirect(w, r, "/admin/login", http.StatusFound)
 			return
 		}
 		next.ServeHTTP(w, r)
 	}
+}
+
+// handleAdminLogin serves the login page (GET) and validates credentials (POST).
+func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
+	config, err := shared.LoadConfig()
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if config.AdminPassword == "" {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		serveGatePage(w, gateData{
+			FormAction:   "/admin/login",
+			ShowUsername: true,
+		})
+
+	case http.MethodPost:
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		usernameOK := config.AdminUsername == "" || username == config.AdminUsername
+		passwordOK := shared.CheckPassword(password, config.AdminPassword)
+
+		if !usernameOK || !passwordOK {
+			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", clientIP(r))
+			serveGatePage(w, gateData{
+				FormAction:       "/admin/login",
+				ShowUsername:     true,
+				WrongCredentials: true,
+			})
+			return
+		}
+
+		token, err := generateAdminToken()
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		storeAdminToken(token)
+		setAdminCookie(w, token)
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleAdminLogout invalidates the session token and clears the cookie.
+func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie(adminSessionCookie); err == nil {
+		deleteAdminToken(cookie.Value)
+	}
+	clearAdminCookie(w)
+	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 
 // handleAdminSettingsMaxPostSize updates the maximum per-chunk POST size.
@@ -50,7 +100,6 @@ func handleAdminSettingsMaxPostSize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-
 	config, err := shared.LoadConfig()
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -76,7 +125,6 @@ func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Bad Request: minimum 60 seconds", http.StatusBadRequest)
 		return
 	}
-
 	config, err := shared.LoadConfig()
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -87,7 +135,6 @@ func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
 	// Apply immediately — no restart required.
 	storage.SetInactivityTimeout(time.Duration(body.Seconds) * time.Second)
 	w.WriteHeader(http.StatusNoContent)
