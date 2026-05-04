@@ -16,7 +16,8 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// ── ANSI colors ──────────────────────────────────────
+// ── ANSI colors ───────────────────────────────────────────────────────────────
+
 const (
 	colorReset  = "\033[0m"
 	colorBold   = "\033[1m"
@@ -28,15 +29,15 @@ const (
 	colorGray   = "\033[90m"
 )
 
-// ── Config ────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
+
 var (
 	dataPath            = "/opt/fileshare/data.json"
 	randomSubpathLength = 12
 )
 
-// ── Data I/O ──────────────────────────────────────────
+// ── Data I/O ──────────────────────────────────────────────────────────────────
 
-// mustLoad loads the config or exits with an error log.
 func mustLoad() *shared.Config {
 	d, err := shared.LoadConfigFrom(dataPath)
 	if err != nil {
@@ -46,7 +47,6 @@ func mustLoad() *shared.Config {
 	return d
 }
 
-// mustSave saves the config or exits with an error log.
 func mustSave(d *shared.Config) {
 	if err := shared.SaveConfigTo(dataPath, d); err != nil {
 		GoLog.Errorf("Failed to save data: %v", err)
@@ -54,7 +54,7 @@ func mustSave(d *shared.Config) {
 	}
 }
 
-// ── Formatting helpers ────────────────────────────────
+// ── Formatting helpers ────────────────────────────────────────────────────────
 
 func fmtExpiration(ts int64) string {
 	if ts == 0 {
@@ -71,7 +71,7 @@ func fmtExpiration(ts int64) string {
 func fmtUses(u int) string {
 	switch u {
 	case shared.UnlimitedUses:
-		return "∞"
+		return "inf"
 	case 0:
 		return colorRed + "0" + colorReset
 	default:
@@ -86,21 +86,18 @@ func fmtUpload(on bool) string {
 	return colorGray + "off" + colorReset
 }
 
-func truncatePath(p string, max int) string {
-	if len(p) > max {
-		return "…" + p[len(p)-(max-1):]
+func fmtPassword(hash string) string {
+	if hash != "" {
+		return colorYellow + "yes" + colorReset
 	}
-	return p
+	return colorGray + "no" + colorReset
 }
 
-func confirmPrompt(msg string) bool {
-	fmt.Printf("%s [y/N] ", msg)
-	sc := bufio.NewScanner(os.Stdin)
-	if sc.Scan() {
-		ans := strings.ToLower(strings.TrimSpace(sc.Text()))
-		return ans == "y" || ans == "yes"
+func truncatePath(p string, max int) string {
+	if len(p) > max {
+		return "..." + p[len(p)-(max-3):]
 	}
-	return false
+	return p
 }
 
 func sortedKeys(m map[string]shared.FileData) []string {
@@ -112,9 +109,68 @@ func sortedKeys(m map[string]shared.FileData) []string {
 	return keys
 }
 
-var tableDivider = colorGray + strings.Repeat("─", 76) + colorReset
+// ── Interactive helpers ───────────────────────────────────────────────────────
 
-// ── Commands ──────────────────────────────────────────
+func confirmPrompt(msg string) bool {
+	fmt.Printf("%s [y/N] ", msg)
+	sc := bufio.NewScanner(os.Stdin)
+	if sc.Scan() {
+		ans := strings.ToLower(strings.TrimSpace(sc.Text()))
+		return ans == "y" || ans == "yes"
+	}
+	return false
+}
+
+func promptLine(prompt string) string {
+	fmt.Print(prompt)
+	sc := bufio.NewScanner(os.Stdin)
+	if sc.Scan() {
+		return strings.TrimSpace(sc.Text())
+	}
+	return ""
+}
+
+func parseBoolValue(s string) (bool, error) {
+	switch strings.ToLower(s) {
+	case "true", "1", "yes", "on":
+		return true, nil
+	case "false", "0", "no", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid value %q — use true/false/yes/no/on/off", s)
+	}
+}
+
+// hashSharePassword hashes a plaintext share password.
+// An empty string is returned unchanged (represents no password).
+func hashSharePassword(plain string) (string, error) {
+	if plain == "" {
+		return "", nil
+	}
+	return shared.HashPassword(plain)
+}
+
+// verifyAdminPassword checks the plaintext against the stored admin password
+// hash and exits with an error if it does not match.
+func verifyAdminPassword(plain string, d *shared.Config) {
+	if !shared.CheckPassword(plain, d.AdminPassword) {
+		GoLog.Error("Current password is incorrect")
+		os.Exit(1)
+	}
+}
+
+// isManuallyDisabled returns true when the share has been explicitly disabled
+// via the Expired flag but has not yet hit a time-based expiry.
+func isManuallyDisabled(s shared.FileData) bool {
+	if !s.Expired {
+		return false
+	}
+	return s.Expiration == 0 || time.Unix(s.Expiration, 0).After(time.Now())
+}
+
+// ── Commands ──────────────────────────────────────────────────────────────────
+
+var tableDivider = colorGray + strings.Repeat("-", 92) + colorReset
 
 func cmdList(asJSON bool) {
 	d := mustLoad()
@@ -128,54 +184,64 @@ func cmdList(asJSON bool) {
 
 	keys := sortedKeys(d.Files)
 	total := len(keys)
-	var active, expired, withUpload int
+
+	var active, deactivated, withUpload, withPassword int
 	for _, k := range keys {
 		s := d.Files[k]
 		if shared.IsExpired(s) {
-			expired++
+			deactivated++
 		} else {
 			active++
 		}
 		if s.AllowPost {
 			withUpload++
 		}
+		if s.Password != "" {
+			withPassword++
+		}
 	}
 
-	fmt.Printf("\n%sSHARES%s   total: %s%d%s   active: %s%d%s   expired: %s%d%s   upload-enabled: %s%d%s\n",
+	fmt.Printf(
+		"\n%sSHARES%s  total: %s%d%s  active: %s%d%s  deactivated: %s%d%s  upload: %s%d%s  password-protected: %s%d%s\n",
 		colorBold+colorCyan, colorReset,
 		colorBold, total, colorReset,
 		colorGreen, active, colorReset,
-		colorRed, expired, colorReset,
+		colorRed, deactivated, colorReset,
 		colorBlue, withUpload, colorReset,
+		colorYellow, withPassword, colorReset,
 	)
 	fmt.Println(tableDivider)
 
 	if total == 0 {
-		fmt.Println(colorGray + "  No shares yet. Add one with:  fileshare add -f <path>" + colorReset)
+		fmt.Println(colorGray + "  No shares. Create one with: fileshare add -f <path>" + colorReset)
 		fmt.Println()
 		return
 	}
 
-	fmt.Printf("%-22s %-28s %6s  %-14s %-8s %s\n",
+	fmt.Printf("%-22s %-26s %6s  %-14s %-8s %-5s %s\n",
 		colorBold+"SUBPATH"+colorReset,
 		colorBold+"PATH"+colorReset,
 		colorBold+"USES"+colorReset,
 		colorBold+"EXPIRES"+colorReset,
 		colorBold+"UPLOAD"+colorReset,
+		colorBold+"PW"+colorReset,
 		colorBold+"STATUS"+colorReset,
 	)
 	fmt.Println(tableDivider)
 
 	for _, sub := range keys {
 		s := d.Files[sub]
-		exp := shared.IsExpired(s)
 		_, statErr := os.Stat(s.Path)
 		pathMissing := os.IsNotExist(statErr)
 
 		subColor := colorGreen
 		status := colorGreen + "active" + colorReset
+
 		switch {
-		case exp:
+		case isManuallyDisabled(s):
+			subColor = colorGray
+			status = colorGray + "disabled" + colorReset
+		case shared.IsExpired(s):
 			subColor = colorRed
 			status = colorRed + "expired" + colorReset
 		case pathMissing:
@@ -183,19 +249,20 @@ func cmdList(asJSON bool) {
 			status = colorYellow + "path missing" + colorReset
 		}
 
-		fmt.Printf("%s%-22s%s %-28s %6s  %-14s %-8s %s\n",
+		fmt.Printf("%s%-22s%s %-26s %6s  %-14s %-8s %-5s %s\n",
 			subColor, "/"+sub, colorReset,
-			truncatePath(s.Path, 27),
+			truncatePath(s.Path, 25),
 			fmtUses(s.Uses),
 			fmtExpiration(s.Expiration),
 			fmtUpload(s.AllowPost),
+			fmtPassword(s.Password),
 			status,
 		)
 	}
 	fmt.Println()
 }
 
-func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool) {
+func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool, password string) {
 	if filePath == "" {
 		helpAdd()
 		os.Exit(1)
@@ -216,6 +283,12 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 		GoLog.Warnf("%q does not exist on disk — share will be created anyway", absPath)
 	}
 
+	hashedPw, err := hashSharePassword(password)
+	if err != nil {
+		GoLog.Errorf("Failed to hash share password: %v", err)
+		os.Exit(1)
+	}
+
 	d := mustLoad()
 
 	if _, exists := d.Files[subpath]; exists {
@@ -229,16 +302,18 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 		Uses:       uses,
 		Expiration: expiration,
 		AllowPost:  allowPost,
+		Password:   hashedPw,
 	}
 	mustSave(d)
 
-	fmt.Printf("%s✓%s Share added:\n", colorGreen, colorReset)
-	fmt.Printf("  Subpath : %s/%s%s\n", colorBold, subpath, colorReset)
-	fmt.Printf("  Path    : %s\n", absPath)
-	fmt.Printf("  Uses    : %s\n", fmtUses(uses))
-	fmt.Printf("  Expires : %s\n", fmtExpiration(expiration))
-	fmt.Printf("  Upload  : %s\n", fmtUpload(allowPost))
-	GoLog.Infof("Share added: /%s → %s", subpath, absPath)
+	fmt.Printf("%s+%s Share added:\n", colorGreen, colorReset)
+	fmt.Printf("  Subpath  : /%s\n", subpath)
+	fmt.Printf("  Path     : %s\n", absPath)
+	fmt.Printf("  Uses     : %s\n", fmtUses(uses))
+	fmt.Printf("  Expires  : %s\n", fmtExpiration(expiration))
+	fmt.Printf("  Upload   : %s\n", fmtUpload(allowPost))
+	fmt.Printf("  Password : %s\n", fmtPassword(hashedPw))
+	GoLog.Infof("Share added: /%s -> %s", subpath, absPath)
 }
 
 func cmdDelete(subpath string, yes bool) {
@@ -256,7 +331,7 @@ func cmdDelete(subpath string, yes bool) {
 	}
 
 	if !yes {
-		fmt.Printf("Delete share %s/%s%s → %s\n", colorBold, subpath, colorReset, s.Path)
+		fmt.Printf("Delete share /%s -> %s\n", subpath, s.Path)
 		if !confirmPrompt("Confirm:") {
 			fmt.Println("Aborted.")
 			return
@@ -266,11 +341,11 @@ func cmdDelete(subpath string, yes bool) {
 	delete(d.Files, subpath)
 	mustSave(d)
 
-	fmt.Printf("%s✓%s Share /%s deleted.\n", colorGreen, colorReset, subpath)
+	fmt.Printf("%s-%s Share /%s deleted.\n", colorRed, colorReset, subpath)
 	GoLog.Infof("Share deleted: /%s", subpath)
 }
 
-func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPostStr string) {
+func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newUploadStr, newActiveStr, newPassword string, clearPassword bool) {
 	if subpath == "" {
 		helpEdit()
 		os.Exit(1)
@@ -292,7 +367,7 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 			GoLog.Errorf("Subpath /%s already exists", newSubpath)
 			os.Exit(1)
 		}
-		fmt.Printf("  Subpath  : /%s → /%s\n", subpath, newSubpath)
+		fmt.Printf("  Subpath  : /%s -> /%s\n", subpath, newSubpath)
 		targetSubpath = newSubpath
 		changed = true
 	}
@@ -306,7 +381,7 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 		if _, statErr := os.Stat(abs); os.IsNotExist(statErr) {
 			GoLog.Warnf("%q does not exist on disk", abs)
 		}
-		fmt.Printf("  Path     : %s → %s\n", s.Path, abs)
+		fmt.Printf("  Path     : %s -> %s\n", s.Path, abs)
 		s.Path = abs
 		changed = true
 	}
@@ -314,11 +389,11 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 	if newUsesStr != "" {
 		newUses, err := strconv.Atoi(newUsesStr)
 		if err != nil {
-			GoLog.Errorf("Invalid uses value %q: must be an integer (-1 = unlimited)", newUsesStr)
+			GoLog.Errorf("Invalid uses value %q — must be an integer (-1 = unlimited)", newUsesStr)
 			os.Exit(1)
 		}
 		if newUses != s.Uses {
-			fmt.Printf("  Uses     : %s → %s\n", fmtUses(s.Uses), fmtUses(newUses))
+			fmt.Printf("  Uses     : %s -> %s\n", fmtUses(s.Uses), fmtUses(newUses))
 			s.Uses = newUses
 			changed = true
 		}
@@ -331,8 +406,9 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 			os.Exit(1)
 		}
 		if ts != s.Expiration {
-			fmt.Printf("  Expires  : %s → %s\n", fmtExpiration(s.Expiration), fmtExpiration(ts))
+			fmt.Printf("  Expires  : %s -> %s\n", fmtExpiration(s.Expiration), fmtExpiration(ts))
 			s.Expiration = ts
+			// Clear the expired flag when moving the deadline into the future.
 			if ts == 0 || ts > time.Now().Unix() {
 				s.Expired = false
 			}
@@ -340,19 +416,62 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 		}
 	}
 
-	if newAllowPostStr != "" {
-		newPost := newAllowPostStr == "true" || newAllowPostStr == "1" || newAllowPostStr == "yes" || newAllowPostStr == "on"
-		if newPost != s.AllowPost {
-			onOff := func(b bool) string {
-				if b {
-					return "on"
-				}
-				return "off"
-			}
-			fmt.Printf("  Upload   : %s → %s\n", onOff(s.AllowPost), onOff(newPost))
-			s.AllowPost = newPost
+	if newUploadStr != "" {
+		newUpload, err := parseBoolValue(newUploadStr)
+		if err != nil {
+			GoLog.Errorf("-upload: %v", err)
+			os.Exit(1)
+		}
+		if newUpload != s.AllowPost {
+			fmt.Printf("  Upload   : %s -> %s\n", fmtUpload(s.AllowPost), fmtUpload(newUpload))
+			s.AllowPost = newUpload
 			changed = true
 		}
+	}
+
+	if newActiveStr != "" {
+		newActive, err := parseBoolValue(newActiveStr)
+		if err != nil {
+			GoLog.Errorf("-active: %v", err)
+			os.Exit(1)
+		}
+		// active=true clears the Expired flag; active=false sets it.
+		wantExpired := !newActive
+		if wantExpired != s.Expired {
+			oldLabel := "active"
+			if s.Expired {
+				oldLabel = "disabled"
+			}
+			newLabel := "active"
+			if wantExpired {
+				newLabel = "disabled"
+			}
+			fmt.Printf("  Active   : %s -> %s\n", oldLabel, newLabel)
+			s.Expired = wantExpired
+			changed = true
+		}
+	}
+
+	switch {
+	case clearPassword:
+		if s.Password != "" {
+			fmt.Printf("  Password : removed\n")
+			s.Password = ""
+			changed = true
+		}
+	case newPassword != "":
+		hashed, err := hashSharePassword(newPassword)
+		if err != nil {
+			GoLog.Errorf("Failed to hash share password: %v", err)
+			os.Exit(1)
+		}
+		action := "set"
+		if s.Password != "" {
+			action = "changed"
+		}
+		fmt.Printf("  Password : %s\n", action)
+		s.Password = hashed
+		changed = true
 	}
 
 	if !changed {
@@ -366,8 +485,52 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newAllowPo
 	d.Files[targetSubpath] = s
 	mustSave(d)
 
-	fmt.Printf("%s✓%s Share updated.\n", colorGreen, colorReset)
+	fmt.Printf("%s*%s Share /%s updated.\n", colorGreen, colorReset, targetSubpath)
 	GoLog.Infof("Share edited: /%s", targetSubpath)
+}
+
+func cmdEnable(subpath string) {
+	if subpath == "" {
+		helpEnable()
+		os.Exit(1)
+	}
+	d := mustLoad()
+	s, exists := d.Files[subpath]
+	if !exists {
+		GoLog.Errorf("Share /%s not found", subpath)
+		os.Exit(1)
+	}
+	if !s.Expired {
+		fmt.Printf("Share /%s is already active.\n", subpath)
+		return
+	}
+	s.Expired = false
+	d.Files[subpath] = s
+	mustSave(d)
+	fmt.Printf("%s*%s Share /%s enabled.\n", colorGreen, colorReset, subpath)
+	GoLog.Infof("Share enabled: /%s", subpath)
+}
+
+func cmdDisable(subpath string) {
+	if subpath == "" {
+		helpEnable()
+		os.Exit(1)
+	}
+	d := mustLoad()
+	s, exists := d.Files[subpath]
+	if !exists {
+		GoLog.Errorf("Share /%s not found", subpath)
+		os.Exit(1)
+	}
+	if s.Expired {
+		fmt.Printf("Share /%s is already disabled.\n", subpath)
+		return
+	}
+	s.Expired = true
+	d.Files[subpath] = s
+	mustSave(d)
+	fmt.Printf("%s*%s Share /%s disabled.\n", colorGray, colorReset, subpath)
+	GoLog.Infof("Share disabled: /%s", subpath)
 }
 
 func cmdPrune(yes bool) {
@@ -388,7 +551,7 @@ func cmdPrune(yes bool) {
 
 	fmt.Printf("Found %s%d%s expired share(s):\n", colorBold, len(toDelete), colorReset)
 	for _, k := range toDelete {
-		fmt.Printf("  %s/%s%s → %s\n", colorRed, k, colorReset, d.Files[k].Path)
+		fmt.Printf("  /%s -> %s\n", k, d.Files[k].Path)
 	}
 
 	if !yes && !confirmPrompt("Delete all?") {
@@ -401,59 +564,67 @@ func cmdPrune(yes bool) {
 	}
 	mustSave(d)
 
-	fmt.Printf("%s✓%s Deleted %d expired share(s).\n", colorGreen, colorReset, len(toDelete))
+	fmt.Printf("%s-%s Deleted %d expired share(s).\n", colorRed, colorReset, len(toDelete))
 	GoLog.Infof("Pruned %d expired share(s)", len(toDelete))
 }
 
-func cmdSetPassword(password string) {
-	if password == "" {
-		fmt.Print("New admin password: ")
-		sc := bufio.NewScanner(os.Stdin)
-		if sc.Scan() {
-			password = strings.TrimSpace(sc.Text())
-		}
+func cmdSetPassword(currentPassword, newPassword string) {
+	d := mustLoad()
+
+	if d.AdminPassword != "" && currentPassword == "" {
+		currentPassword = promptLine("Current admin password: ")
 	}
-	if password == "" {
+	if d.AdminPassword != "" {
+		verifyAdminPassword(currentPassword, d)
+	}
+
+	if newPassword == "" {
+		newPassword = promptLine("New admin password: ")
+	}
+	if newPassword == "" {
 		GoLog.Error("Password cannot be empty")
 		os.Exit(1)
 	}
 
-	hash, err := shared.HashPassword(password)
+	hash, err := shared.HashPassword(newPassword)
 	if err != nil {
 		GoLog.Errorf("Hashing failed: %v", err)
 		os.Exit(1)
 	}
 
-	d := mustLoad()
 	d.AdminPassword = hash
 	mustSave(d)
 
-	fmt.Printf("%s✓%s Admin password updated.\n", colorGreen, colorReset)
+	fmt.Printf("%s*%s Admin password updated.\n", colorGreen, colorReset)
 	GoLog.Info("Admin password updated")
 }
 
-func cmdSetUsername(username string) {
-	if username == "" {
-		fmt.Print("New admin username: ")
-		sc := bufio.NewScanner(os.Stdin)
-		if sc.Scan() {
-			username = strings.TrimSpace(sc.Text())
-		}
+func cmdSetUsername(currentPassword, newUsername string) {
+	d := mustLoad()
+
+	if d.AdminPassword != "" && currentPassword == "" {
+		currentPassword = promptLine("Current admin password: ")
 	}
-	if username == "" {
+	if d.AdminPassword != "" {
+		verifyAdminPassword(currentPassword, d)
+	}
+
+	if newUsername == "" {
+		newUsername = promptLine("New admin username: ")
+	}
+	if newUsername == "" {
 		GoLog.Error("Username cannot be empty")
 		os.Exit(1)
 	}
 
-	d := mustLoad()
-	d.AdminUsername = username
+	d.AdminUsername = newUsername
 	mustSave(d)
 
-	fmt.Printf("%s✓%s Admin username updated.\n", colorGreen, colorReset)
+	fmt.Printf("%s*%s Admin username updated.\n", colorGreen, colorReset)
 	GoLog.Info("Admin username updated")
 }
 
-// ── Help texts ────────────────────────────────────────
+// ── Help texts ────────────────────────────────────────────────────────────────
 
 func helpAdd() {
 	fmt.Print(`
@@ -461,17 +632,18 @@ USAGE
   fileshare add [options]
 
 OPTIONS
-  -subpath, -s    URL subpath (omit for random)
-  -file,    -f    File or folder path on the server  [required]
-  -uses,    -u    Max downloads; -1 = unlimited  (default: -1)
-  -expires, -e    Expiration: 24h, 7d, 2w, 3m, 1y, unix timestamp, or 0/never
-  -allow-post, -p Allow uploads to this share
+  -subpath, -s       URL subpath (omit for random)
+  -file,    -f       File or folder path on the server  [required]
+  -uses,    -u       Max downloads; -1 = unlimited  (default: -1)
+  -expires, -e       Expiration: 24h, 7d, 2w, 3m, 1y, unix timestamp, or 0/never
+  -upload            Allow uploads to this share
+  -password, -pw     Protect the share with a password
 
 EXAMPLES
-  fileshare add -s music -f /home/user/music
+  fileshare add -s docs -f /home/user/docs
   fileshare add -f /tmp/report.pdf -e 7d -u 10
-  fileshare add -f /srv/uploads -allow-post
-  fileshare add -f /tmp/secret.zip   # random subpath
+  fileshare add -f /srv/uploads -upload
+  fileshare add -f /tmp/secret.zip -pw hunter2
 
 `)
 }
@@ -479,7 +651,7 @@ EXAMPLES
 func helpDelete() {
 	fmt.Print(`
 USAGE
-  fileshare delete -subpath=<subpath> [-y]
+  fileshare delete -s <subpath> [-y]
 
 OPTIONS
   -subpath, -s   Subpath of the share to delete  [required]
@@ -491,31 +663,53 @@ OPTIONS
 func helpEdit() {
 	fmt.Print(`
 USAGE
-  fileshare edit -subpath=<subpath> [options]
+  fileshare edit -s <subpath> [options]
 
 OPTIONS
-  -subpath,     -s  Share to edit  [required]
-  -new-subpath, -n  Rename to a different subpath
-  -file,        -f  Change the server file/folder path
-  -uses,        -u  Change max uses (-1 = unlimited)
-  -expires,     -e  Change expiration (duration, unix timestamp, or 0/never)
-  -allow-post       Change upload permission (true/false)
+  -subpath,       -s    Share to edit  [required]
+  -new-subpath,   -n    Rename to a different subpath
+  -file,          -f    Change the server file/folder path
+  -uses,          -u    Change max uses (-1 = unlimited)
+  -expires,       -e    Change expiration (duration, unix timestamp, or 0/never)
+  -upload               Change upload permission (true/false/yes/no/on/off)
+  -active               Enable or disable the share (true/false)
+  -password,      -pw   Set or change the share password
+  -clear-password       Remove the share password
 
 EXAMPLES
   fileshare edit -s music -n music2024
   fileshare edit -s docs  -e 30d -u 50
-  fileshare edit -s temp  -allow-post=false
+  fileshare edit -s temp  -upload=false
+  fileshare edit -s priv  -pw newpassword
+  fileshare edit -s priv  -clear-password
+  fileshare edit -s temp  -active=false
 
 `)
 }
 
-func helpAdminUsername() {
+func helpEnable() {
+	fmt.Print(`
+USAGE
+  fileshare enable  -s <subpath>
+  fileshare disable -s <subpath>
+
+Enables or disables a share without deleting it.
+Equivalent to: fileshare edit -s <subpath> -active true/false
+
+OPTIONS
+  -subpath, -s   Subpath of the share  [required]
+
+`)
+}
+
+func helpSetUsername() {
 	fmt.Print(`
 USAGE
   fileshare setusername [options]
 
 OPTIONS
-  -username, -user, -u   New admin username (prompted if omitted)
+  -username, -u    New admin username (prompted if omitted)
+  -current,  -c    Current admin password for verification (prompted if omitted)
 
 EXAMPLES
   fileshare setusername -u myname
@@ -524,16 +718,17 @@ EXAMPLES
 `)
 }
 
-func helpAdminPassword() {
+func helpSetPassword() {
 	fmt.Print(`
 USAGE
   fileshare setpassword [options]
 
 OPTIONS
-  -password, -pass, -pwd, -p   New admin password
+  -password, -p   New admin password (prompted if omitted)
+  -current,  -c   Current admin password for verification (prompted if omitted)
 
 EXAMPLES
-  fileshare setpassword -p mypassword
+  fileshare setpassword -p mysecret
   fileshare setpassword
 
 `)
@@ -544,7 +739,7 @@ func helpPrune() {
 USAGE
   fileshare prune [-y]
 
-Deletes all expired shares. Mirrors "Delete all expired shares" in Admin UI.
+Deletes all expired shares permanently.
 
 OPTIONS
   -y   Skip confirmation
@@ -554,20 +749,22 @@ OPTIONS
 
 func printHelp() {
 	fmt.Print(`
-Fileshare CLI — manage shares from the command line
+Fileshare CLI -- manage shares from the command line
 
 USAGE
   fileshare <command> [options]
 
 COMMANDS
-  list         Show all shares with status summary
-  add          Create a new share
-  delete       Delete a share
-  edit         Edit an existing share
-  prune        Delete all expired shares
-  setpassword  Set the admin password
-  setusername  Set the admin username
-  help         Show this help or help for a specific command
+  list          Show all shares with status summary
+  add           Create a new share
+  delete        Delete a share
+  edit          Edit an existing share
+  enable        Re-enable a disabled share
+  disable       Disable a share without deleting it
+  prune         Delete all expired shares
+  setpassword   Set the admin password
+  setusername   Set the admin username
+  help          Show this help or help for a specific command
 
 GLOBAL FLAGS
   -data <path>   Path to data.json  (default: /opt/fileshare/data.json)
@@ -576,9 +773,12 @@ EXAMPLES
   fileshare list
   fileshare list --json
   fileshare add -f /home/user/music -s music -e 7d
-  fileshare add -f /tmp/file.zip
+  fileshare add -f /tmp/secret.zip -pw hunter2
   fileshare delete -s music
   fileshare edit -s music -e 30d -u 100
+  fileshare edit -s priv -clear-password
+  fileshare disable -s temp
+  fileshare enable  -s temp
   fileshare prune -y
   fileshare setpassword
   fileshare setusername -u myname
@@ -587,7 +787,7 @@ EXAMPLES
 `)
 }
 
-// ── Main ──────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 func main() {
 	if len(os.Args) < 2 {
@@ -620,12 +820,14 @@ func main() {
 
 	switch cmd {
 
+	// ── list ─────────────────────────────────────────────────────────────────
 	case "list", "l", "ls":
 		fs := flag.NewFlagSet("list", flag.ExitOnError)
 		jsonOut := fs.Bool("json", false, "Output raw JSON")
 		_ = fs.Parse(args)
 		cmdList(*jsonOut)
 
+	// ── add ──────────────────────────────────────────────────────────────────
 	case "add", "addrandom", "random", "add_random", "addr":
 		fs := flag.NewFlagSet("add", flag.ExitOnError)
 		subpath := fs.String("subpath", "", "")
@@ -633,28 +835,28 @@ func main() {
 		filePath := fs.String("file", "", "")
 		fs.StringVar(filePath, "f", "", "")
 		uses := fs.Int("uses", -1, "")
-		fs.IntVar(uses, "use-expiration", -1, "") // legacy
 		fs.IntVar(uses, "u", -1, "")
 		expires := fs.String("expires", "", "")
-		fs.StringVar(expires, "time-expiration", "", "") // legacy
-		fs.StringVar(expires, "time", "", "")            // legacy
 		fs.StringVar(expires, "e", "", "")
-		fs.StringVar(expires, "t", "", "")
-		allowPost := fs.Bool("allow-post", false, "")
-		fs.BoolVar(allowPost, "post", false, "")
-		fs.BoolVar(allowPost, "p", false, "")
+		fs.StringVar(expires, "t", "", "") // legacy alias
+		allowPost := fs.Bool("upload", false, "")
+		fs.BoolVar(allowPost, "allow-post", false, "") // legacy alias
+		fs.BoolVar(allowPost, "p", false, "")          // legacy alias
+		password := fs.String("password", "", "")
+		fs.StringVar(password, "pw", "", "")
 		_ = fs.Parse(args)
 
 		if cmd != "add" {
-			*subpath = "" // legacy addrandom → force random subpath
+			*subpath = "" // legacy addrandom forces a random subpath
 		}
 		exp, err := shared.ParseExpiration(*expires)
 		if err != nil {
 			GoLog.Errorf("Invalid expiration: %v", err)
 			os.Exit(1)
 		}
-		cmdAdd(*subpath, *filePath, *uses, exp, *allowPost)
+		cmdAdd(*subpath, *filePath, *uses, exp, *allowPost, *password)
 
+	// ── delete ───────────────────────────────────────────────────────────────
 	case "delete", "del", "remove", "rm":
 		fs := flag.NewFlagSet("delete", flag.ExitOnError)
 		subpath := fs.String("subpath", "", "")
@@ -664,16 +866,14 @@ func main() {
 		_ = fs.Parse(args)
 		cmdDelete(*subpath, *yes)
 
+	// ── edit ─────────────────────────────────────────────────────────────────
 	case "edit":
 		fs := flag.NewFlagSet("edit", flag.ExitOnError)
 		subpath := fs.String("subpath", "", "")
 		fs.StringVar(subpath, "s", "", "")
 		oldSubpath := fs.String("old_subpath", "", "") // legacy
-		fs.StringVar(oldSubpath, "old", "", "")
 		fs.StringVar(oldSubpath, "o", "", "")
 		newSubpath := fs.String("new-subpath", "", "")
-		fs.StringVar(newSubpath, "new_subpath", "", "") // legacy
-		fs.StringVar(newSubpath, "new", "", "")         // legacy
 		fs.StringVar(newSubpath, "n", "", "")
 		newFile := fs.String("file", "", "")
 		fs.StringVar(newFile, "f", "", "")
@@ -681,15 +881,35 @@ func main() {
 		fs.StringVar(newUses, "u", "", "")
 		newExpires := fs.String("expires", "", "")
 		fs.StringVar(newExpires, "e", "", "")
-		newAllowPost := fs.String("allow-post", "", "")
-		fs.StringVar(newAllowPost, "p", "", "")
+		newUpload := fs.String("upload", "", "")
+		fs.StringVar(newUpload, "allow-post", "", "") // legacy alias
+		newActive := fs.String("active", "", "")
+		newPassword := fs.String("password", "", "")
+		fs.StringVar(newPassword, "pw", "", "")
+		clearPassword := fs.Bool("clear-password", false, "")
 		_ = fs.Parse(args)
 
 		if *subpath == "" && *oldSubpath != "" {
 			*subpath = *oldSubpath
 		}
-		cmdEdit(*subpath, *newSubpath, *newFile, *newUses, *newExpires, *newAllowPost)
+		cmdEdit(*subpath, *newSubpath, *newFile, *newUses, *newExpires, *newUpload, *newActive, *newPassword, *clearPassword)
 
+	// ── enable / disable ─────────────────────────────────────────────────────
+	case "enable":
+		fs := flag.NewFlagSet("enable", flag.ExitOnError)
+		subpath := fs.String("subpath", "", "")
+		fs.StringVar(subpath, "s", "", "")
+		_ = fs.Parse(args)
+		cmdEnable(*subpath)
+
+	case "disable":
+		fs := flag.NewFlagSet("disable", flag.ExitOnError)
+		subpath := fs.String("subpath", "", "")
+		fs.StringVar(subpath, "s", "", "")
+		_ = fs.Parse(args)
+		cmdDisable(*subpath)
+
+	// ── prune ────────────────────────────────────────────────────────────────
 	case "prune", "cleanup", "clean":
 		fs := flag.NewFlagSet("prune", flag.ExitOnError)
 		yes := fs.Bool("y", false, "")
@@ -697,23 +917,27 @@ func main() {
 		_ = fs.Parse(args)
 		cmdPrune(*yes)
 
+	// ── setpassword ──────────────────────────────────────────────────────────
 	case "setpassword", "setpass", "password":
 		fs := flag.NewFlagSet("setpassword", flag.ExitOnError)
-		password := fs.String("password", "", "")
-		fs.StringVar(password, "pass", "", "")
-		fs.StringVar(password, "pwd", "", "")
-		fs.StringVar(password, "p", "", "")
+		current := fs.String("current", "", "")
+		fs.StringVar(current, "c", "", "")
+		newPw := fs.String("password", "", "")
+		fs.StringVar(newPw, "p", "", "")
 		_ = fs.Parse(args)
-		cmdSetPassword(*password)
+		cmdSetPassword(*current, *newPw)
 
+	// ── setusername ──────────────────────────────────────────────────────────
 	case "setusername", "setuser", "username":
 		fs := flag.NewFlagSet("setusername", flag.ExitOnError)
+		current := fs.String("current", "", "")
+		fs.StringVar(current, "c", "", "")
 		username := fs.String("username", "", "")
-		fs.StringVar(username, "user", "", "")
 		fs.StringVar(username, "u", "", "")
 		_ = fs.Parse(args)
-		cmdSetUsername(*username)
+		cmdSetUsername(*current, *username)
 
+	// ── help ─────────────────────────────────────────────────────────────────
 	case "help", "--help", "-h":
 		if len(args) > 0 {
 			switch args[0] {
@@ -723,10 +947,12 @@ func main() {
 				helpDelete()
 			case "edit":
 				helpEdit()
+			case "enable", "disable":
+				helpEnable()
 			case "setusername", "setuser", "username":
-				helpAdminUsername()
+				helpSetUsername()
 			case "setpassword", "setpass", "password":
-				helpAdminPassword()
+				helpSetPassword()
 			case "prune", "cleanup":
 				helpPrune()
 			default:
