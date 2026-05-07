@@ -2,6 +2,7 @@ package main
 
 import (
 	"html/template"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -68,10 +69,19 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
+		fullPath := filepath.Join(dirPath, entry.Name())
+
+		isDir := entry.IsDir()
+		if entry.Type()&fs.ModeSymlink != 0 {
+			if info, err := os.Stat(fullPath); err == nil {
+				isDir = info.IsDir()
+			}
+		}
+
 		infos = append(infos, shared.FileInfo{
 			Name:  entry.Name(),
 			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), entry.Name()),
-			IsDir: entry.IsDir(),
+			IsDir: isDir,
 		})
 	}
 	return infos, nil

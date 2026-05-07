@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
@@ -86,6 +88,11 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 
 	fileInfo, err := os.Stat(diskPath)
 	if err != nil {
+		if errors.Is(err, syscall.ELOOP) {
+			GoLog.Warnf("symlink loop detected: %s", diskPath)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return nil, false
+		}
 		GoLog.Errorf("failed to stat %s: %v", diskPath, err)
 		http.NotFound(w, r)
 		return nil, false
