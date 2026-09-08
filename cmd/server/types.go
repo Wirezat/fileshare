@@ -10,13 +10,19 @@ const (
 	shareHtmlPath = "./web/html/share.html"
 	shareCssPath  = "./web/css/share.css"
 	shareJsPath   = "./web/js/share.js"
-	adminHtmlPath = "./web/html/admin.html"
-	adminCssPath  = "./web/css/admin.css"
-	adminJsPath   = "./web/js/admin.js"
 	setupHtmlPath = "./web/html/setup.html"
 	setupJsPath   = "./web/js/setup.js"
 	setupCssPath  = "./web/css/setup.css"
 	gateHtmlPath  = "./web/html/gate.html"
+
+	adminHtmlPath         = "./web/html/admin.html"
+	adminLogsHtmlPath     = "./web/html/admin-logs.html"
+	adminSettingsHtmlPath = "./web/html/admin-settings.html"
+	adminLoginHtmlPath    = "./web/html/admin-login.html"
+	adminJsDir            = "./web/js/admin"
+	themeCssPath          = "./web/css/theme.css"
+	uiDir                 = "./web/ui"
+	localesDir            = "./web/locales"
 )
 
 // requestContext holds all resolved data for an incoming request,

@@ -1,0 +1,3 @@
+[submodule "assets/web/ui"]
+	path = assets/web/ui
+	url = git@github.com:Wirezat/wirezatui.git

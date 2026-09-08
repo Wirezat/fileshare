@@ -25,9 +25,6 @@ func buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	adminRoutes := map[string]http.HandlerFunc{
-		"/admin":                                       handleAdminUI,
-		"/admin/static/admin.css":                      handleAdminCSS,
-		"/admin/static/admin.js":                       handleAdminJS,
 		"/admin/api/shares":                            handleAdminShares,
 		"/admin/api/logs":                              handleAdminLogs,
 		"/admin/api/logs/stream":                       handleAdminLogsStream,
@@ -37,10 +34,28 @@ func buildMux() *http.ServeMux {
 		"/admin/api/settings/chunk_inactivity_timeout": handleAdminSettingsChunkInactivityTimeout,
 		"/admin/api/settings/prune_expired":            handleAdminFunctionPruneExpired,
 		"/admin/api/uptime":                            handleAdminUptime,
+
+		"/admin":          handleAdminUI,
+		"/admin/logs":     handleAdminLogsPage,
+		"/admin/settings": handleAdminSettingsPage,
+		"/admin/api/me":   handleAdminMe,
 	}
 	for path, h := range adminRoutes {
 		mux.HandleFunc(path, adminAuth(h))
 	}
+
+	// The wui library and the theme are served unauthenticated: the login page
+	// needs both, and it is by definition not logged in yet. Neither holds
+	// anything private — one is a generic CSS/JS library, the other a colour
+	// palette. The page modules under /admin/static/js/ stay behind the gate.
+	uiFS := http.StripPrefix("/static/ui/", http.FileServer(http.Dir(uiDir)))
+	mux.Handle("/static/ui/", uiFS)
+	mux.HandleFunc("/static/theme.css", handleThemeCSS)
+
+	// The page modules import each other by relative path, so they are served
+	// as a tree rather than one route per file.
+	jsFS := http.StripPrefix("/admin/static/js/", http.FileServer(http.Dir(adminJsDir)))
+	mux.HandleFunc("/admin/static/js/", adminAuth(jsFS.ServeHTTP))
 
 	// Admin login/logout — no auth middleware.
 	mux.HandleFunc("/admin/login", handleAdminLogin)
@@ -65,6 +80,11 @@ func buildMux() *http.ServeMux {
 	mux.Handle("/", public)
 	mux.HandleFunc("/static/share.css", handleShareCSS)
 	mux.HandleFunc("/static/share.js", handleShareJS)
+
+	// wui's i18n module fetches /static/locales/<lang>.json unconditionally.
+	// Serving it (rather than letting it 404 into the catch-all) keeps the
+	// admin log free of a bogus request on every page load.
+	mux.Handle("/static/locales/", http.StripPrefix("/static/locales/", http.FileServer(http.Dir(localesDir))))
 
 	return mux
 }

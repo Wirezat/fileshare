@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Wirezat/GoLog"
@@ -44,28 +45,41 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		serveGatePage(w, gateData{
-			FormAction:   "/admin/login",
-			ShowUsername: true,
-		})
+		// Static: the page's own initAuth renders a failed attempt, so there is
+		// nothing left for the server to template in.
+		http.ServeFile(w, r, adminLoginHtmlPath)
 
 	case http.MethodPost:
-		username := r.FormValue("username")
-		password := r.FormValue("password")
+		// wui's initAuth posts JSON and reads the outcome from the status code;
+		// the form fallback keeps a plain POST working for anything that still
+		// sends one.
+		var creds struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		// Dispatch on the content type, not on a failed decode: Decode() reads
+		// the body, so a form POST that fell through to FormValue would find
+		// nothing left to parse.
+		if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+			if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+		} else {
+			creds.Username = r.FormValue("username")
+			creds.Password = r.FormValue("password")
+		}
 
-		usernameOK := config.AdminUsername == "" || username == config.AdminUsername
-		passwordOK := shared.CheckPassword(password, config.AdminPassword)
+		usernameOK := config.AdminUsername == "" || creds.Username == config.AdminUsername
+		passwordOK := shared.CheckPassword(creds.Password, config.AdminPassword)
 
 		if !usernameOK || !passwordOK {
 			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", clientIP(r))
-			serveGatePage(w, gateData{
-				FormAction:       "/admin/login",
-				ShowUsername:     true,
-				WrongCredentials: true,
-			})
+			// One message for both a wrong name and a wrong password — saying
+			// which was wrong would confirm that an account name exists.
+			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
 			return
 		}
-
 		token, err := generateAdminToken()
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -73,7 +87,8 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		storeAdminToken(token)
 		setAdminCookie(w, token)
-		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		// initAuth navigates on its own once this comes back ok.
+		w.WriteHeader(http.StatusNoContent)
 
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)

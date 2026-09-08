@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fileshare</title>
+
+  <!-- Both stylesheets are served unauthenticated; this page is by definition
+       not logged in yet. -->
+  <link rel="stylesheet" href="/static/ui/index.css" />
+  <link rel="stylesheet" href="/static/theme.css" />
+
+  <script>
+    (function () {
+      const s = localStorage.getItem('theme');
+      if (s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('dark');
+    })();
+  </script>
+</head>
+
+<body class="app-shell">
+
+  <header class="header">
+    <span class="header-brand">
+      <span class="header-logo">📂</span>
+      <span>Fileshare</span>
+    </span>
+    <div class="header-right">
+      <div class="dropdown-wrap" data-wui-lang>
+        <button data-dropdown-trigger></button>
+        <div class="dropdown-panel">
+          <button class="dropdown-item" data-lang="en">🇬🇧 English</button>
+          <button class="dropdown-item" data-lang="de">🇩🇪 Deutsch</button>
+        </div>
+      </div>
+      <button data-wui-theme data-i18n-title="admin.toggle_theme"></button>
+    </div>
+  </header>
+
+  <!-- Ids below are wui's contract with initAuth — it wires the panels, the
+       submit handlers and the status line by id. -->
+  <div class="auth-main">
+    <div class="auth-card">
+
+      <div class="auth-header">
+        <div class="auth-logo" id="auth-logo"></div>
+        <div class="auth-title" id="auth-title"></div>
+        <div class="auth-sub" id="auth-sub"></div>
+      </div>
+
+      <div class="auth-body">
+        <div class="auth-panel active" id="panel-login">
+          <div class="field">
+            <label class="field-label" data-i18n="login.username"></label>
+            <input class="input" type="text" id="login-username" autocomplete="username" autofocus />
+          </div>
+          <div class="field">
+            <label class="field-label" data-i18n="login.password"></label>
+            <input class="input" type="password" id="login-password" autocomplete="current-password" />
+          </div>
+          <div class="auth-footer">
+            <span class="status-msg" id="status-login"></span>
+            <button class="btn btn-primary" id="btn-login" data-i18n="login.submit"></button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { configure, initAuth } from '/static/ui/js/auth.js';
+    import { load as loadI18n, applyI18n, getLang, setLang, t } from '/static/ui/js/i18n.js';
+
+    await loadI18n(getLang());
+    applyI18n();
+
+    // Cookie transport: the server sets an HttpOnly session cookie, so there is
+    // no token for this page to store and none for a script to steal.
+    configure({
+      mode:       'cookie',
+      loginApi:   '/admin/login',
+      logoutApi:  '/admin/logout',
+      loginPath:  '/admin/login',
+      meApi:      '/admin/api/me',
+      refreshApi: null,          // sessions run to their TTL; a 401 is final
+    });
+
+    initAuth({
+      name:     'Fileshare',
+      logo:     '🔒',
+      subtitle: t('login.subtitle'),
+      mode:     'login',         // no registration: there is exactly one admin
+      redirect: '/admin',
+      configUrl: null,           // nothing to ask, registration does not exist
+    }, { t, getLang, setLang });
+  </script>
+</body>
+
+</html>

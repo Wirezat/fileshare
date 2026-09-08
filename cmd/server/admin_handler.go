@@ -61,9 +61,35 @@ func jsonResponse(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func handleAdminUI(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, r, adminHtmlPath) }
-func handleAdminCSS(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminCssPath) }
-func handleAdminJS(w http.ResponseWriter, r *http.Request)  { http.ServeFile(w, r, adminJsPath) }
+// The three admin pages. Each is a static shell; its module under
+// /admin/static/js/ builds the body through wui's renderPage.
+func handleAdminUI(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminHtmlPath) }
+func handleAdminLogsPage(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, adminLogsHtmlPath)
+}
+func handleAdminSettingsPage(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, adminSettingsHtmlPath)
+}
+func handleThemeCSS(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, themeCssPath)
+}
+
+// handleAdminMe reports the logged-in admin to the wui shell, which fetches it
+// to render the user menu. Reaching this handler already means adminAuth let
+// the request through, so there is exactly one possible identity.
+func handleAdminMe(w http.ResponseWriter, r *http.Request) {
+	if !methodOnly(w, r, http.MethodGet) {
+		return
+	}
+	config, ok := configOrErr(w)
+	if !ok {
+		return
+	}
+	jsonResponse(w, map[string]any{
+		"username": config.AdminUsername,
+		"is_admin": true,
+	})
+}
 
 func handleAdminUptime(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodGet) {
