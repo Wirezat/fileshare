@@ -204,11 +204,10 @@ var (
 	gateTemplateOnce sync.Once
 )
 
-// gateData is the template context for both the share gate and the admin login page.
+// gateData is the template context for the share password gate.
 type gateData struct {
 	Subpath          string
 	FormAction       string
-	ShowUsername     bool
 	WrongCredentials bool
 }
 

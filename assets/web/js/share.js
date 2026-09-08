@@ -48,6 +48,88 @@ function navigateLightbox(dir) {
     openLightbox(mediaElements[currentMediaIndex]);
 }
 
+// ── File cards ────────────────────────────────────────
+const MEDIA_KIND = {
+    jpg: "image", jpeg: "image", png: "image", gif: "image", webp: "image", avif: "image",
+    mp4: "video", mov: "video", webm: "video", mkv: "video", avi: "video", wmv: "video",
+    mp3: "audio", wav: "audio", flac: "audio", aac: "audio", ogg: "audio",
+};
+
+const KIND_ICON = {
+    zip: "📦", rar: "📦", "7z": "📦", tar: "📦", gz: "📦",
+    pdf: "📄", doc: "📄", docx: "📄",
+    xls: "📊", xlsx: "📊", csv: "📊",
+    txt: "📝", md: "📝", log: "📝",
+};
+
+function hydrateCards() {
+    document.querySelectorAll(".file-card").forEach(card => {
+        const name = card.dataset.name ?? "";
+        const href = card.dataset.href ?? "";
+        let preview = card.querySelector(".card-preview");
+        if (!preview) return;
+
+        if (card.hasAttribute("data-dir")) return;
+
+        const ext = name.split(".").pop().toLowerCase();
+        const kind = MEDIA_KIND[ext];
+
+        if (!kind) {
+            card.querySelector(".card-icon").textContent = KIND_ICON[ext] ?? "📎";
+            card.querySelector(".card-ext").textContent = fileTypeLabel(name);
+            return;
+        }
+
+        // media-container is the lightbox hook; audio has nothing to enlarge.
+        card.classList.add("file-card-" + kind);
+        if (kind !== "audio") card.classList.add("media-container");
+
+        // Swap the server-rendered preview anchor for a div; media cards open
+        // the lightbox instead of navigating.
+        const box = document.createElement("div");
+        box.className = "card-preview";
+        preview.replaceWith(box);
+        preview = box;
+
+        if (kind === "image") {
+            const img = document.createElement("img");
+            img.src = href;
+            img.alt = name;
+            img.loading = "lazy";
+            img.decoding = "async";
+            preview.replaceChildren(img);
+        } else if (kind === "video") {
+            const vid = document.createElement("video");
+            vid.preload = "metadata";
+            const src = document.createElement("source");
+            src.src = href;
+            vid.appendChild(src);
+            preview.replaceChildren(vid);
+        } else {
+            preview.classList.add("card-preview-audio");
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.preload = "none";
+            const src = document.createElement("source");
+            src.src = href;
+            audio.appendChild(src);
+            preview.replaceChildren(audio);
+        }
+
+        if (kind !== "audio") {
+            const overlay = document.createElement("div");
+            overlay.className = "overlay";
+            const btn = document.createElement("a");
+            btn.className = "btn btn-primary btn-sm download-button";
+            btn.href = href;
+            btn.download = "";
+            btn.textContent = "Download";
+            overlay.appendChild(btn);
+            card.appendChild(overlay);
+        }
+    });
+}
+
 function setupMediaContainer(container) {
     const overlay = container.querySelector(".overlay");
     const media = container.querySelector("img, video");
@@ -439,11 +521,8 @@ async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
 
 // ── Init ──────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-    new LazyLoad({
-        elements_selector: ".media-container img[data-src]",
-        callback_enter: () => !isLightboxOpen,
-        load_delay: 300,
-    });
+    // Cards first; hydrateCards adds .media-container to previewable ones.
+    hydrateCards();
     document.querySelectorAll(".media-container").forEach(setupMediaContainer);
 
     $("lightbox-close")?.addEventListener("click", closeLightbox);
@@ -584,7 +663,7 @@ document.addEventListener("DOMContentLoaded", () => {
 (function () {
     if (!document.getElementById('fileUpload')) return;
 
-    const dropZone = document.querySelector('.container');
+    const dropZone = document.querySelector('.app-shell');
 
     const breadcrumb = document.getElementById('breadcrumb');
     const rect = breadcrumb.getBoundingClientRect();

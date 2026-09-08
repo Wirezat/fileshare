@@ -52,6 +52,7 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		Uses:         fd.Uses,
 		Expiration:   fd.Expiration,
 		AllowPost:    fd.AllowPost,
+		IsEmpty:      len(files) == 0,
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)
 	}
@@ -90,13 +91,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 // loadTemplate parses the directory template once and reuses it for all listings.
 func loadTemplate() (*template.Template, error) {
 	dirTemplateOnce.Do(func() {
-		dirTemplate, dirTemplateErr = template.New("directory").
-			Funcs(template.FuncMap{
-				"getFileExtension": func(name string) string {
-					return strings.ToLower(filepath.Ext(name))
-				},
-			}).
-			ParseFiles(shareHtmlPath)
+		dirTemplate, dirTemplateErr = template.New("directory").ParseFiles(shareHtmlPath)
 		if dirTemplateErr != nil {
 			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)
 		}
