@@ -52,6 +52,31 @@ func deleteAdminToken(token string) {
 	adminSessionsMu.Unlock()
 }
 
+// deleteAdminTokensExcept drops every session but the one given, and reports
+// how many it removed. Changing a credential has to end the sessions the old
+// one could have opened — otherwise a stolen cookie survives the very password
+// change made to get rid of it.
+func deleteAdminTokensExcept(keep string) int {
+	adminSessionsMu.Lock()
+	defer adminSessionsMu.Unlock()
+	removed := 0
+	for token := range adminSessions {
+		if token != keep {
+			delete(adminSessions, token)
+			removed++
+		}
+	}
+	return removed
+}
+
+// currentAdminToken returns the session token carried by this request, if any.
+func currentAdminToken(r *http.Request) string {
+	if cookie, err := r.Cookie(adminSessionCookie); err == nil {
+		return cookie.Value
+	}
+	return ""
+}
+
 func hasAdminCookie(r *http.Request) bool {
 	cookie, err := r.Cookie(adminSessionCookie)
 	if err != nil {
@@ -60,24 +85,32 @@ func hasAdminCookie(r *http.Request) bool {
 	return validateAdminToken(cookie.Value)
 }
 
-func setAdminCookie(w http.ResponseWriter, token string) {
+// setAdminCookie issues the session cookie.
+//
+// Secure is set from the actual connection rather than hardcoded: on an HTTPS
+// deployment it keeps the session off any plaintext request (the redirect to
+// HTTPS happens only after the browser has already sent one), while a plain
+// HTTP install on a LAN still works instead of silently failing to log in.
+func setAdminCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    token,
 		Path:     "/admin",
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }
 
-func clearAdminCookie(w http.ResponseWriter) {
+func clearAdminCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    "",
 		Path:     "/admin",
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   0,
+		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 	})
 }

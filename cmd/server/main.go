@@ -92,7 +92,7 @@ func buildMux() *http.ServeMux {
 func startServer(config *shared.Config) {
 	addr := fmt.Sprintf(":%d", config.Port)
 	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, buildMux()); err != nil {
+	if err := http.ListenAndServe(addr, securityHeaders(buildMux())); err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
 		os.Exit(1)
 	}
@@ -119,10 +119,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	initSetupToken(config)
+
 	storage = NewLocalStorage(config)
 	storage.StartReaper()
 	startTokenReaper()
 	startAdminTokenReaper()
+	startLimiterReaper()
 	startExpirationWatcher(5 * time.Minute)
 	startServer(config)
 }

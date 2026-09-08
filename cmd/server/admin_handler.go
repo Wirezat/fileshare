@@ -337,7 +337,8 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 	if !saveOrErr(w, config) {
 		return
 	}
-	GoLog.Infof("admin username changed successfully")
+	dropped := deleteAdminTokensExcept(currentAdminToken(r))
+	GoLog.Infof("admin username changed successfully (%d other session(s) ended)", dropped)
 }
 
 func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +375,11 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	if !saveOrErr(w, config) {
 		return
 	}
-	GoLog.Infof("admin password changed successfully")
+	// Every session the old password could have opened ends here — otherwise a
+	// stolen cookie outlives the password change made to revoke it. The session
+	// making the change is kept so the admin is not thrown out mid-action.
+	dropped := deleteAdminTokensExcept(currentAdminToken(r))
+	GoLog.Infof("admin password changed successfully (%d other session(s) ended)", dropped)
 }
 
 func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {

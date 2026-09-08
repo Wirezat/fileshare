@@ -45,7 +45,18 @@ func startExpirationWatcher(interval time.Duration) {
 
 // clientIP extracts the real client IP.
 // Priority: X-Forwarded-For (first entry) → CF-Connecting-IP → RemoteAddr.
+// clientIP resolves the caller's address, honouring forwarding headers only
+// when the immediate peer is a loopback or private address — i.e. a reverse
+// proxy on the same host or LAN.
+//
+// The headers are trivially forged by whoever connects. Trusting them from any
+// peer would let an attacker present a fresh address on every request and walk
+// straight through the login rate limiter, which is keyed on this value.
 func clientIP(r *http.Request) string {
+	peer := peerIP(r)
+	if !isTrustedProxy(peer) {
+		return peer
+	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		if i := strings.IndexByte(xff, ','); i != -1 {
 			return strings.TrimSpace(xff[:i])
@@ -55,9 +66,38 @@ func clientIP(r *http.Request) string {
 	if cf := r.Header.Get("Cf-Connecting-Ip"); cf != "" {
 		return strings.TrimSpace(cf)
 	}
+	return peer
+}
+
+// peerIP is the address of whoever opened the connection — never forgeable.
+func peerIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
+	if err != nil {
+		return r.RemoteAddr
 	}
-	return r.RemoteAddr
+	return host
+}
+
+func isTrustedProxy(addr string) bool {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+// requestIsHTTPS reports whether the request reached the server over TLS,
+// either directly or through a reverse proxy that said so. The forwarded
+// header is only believed from a trusted peer, same rule as clientIP.
+func requestIsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if !isTrustedProxy(peerIP(r)) {
+		return false
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return strings.EqualFold(proto, "https")
+	}
+	return false
 }

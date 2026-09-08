@@ -50,6 +50,11 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, adminLoginHtmlPath)
 
 	case http.MethodPost:
+		ip := clientIP(r)
+		if !loginLimiter.allow(w, ip, "admin login") {
+			return
+		}
+
 		// wui's initAuth posts JSON and reads the outcome from the status code;
 		// the form fallback keeps a plain POST working for anything that still
 		// sends one.
@@ -74,19 +79,35 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		passwordOK := shared.CheckPassword(creds.Password, config.AdminPassword)
 
 		if !usernameOK || !passwordOK {
-			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", clientIP(r))
+			loginLimiter.recordFailure(ip)
+			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", ip)
 			// One message for both a wrong name and a wrong password — saying
 			// which was wrong would confirm that an account name exists.
 			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
 			return
 		}
+		loginLimiter.recordSuccess(ip)
+
+		// A successful login is the only moment the plaintext exists, so it is
+		// the only moment an outdated hash can be replaced.
+		if shared.NeedsRehash(config.AdminPassword) {
+			if rehashed, err := shared.HashPassword(creds.Password); err == nil {
+				config.AdminPassword = rehashed
+				if err := shared.SaveConfig(config); err != nil {
+					GoLog.Errorf("handleAdminLogin: failed to store upgraded hash: %v", err)
+				} else {
+					GoLog.Infof("admin password hash upgraded to argon2id")
+				}
+			}
+		}
+
 		token, err := generateAdminToken()
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 		storeAdminToken(token)
-		setAdminCookie(w, token)
+		setAdminCookie(w, r, token)
 		// initAuth navigates on its own once this comes back ok.
 		w.WriteHeader(http.StatusNoContent)
 
@@ -100,7 +121,7 @@ func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(adminSessionCookie); err == nil {
 		deleteAdminToken(cookie.Value)
 	}
-	clearAdminCookie(w)
+	clearAdminCookie(w, r)
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 
