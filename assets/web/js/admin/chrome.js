@@ -3,7 +3,7 @@
 */
 
 import { init }                        from '/static/ui/js/wui.js'
-import { configure, logout }           from '/static/ui/js/auth.js'
+import { configure, logout, apiFetch as sessionFetch } from '/static/ui/js/auth.js'
 import { load as loadI18n, getLang, t } from '/static/ui/js/i18n.js'
 
 export const PATHS = {
@@ -71,16 +71,20 @@ export function esc(str) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
-/* i18n.js's t() has no interpolation, so placeholders are filled here. The
-   result is handed to wui as a "key" that will miss the lookup and come back
-   unchanged — the documented fallback behaviour of t(). */
+/* t() with {placeholder} interpolation.
+   @param {string} key   - i18n key
+   @param {object} vars  - placeholder values */
 export function tf(key, vars = {}) {
     return Object.entries(vars).reduce(
         (str, [k, v]) => str.replaceAll(`{${k}}`, v), t(key))
 }
 
+/* fetch through wui's session layer; throws when the session is gone and the
+   page is already navigating to login.
+   @returns {Promise<Response>} */
 export async function apiFetch(url, options = {}) {
-    const res = await fetch(url, options)
+    const res = await sessionFetch(url, options)
+    if (!res) throw new Error(t('admin.session_expired'))
     if (!res.ok) throw new Error((await res.text()).trim() || res.statusText)
     return res
 }

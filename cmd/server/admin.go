@@ -10,7 +10,17 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// adminAuth redirects to /setup if no password is set, to /admin/login if no valid session cookie exists.
+// wantsLoginPage reports whether the request is a browser navigation (as
+// opposed to a fetch() call, which needs a status code rather than a redirect).
+func wantsLoginPage(r *http.Request) bool {
+	if mode := r.Header.Get("Sec-Fetch-Mode"); mode != "" {
+		return mode == "navigate"
+	}
+	return strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
+// adminAuth gates every /admin route: navigations without a valid session are
+// redirected to /setup or /admin/login, script requests get 401.
 func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		config, err := shared.LoadConfig()
@@ -19,12 +29,16 @@ func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		if config.AdminPassword == "" {
-			http.Redirect(w, r, "/setup", http.StatusFound)
-			return
-		}
-		if !hasAdminCookie(r) {
-			http.Redirect(w, r, "/admin/login", http.StatusFound)
+		if config.AdminPassword == "" || !hasAdminCookie(r) {
+			if !wantsLoginPage(r) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			target := "/admin/login"
+			if config.AdminPassword == "" {
+				target = "/setup"
+			}
+			http.Redirect(w, r, target, http.StatusFound)
 			return
 		}
 		next.ServeHTTP(w, r)
