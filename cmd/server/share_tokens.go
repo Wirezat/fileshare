@@ -73,12 +73,13 @@ func hasPasswordCookie(r *http.Request, subpath string) bool {
 	return validateShareToken(cookie.Value, subpath)
 }
 
-func setPasswordCookie(w http.ResponseWriter, subpath, token string) {
+func setPasswordCookie(w http.ResponseWriter, r *http.Request, subpath, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "share_pw_" + subpath,
 		Value:    token,
 		Path:     "/" + subpath,
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }

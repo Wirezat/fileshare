@@ -48,16 +48,16 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, adminLoginHtmlPath)
 
 	case http.MethodPost:
-		// wui's initAuth posts JSON and reads the outcome from the status code;
-		// the form fallback keeps a plain POST working for anything that still
-		// sends one.
+		ip := clientIP(r)
+		if !loginLimiter.allow(w, ip, "admin login") {
+			return
+		}
+
+		// Credentials arrive as JSON (wui initAuth) or as a plain form POST.
 		var creds struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}
-		// Dispatch on the content type, not on a failed decode: Decode() reads
-		// the body, so a form POST that fell through to FormValue would find
-		// nothing left to parse.
 		if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 			if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
 				http.Error(w, "Bad Request", http.StatusBadRequest)
@@ -72,20 +72,32 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		passwordOK := shared.CheckPassword(creds.Password, config.AdminPassword)
 
 		if !usernameOK || !passwordOK {
-			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", clientIP(r))
-			// One message for both a wrong name and a wrong password — saying
-			// which was wrong would confirm that an account name exists.
+			loginLimiter.recordFailure(ip)
+			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", ip)
 			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
 			return
 		}
+		loginLimiter.recordSuccess(ip)
+
+		// Upgrade an outdated hash while the plaintext is available.
+		if shared.NeedsRehash(config.AdminPassword) {
+			if rehashed, err := shared.HashPassword(creds.Password); err == nil {
+				config.AdminPassword = rehashed
+				if err := shared.SaveConfig(config); err != nil {
+					GoLog.Errorf("handleAdminLogin: failed to store upgraded hash: %v", err)
+				} else {
+					GoLog.Infof("admin password hash upgraded to argon2id")
+				}
+			}
+		}
+
 		token, err := generateAdminToken()
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 		storeAdminToken(token)
-		setAdminCookie(w, token)
-		// initAuth navigates on its own once this comes back ok.
+		setAdminCookie(w, r, token)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
@@ -98,7 +110,7 @@ func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(adminSessionCookie); err == nil {
 		deleteAdminToken(cookie.Value)
 	}
-	clearAdminCookie(w)
+	clearAdminCookie(w, r)
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 

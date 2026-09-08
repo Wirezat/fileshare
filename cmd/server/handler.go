@@ -143,8 +143,15 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if ctx.fileInfo.IsDir() {
 		serveDirectory(w, r, ctx)
 	} else {
-		http.ServeFile(w, r, ctx.diskPath)
+		serveShareFile(w, r, ctx.diskPath)
 	}
+}
+
+// serveShareFile hands out the shared file inside a CSP sandbox, so user-supplied
+// content cannot run script against the admin API on this origin.
+func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	http.ServeFile(w, r, diskPath)
 }
 
 // resolveUploadTarget loads the FileData for the subpath in the request URL
@@ -250,19 +257,40 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limitKey := clientIP(r) + "|" + subpath
+	if !unlockLimiter.allow(w, limitKey, "share unlock") {
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	if !shared.CheckPassword(r.FormValue("password"), fd.Password) {
-		GoLog.Warnf("failed unlock attempt for share /%s", subpath)
+	password := r.FormValue("password")
+	if !shared.CheckPassword(password, fd.Password) {
+		unlockLimiter.recordFailure(limitKey)
+		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, clientIP(r))
 		serveGatePage(w, gateData{
 			Subpath:          subpath,
 			FormAction:       "/" + subpath + "/unlock",
 			WrongCredentials: true,
 		})
 		return
+	}
+	unlockLimiter.recordSuccess(limitKey)
+
+	// Upgrade an outdated hash while the plaintext is available.
+	if shared.NeedsRehash(fd.Password) {
+		if rehashed, err := shared.HashPassword(password); err == nil {
+			fd.Password = rehashed
+			config.Files[subpath] = fd
+			if err := shared.SaveConfig(config); err != nil {
+				GoLog.Errorf("handleUnlock: failed to store upgraded hash: %v", err)
+			} else {
+				GoLog.Infof("share password hash upgraded to argon2id: /%s", subpath)
+			}
+		}
 	}
 
 	token, err := generateShareToken()
@@ -272,6 +300,6 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	storeShareToken(token, subpath)
-	setPasswordCookie(w, subpath, token)
+	setPasswordCookie(w, r, subpath, token)
 	http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
 }

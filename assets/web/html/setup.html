@@ -188,8 +188,13 @@
     <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()" aria-label="Theme wechseln">🌙</button>
     <main>
         <h1>Fileshare</h1>
-        <p class="subtitle">Create your admin account to get started.</p>
+        <p class="subtitle">Create your admin account. The setup code is printed in the server log.</p>
         <div class="fields">
+            <div class="field">
+                <label for="f-setup-code">Setup code</label>
+                <input type="text" id="f-setup-code" placeholder="printed in the server log"
+                       autocomplete="off" spellcheck="false" autofocus />
+            </div>
             <div class="field">
                 <label for="f-username">Username</label>
                 <input type="text" id="f-username" value="admin" autocomplete="username" spellcheck="false" />
@@ -197,7 +202,7 @@
             <div class="field">
                 <label for="f-password">Password</label>
                 <div class="input-wrap">
-                    <input type="password" id="f-password" placeholder="••••••••" autocomplete="new-password" autofocus />
+                    <input type="password" id="f-password" placeholder="••••••••" autocomplete="new-password" />
                     <button type="button" class="toggle-pw" onclick="togglePw('f-password', this)" tabindex="-1" aria-label="Passwort anzeigen">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
@@ -245,10 +250,12 @@
             if (e.key === 'Enter') submitSetup();
         });
         async function submitSetup() {
+            const setupCode = document.getElementById('f-setup-code').value.trim();
             const username = document.getElementById('f-username').value.trim();
             const password = document.getElementById('f-password').value;
             const confirm = document.getElementById('f-confirm').value;
             const btn = document.getElementById('submit-btn');
+            if (!setupCode) return showStatus('Setup code is required — it is printed in the server log.', true);
             if (!username) return showStatus('Username cannot be empty.', true);
             if (!password) return showStatus('Password cannot be empty.', true);
             if (password !== confirm) return showStatus('Passwords do not match.', true);
@@ -257,7 +264,7 @@
                 const res = await fetch('/setup/api/init', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ new_username: username, new_password: password }),
+                    body: JSON.stringify({ new_username: username, new_password: password, setup_token: setupCode }),
                 });
                 if (res.ok) {
                     showStatus('Redirecting…', false);

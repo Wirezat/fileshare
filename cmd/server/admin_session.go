@@ -52,6 +52,29 @@ func deleteAdminToken(token string) {
 	adminSessionsMu.Unlock()
 }
 
+// deleteAdminTokensExcept drops every session but the one given and reports
+// how many it removed.
+func deleteAdminTokensExcept(keep string) int {
+	adminSessionsMu.Lock()
+	defer adminSessionsMu.Unlock()
+	removed := 0
+	for token := range adminSessions {
+		if token != keep {
+			delete(adminSessions, token)
+			removed++
+		}
+	}
+	return removed
+}
+
+// currentAdminToken returns the session token carried by this request, if any.
+func currentAdminToken(r *http.Request) string {
+	if cookie, err := r.Cookie(adminSessionCookie); err == nil {
+		return cookie.Value
+	}
+	return ""
+}
+
 func hasAdminCookie(r *http.Request) bool {
 	cookie, err := r.Cookie(adminSessionCookie)
 	if err != nil {
@@ -60,24 +83,27 @@ func hasAdminCookie(r *http.Request) bool {
 	return validateAdminToken(cookie.Value)
 }
 
-func setAdminCookie(w http.ResponseWriter, token string) {
+// setAdminCookie issues the session cookie; Secure follows the actual connection.
+func setAdminCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    token,
 		Path:     "/admin",
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }
 
-func clearAdminCookie(w http.ResponseWriter) {
+func clearAdminCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    "",
 		Path:     "/admin",
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   0,
+		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 	})
 }
