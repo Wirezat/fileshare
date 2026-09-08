@@ -34,9 +34,18 @@ function localInputToTs(val) {
    or passed its expiry. The server applies the same three conditions, so the
    stats cannot drift from what /admin actually serves. */
 function isInactive(s) {
-    return s.expired
-        || (s.expiration !== 0 && s.expiration < Date.now() / 1000)
-        || s.uses === 0
+    return blockedBy(s) !== null
+}
+
+/* Which of the three conditions is keeping a share down, or null if none is.
+   The distinction matters because only the first is something the status badge
+   can undo: clearing the `expired` flag on a share whose date has passed saves
+   fine and changes nothing anyone can see, which reads as a broken button. */
+function blockedBy(s) {
+    if (s.expired) return 'manual'
+    if (s.expiration !== 0 && s.expiration < Date.now() / 1000) return 'date'
+    if (s.uses === 0) return 'uses'
+    return null
 }
 
 function fail(err) {
@@ -102,11 +111,30 @@ function renderUpload(_val, row) {
         'shares.value.on', 'shares.value.off', 'shares.hint.toggle_upload')
 }
 
+/* The badge always states the truth, and it is only a button when a click can
+   change that truth. A share held down by its date or its use count is fixed
+   in the column that shows the offending value, and the badge says so instead
+   of accepting a click that would do nothing visible. */
+const STATUS = {
+    manual: { label: 'shares.value.off', hint: 'shares.hint.activate', clickable: true },
+    date: { label: 'shares.value.expired', hint: 'shares.hint.blocked_date', clickable: false },
+    uses: { label: 'shares.value.usedup', hint: 'shares.hint.blocked_uses', clickable: false },
+}
+
 function renderStatus(_val, row) {
-    const active = !isInactive(row.s)
-    return `<button class="badge ${active ? 'badge-success' : 'badge-danger'}" data-act="status"`
-        + ` data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.toggle_status'))}">`
-        + `${esc(t(active ? 'shares.value.active' : 'shares.value.expired'))}</button>`
+    const blocker = blockedBy(row.s)
+
+    if (blocker === null) {
+        return `<button class="badge badge-success" data-act="status" data-sub="${esc(row.sub)}"`
+            + ` title="${esc(t('shares.hint.deactivate'))}">${esc(t('shares.value.active'))}</button>`
+    }
+
+    const { label, hint, clickable } = STATUS[blocker]
+    if (!clickable) {
+        return `<span class="badge badge-danger" title="${esc(t(hint))}">${esc(t(label))}</span>`
+    }
+    return `<button class="badge badge-danger" data-act="status" data-sub="${esc(row.sub)}"`
+        + ` title="${esc(t(hint))}">${esc(t(label))}</button>`
 }
 
 const COLUMNS = [
@@ -365,7 +393,9 @@ function wireTable(el) {
         switch (target.dataset.act) {
             case 'password': openPasswordModal(sub); break
             case 'upload':   patchShare(sub, { allow_post: !shares[sub].allow_post }, true); break
-            case 'status':   patchShare(sub, { expired: !isInactive(shares[sub]) }, true); break
+            // Only reachable on shares whose state the flag actually decides —
+            // renderStatus renders a plain span otherwise.
+            case 'status':   patchShare(sub, { expired: !shares[sub].expired }, true); break
             case 'expires':  editExpiration(target, sub); break
         }
     })
@@ -374,13 +404,19 @@ function wireTable(el) {
         const { sub, field: name } = e.target.dataset
         const raw = e.detail.value.trim()
 
+        /* The local copy is updated before the request goes out, not after it
+           comes back. wui's inline edit commits on Enter and again on the blur
+           that follows, and while the round trip is in flight the second commit
+           would still see the old value and send an identical second write. */
         if (name === 'path') {
             if (!raw || raw === shares[sub].path) return refresh()
+            shares[sub].path = raw
             return patchShare(sub, { path: raw })
         }
         if (name === 'uses') {
             const n = raw === '∞' ? -1 : parseInt(raw, 10)
             if (!Number.isInteger(n) || n === shares[sub].uses) return refresh()
+            shares[sub].uses = n
             return patchShare(sub, { uses: n })
         }
     })
