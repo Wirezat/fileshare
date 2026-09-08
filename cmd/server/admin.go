@@ -10,7 +10,29 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// adminAuth redirects to /setup if no password is set, to /admin/login if no valid session cookie exists.
+// wantsLoginPage reports whether this request is a browser navigating to a
+// page — the only case in which sending it to the login page is an answer it
+// can act on.
+//
+// A fetch() must get a status code instead, because it follows a redirect
+// without ever telling its caller: a GET then hands the admin UI the login
+// page where it expected JSON ("unexpected character at line 1 column 1"), and
+// a PATCH or DELETE is replayed against /admin/login — the fetch spec rewrites
+// the method only for POST — which answers 405 Method Not Allowed. Both read
+// as bugs in the page rather than as "your session is gone".
+func wantsLoginPage(r *http.Request) bool {
+	// Sec-Fetch-Mode states exactly this distinction and is sent by every
+	// current browser; the Accept sniff covers clients that omit it, where a
+	// navigation asks for HTML and fetch() defaults to */*.
+	if mode := r.Header.Get("Sec-Fetch-Mode"); mode != "" {
+		return mode == "navigate"
+	}
+	return strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
+// adminAuth gates every /admin route. A browser navigating to a page is sent
+// to /setup if no password is set yet and to /admin/login if its session is
+// gone; script requests get 401 and let the session layer decide what to do.
 func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		config, err := shared.LoadConfig()
@@ -19,12 +41,18 @@ func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		if config.AdminPassword == "" {
-			http.Redirect(w, r, "/setup", http.StatusFound)
-			return
-		}
-		if !hasAdminCookie(r) {
-			http.Redirect(w, r, "/admin/login", http.StatusFound)
+		if config.AdminPassword == "" || !hasAdminCookie(r) {
+			if !wantsLoginPage(r) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			// The login page passes a browser on to /setup itself when there
+			// is no password yet, so script requests need no second answer.
+			target := "/admin/login"
+			if config.AdminPassword == "" {
+				target = "/setup"
+			}
+			http.Redirect(w, r, target, http.StatusFound)
 			return
 		}
 		next.ServeHTTP(w, r)

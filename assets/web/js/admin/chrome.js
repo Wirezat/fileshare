@@ -7,7 +7,7 @@
 */
 
 import { init }                        from '/static/ui/js/wui.js'
-import { configure, logout }           from '/static/ui/js/auth.js'
+import { configure, logout, apiFetch as sessionFetch } from '/static/ui/js/auth.js'
 import { load as loadI18n, getLang, t } from '/static/ui/js/i18n.js'
 
 export const PATHS = {
@@ -91,8 +91,16 @@ export function tf(key, vars = {}) {
         (str, [k, v]) => str.replaceAll(`{${k}}`, v), t(key))
 }
 
+/* Every admin call goes through wui's session layer rather than plain fetch:
+   it is the part that knows a 401 means "session gone" and sends the page to
+   the login screen. A raw fetch would only surface the 401 as a toast on a
+   page that can no longer do anything. */
 export async function apiFetch(url, options = {}) {
-    const res = await fetch(url, options)
+    const res = await sessionFetch(url, options)
+    // null = the session layer gave up on the 401 and is already navigating to
+    // the login page. The throw only stops the caller from carrying on with a
+    // response it does not have.
+    if (!res) throw new Error(t('admin.session_expired'))
     if (!res.ok) throw new Error((await res.text()).trim() || res.statusText)
     return res
 }

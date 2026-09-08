@@ -330,7 +330,10 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 	}
 	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
 		GoLog.Warnf("admin username change rejected: wrong current password")
-		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+		// 403, not 401: the session is valid, it is the re-authentication that
+		// failed. A 401 here would tell the session layer the session is gone
+		// and sign the admin out over a typo.
+		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
 	}
 	config.AdminUsername = req.NewUsername
@@ -362,7 +365,9 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
 		GoLog.Warnf("admin password change rejected: wrong current password")
-		http.Error(w, "Current password is incorrect", http.StatusUnauthorized)
+		// See handleAdminSettingsUsername: 403 keeps a wrong current password
+		// from reading as a dead session.
+		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
 	}
 	hashed, err := shared.HashPassword(req.NewPassword)
