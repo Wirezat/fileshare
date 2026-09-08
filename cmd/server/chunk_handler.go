@@ -25,8 +25,11 @@ func handleChunkInit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uploadID := r.FormValue("uploadId")
-	if uploadID == "" {
-		http.Error(w, "Bad Request: missing uploadId", http.StatusBadRequest)
+	// Rejected here as well as in sessionDir: a request that names an illegal
+	// session should not reach the storage layer at all.
+	if !validUploadID(uploadID) {
+		GoLog.Warnf("handleChunkInit: rejected uploadId %q from %s", uploadID, clientIP(r))
+		http.Error(w, "Bad Request: invalid uploadId", http.StatusBadRequest)
 		return
 	}
 	filename := r.FormValue("filename")
@@ -35,7 +38,7 @@ func handleChunkInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	totalChunks, err := strconv.Atoi(r.FormValue("totalChunks"))
-	if err != nil || totalChunks < 1 {
+	if err != nil || totalChunks < 1 || totalChunks > maxTotalChunks {
 		http.Error(w, "Bad Request: invalid totalChunks", http.StatusBadRequest)
 		return
 	}
@@ -70,8 +73,13 @@ func handleChunkReceive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uploadID := r.FormValue("uploadId")
+	if !validUploadID(uploadID) {
+		GoLog.Warnf("handleChunkReceive: rejected uploadId %q from %s", uploadID, clientIP(r))
+		http.Error(w, "Bad Request: invalid uploadId", http.StatusBadRequest)
+		return
+	}
 	chunkIndex, err := strconv.Atoi(r.FormValue("chunkIndex"))
-	if err != nil || chunkIndex < 0 {
+	if err != nil || chunkIndex < 0 || chunkIndex >= maxTotalChunks {
 		http.Error(w, "Bad Request: invalid chunkIndex", http.StatusBadRequest)
 		return
 	}
