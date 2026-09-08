@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +17,31 @@ import (
 )
 
 const chunkTempBase = "/tmp/fileshare-chunks"
+
+// maxTotalChunks caps the client-supplied chunk count a session may declare.
+const maxTotalChunks = 1_000_000
+
+// uploadIDPattern allowlists the characters a client-supplied upload ID may
+// contain; the ID names a directory under chunkTempBase.
+var uploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
+
+var errBadUploadID = errors.New("upload: invalid uploadId")
+
+// validUploadID reports whether an ID may be used to build a path.
+func validUploadID(id string) bool { return uploadIDPattern.MatchString(id) }
+
+// sessionDir maps an upload ID to its temp directory, refusing anything that
+// could escape chunkTempBase.
+func sessionDir(uploadID string) (string, error) {
+	if !validUploadID(uploadID) {
+		return "", errBadUploadID
+	}
+	dir := filepath.Join(chunkTempBase, uploadID)
+	if dir != chunkTempBase && !strings.HasPrefix(dir, chunkTempBase+"/") {
+		return "", errBadUploadID
+	}
+	return dir, nil
+}
 
 var bufPool = sync.Pool{
 	New: func() any {
@@ -103,7 +130,10 @@ func (s *LocalStorage) loadOrCreateSession(uploadID, filename string, totalChunk
 		return sess, nil
 	}
 
-	dir := filepath.Join(chunkTempBase, uploadID)
+	dir, err := sessionDir(uploadID)
+	if err != nil {
+		return nil, err
+	}
 
 	// 2. Disk hit — meta.json exists, rebuild received from actual chunk files
 	if data, err := os.ReadFile(filepath.Join(dir, "meta.json")); err == nil {
@@ -176,7 +206,11 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 		return len(sess.received) == sess.meta.TotalChunks, nil
 	}
 
-	chunkPath := filepath.Join(chunkTempBase, uploadID, fmt.Sprintf("%05d", index))
+	dir, err := sessionDir(uploadID)
+	if err != nil {
+		return false, err
+	}
+	chunkPath := filepath.Join(dir, fmt.Sprintf("%05d", index))
 	f, err := os.Create(chunkPath)
 	if err != nil {
 		return false, fmt.Errorf("creating chunk file: %w", err)
@@ -205,7 +239,7 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 	done := len(sess.received) == sess.meta.TotalChunks
 	sess.mu.Unlock()
 
-	if err := writeMeta(filepath.Join(chunkTempBase, uploadID), metaSnap); err != nil {
+	if err := writeMeta(dir, metaSnap); err != nil {
 		GoLog.Warnf("chunk upload: failed to persist meta for %q: %v (non-fatal)", uploadID, err)
 	}
 	if done {
@@ -221,6 +255,10 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 // assemble writes all chunks sequentially into the destination file.
 // Uses a .tmp file + os.Rename for an atomic result.
 func assemble(meta *sessionMeta, uploadID string) error {
+	dir, err := sessionDir(uploadID)
+	if err != nil {
+		return err
+	}
 	dest := resolveDestPath(meta.DestDir, meta.Filename)
 	tmp := dest + ".tmp"
 
@@ -241,7 +279,7 @@ func assemble(meta *sessionMeta, uploadID string) error {
 	defer bufPool.Put(buf)
 
 	for i := range meta.TotalChunks {
-		chunkPath := filepath.Join(chunkTempBase, uploadID, fmt.Sprintf("%05d", i))
+		chunkPath := filepath.Join(dir, fmt.Sprintf("%05d", i))
 		in, err := os.Open(chunkPath)
 		if err != nil {
 			failed = true
@@ -281,7 +319,11 @@ func cleanupSession(uploadID string) {
 	sessionsMu.Lock()
 	delete(sessions, uploadID)
 	sessionsMu.Unlock()
-	os.RemoveAll(filepath.Join(chunkTempBase, uploadID))
+	dir, err := sessionDir(uploadID)
+	if err != nil {
+		return
+	}
+	os.RemoveAll(dir)
 }
 
 // StartReaper periodically removes sessions that have been inactive longer than
@@ -313,7 +355,10 @@ func (s *LocalStorage) StartReaper() {
 }
 
 func (s *LocalStorage) reapEntry(id string, now time.Time, timeout time.Duration) {
-	dir := filepath.Join(chunkTempBase, id)
+	dir, err := sessionDir(id)
+	if err != nil {
+		return
+	}
 	data, err := os.ReadFile(filepath.Join(dir, "meta.json"))
 	if err != nil {
 		os.RemoveAll(dir)
