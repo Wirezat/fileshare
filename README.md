@@ -24,15 +24,33 @@ Because there were no proper tools that were able to do this in a simple way wit
 
 Just use the installer provided in the release. If you want to build it yourself, the install script is the same I've used in the development process, you can find it in the same place in the code itself.
 
-### 3. First-time setup
+The web UI lives in a submodule ([wirezatUI](https://github.com/Wirezat/wirezatui)), so clone with it:
 
-Open `http://localhost:<port>/setup` or `http://localhost:<port>/admin` in your browser. You will be prompted to set an admin username and password. After that, `/setup` is permanently disabled, and you are redirected to the admin panel.
+```sh
+git clone --recursive https://github.com/Wirezat/fileshare
+# already cloned without it:
+git submodule update --init
+```
+
+Without the submodule `assets/web/ui` stays empty and every page renders unstyled. `go.sum` is not tracked, so run `go mod download` before the first build.
+
+### 2. First-time setup
+
+Open `http://localhost:<port>/setup` or `http://localhost:<port>/admin` in your browser — `/admin` redirects there while no password is set.
+
+The page asks for a **setup code** on top of the username and password. It is generated on every start that finds no admin password and written to the server log:
+
+```
+[INFO] no admin password set — open /setup and enter this setup code: 3f1c…
+```
+
+Without it the endpoint answers 403. This keeps a fresh instance from being claimed by whoever reaches it first — only someone who can read the server's own log can create the account. After setup, `/setup` is permanently disabled and you are redirected to the admin panel.
 
 ---
 
 ## Admin UI
 
-The admin interface is available at `/admin`. It is split into three tabs.
+The admin interface is available at `/admin` and is split across three pages: `/admin` (shares), `/admin/logs` and `/admin/settings`.
 
 ### Shares
 
@@ -51,14 +69,14 @@ Shares can be edited, disabled, re-enabled, and deleted inline from the table. A
 
 ### Logs
 
-Live server log stream with INFO / WARN / ERROR filtering. The log viewer connects via SSE and updates in real time. Clearing the view does not affect the log file on disk.
+Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filters and a full-text search over the visible lines. Request log lines expand to their full JSON on click. The viewer loads the server's recent buffer over REST and then follows along via SSE. Clearing the view does not affect the log file on disk.
 
 ### Settings
 
 | Setting | Description |
 |---|---|
-| Change username | Updates the admin username. Requires the current password. |
-| Change password | Updates the admin password (stored as a bcrypt hash). Requires the current password. |
+| Change username | Updates the admin username. Requires the current password, and ends every other session. |
+| Change password | Updates the admin password (stored as an Argon2id hash). Requires the current password, and ends every other session. |
 | Delete expired shares | Permanently removes all expired shares from `data.json`. |
 
 ---
@@ -73,7 +91,7 @@ Live server log stream with INFO / WARN / ERROR filtering. The log viewer connec
 
 ### Password-protected shares
 
-Entering the correct password sets a session cookie scoped to that subpath. The session is valid for 24 hours. Each share's password is stored as a bcrypt hash.
+Entering the correct password sets a session cookie scoped to that subpath. The session is valid for 24 hours. Each share's password is stored as an Argon2id hash; bcrypt hashes written by older versions are still accepted and upgraded on the next successful unlock.
 
 ### Uploads
 
@@ -84,6 +102,8 @@ When a share has uploads enabled, visitors can drag and drop files onto the list
 ## CLI
 
 The CLI tool provides full share management for use in scripts or over SSH. It reads and writes `data.json` directly.
+
+**A running server will not see CLI changes.** The server caches the config in memory, so `add`, `edit`, `delete`, `disable` and `prune` only take effect after `systemctl restart fileshare`. Changes made through the admin UI apply immediately, because they go through the same process that holds the cache.
 Note: This was the original interface for the program, so I wanted to keep it as a legacy option. Since I've made the WebUI,
 its updates are entirely Vibe Coded, but it should work without problems. I guess. I haven't put the most of work into it
 
