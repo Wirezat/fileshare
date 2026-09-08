@@ -217,10 +217,12 @@ var (
 )
 
 // gateData is the template context for both the share gate and the admin login page.
+// gateData renders the share password gate. ShowUsername is gone with the
+// admin login, which has its own page now — this template only ever asks a
+// visitor for one share's password.
 type gateData struct {
 	Subpath          string
 	FormAction       string
-	ShowUsername     bool
 	WrongCredentials bool
 }
 

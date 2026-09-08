@@ -1,910 +1,417 @@
-/* ── Tokens ────────────────────────────────────────── */
-:root {
-    --accent: #ffc107;
-    --accent-dark: #e6a800;
-    --accent-text: #412402;
-    --accent-muted: #faeeda;
+/* fileshare / share.css
+   Only what the share page needs beyond wui: the media preview grid, the
+   lightbox, and the upload stripe/badge/toast. Everything structural — shell,
+   header, container, table, buttons, breadcrumb, empty state — comes from
+   ui/index.css, and the colours from theme.css.
 
-    --text: #1a1a1a;
-    --text-muted: #6b6b6b;
-    --text-faint: #aaaaaa;
+   Load after both of those.
+*/
 
-    --border: rgba(0, 0, 0, 0.09);
-    --border-strong: rgba(0, 0, 0, 0.18);
-
-    --bg: #ffffff;
-    --bg-page: #f6f6f4;
-
-    --overlay-bg: rgba(0, 0, 0, 0.18);
-    --overlay-hover: rgba(0, 0, 0, 0.38);
-    --btn-dark: rgba(0, 0, 0, 0.72);
-
-    --color-success: #3B6D11;
-    --color-error: #A32D2D;
-    --color-warning: #e6a800;
-
-    --radius: 7px;
-    --radius-lg: 11px;
-    --radius-sm: 4px;
-
-    --sp-xs: 4px;
-    --sp-sm: 8px;
-    --sp-md: 12px;
-    --sp-lg: 16px;
-
-    --text-xs: 10px;
-    --text-sm: 11px;
-    --text-base: 12px;
-    --text-md: 13px;
-
-    --toast-bg: #ffffff;
-    --toast-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
-    --toast-border: rgba(0, 0, 0, 0.10);
-}
-
-html.dark {
-    --accent: #e6a800;
-    --accent-dark: #cc9600;
-    --accent-text: #faeeda;
-    --accent-muted: #2a1f00;
-
-    --text: #f0ede8;
-    --text-muted: #9a9790;
-    --text-faint: #5a5854;
-
-    --border: rgba(255, 255, 255, 0.07);
-    --border-strong: rgba(255, 255, 255, 0.14);
-
-    --bg: #1c1b19;
-    --bg-page: #141412;
-
-    --color-success: #97C459;
-    --color-error: #F09595;
-
-    --toast-bg: #242320;
-    --toast-shadow: 0 8px 32px rgba(0, 0, 0, 0.50), 0 2px 8px rgba(0, 0, 0, 0.30);
-    --toast-border: rgba(255, 255, 255, 0.10);
-}
-
-/* ── Reset ─────────────────────────────────────────── */
-*,
-*::before,
-*::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-html,
-body {
-    width: 100%;
-    min-height: 100%;
-    font-family: -apple-system, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    background: var(--bg-page);
-    color: var(--text);
-    line-height: 1.6;
-    overflow-x: hidden;
-    transition: background 0.25s, color 0.25s;
-}
-
-/* ── Universal hover ────────────────────────────────── */
-:is(.file-item, .media-item,
-    .btn, .upload-label,
-    .upload-badge, .theme-btn,
-    .toast-icon-btn, .download-button,
-    .lightbox-close) {
-    outline: 1px solid transparent;
-}
-
-:is(.file-item, .media-item,
-    .btn, .upload-label,
-    .upload-badge, .theme-btn,
-    .toast-icon-btn, .download-button,
-    .lightbox-close):hover {
-    outline-color: var(--accent);
-}
-
-/* ── Page-level upload stripe ──────────────────────── */
-#upload-stripe {
-    position: fixed;
-    top: 50px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    z-index: 999;
-    pointer-events: none;
-    background: transparent;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-#upload-stripe.active {
-    opacity: 1;
-    background: var(--border);
-}
-
-#upload-stripe-fill {
-    height: 100%;
-    width: 0%;
-    background: var(--accent);
-    transition: width 0.35s ease, background 0.3s ease;
-    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
-#upload-stripe.done #upload-stripe-fill {
-    background: var(--color-success);
-}
-
-#upload-stripe.error #upload-stripe-fill {
-    background: var(--color-error);
-}
-
-/* ── Header ─────────────────────────────────────────── */
-header {
-    background: var(--accent);
-    border-bottom: 1px solid var(--accent-dark);
-    padding: 0 32px;
+/* ── Share metadata in the header ────────────────────────────────────────── */
+.share-meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    height: 50px;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-}
-
-header .header-brand,
-header .header-sub,
-header .header-info,
-header .header-info strong {
-    color: var(--accent-text);
-}
-
-header .theme-btn {
-    color: var(--accent-text);
-    border-color: rgba(0, 0, 0, 0.16);
-}
-
-html.dark header {
-    background: var(--bg);
-    border-bottom-color: var(--border);
-}
-
-html.dark header .header-brand,
-html.dark header .header-sub,
-html.dark header .header-info,
-html.dark header .header-info strong {
-    color: var(--text);
-}
-
-html.dark header .theme-btn {
+    gap: var(--gap-item);
+    font-size: var(--text-sm);
     color: var(--text-muted);
-    border-color: var(--border-strong);
+    white-space: nowrap;
 }
 
-.header-brand {
+.share-meta-label {
+    color: var(--text-faint);
+    margin-right: var(--gap-icon);
+}
+
+/* The metadata is context, not navigation — it is the first thing to go when
+   the header runs out of room. */
+@media (max-width: 700px) {
+    .share-meta { display: none; }
+}
+
+/* ── File cards ──────────────────────────────────────────────────────────── */
+/* One flat grid, one card shape for every entry. Media fills its own preview
+   area; everything else shows an icon and its extension in the same box, so
+   the grid stays a grid instead of two different lists. */
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--gap-card);
+    list-style: none;
+}
+
+.file-card {
+    position: relative;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 600;
-    font-size: 15px;
-    text-decoration: none;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-card);
+    transition: border-color 0.12s;
 }
 
-.header-logo {
-    width: 26px;
-    height: 26px;
-    border-radius: var(--radius-sm);
+.file-card:hover { border-color: var(--border-strong); }
+
+/* Fixed height so a card's footprint never depends on what is inside it —
+   a 4000px photo and a .bin must line up on the same row. */
+.card-preview {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    flex-shrink: 0;
+    height: 140px;
+    overflow: hidden;
 }
 
-.header-sub {
-    font-size: var(--text-base);
-    font-weight: 400;
+.card-preview img,
+.card-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: zoom-in;
 }
 
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-sm);
-    margin-left: auto;
+/* Keeps the fixed height rather than growing to fit the player, so an audio
+   card lines up with every other card in the row. */
+.card-preview-audio {
+    padding: 0 var(--gap-control);
 }
 
-.header-info {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-lg);
-    font-size: var(--text-base);
-    margin: 0 24px;
-    flex-wrap: wrap;
+.card-preview audio { width: 100%; }
+
+/* Icon cards: the glyph carries the type, the extension underneath carries the
+   detail. Both muted — the file name is what the eye should land on. */
+.card-preview-icon {
+    flex-direction: column;
+    gap: var(--gap-icon);
+    color: var(--text-faint);
 }
 
-.header-info strong {
-    font-weight: 600;
+.card-preview-icon:hover { color: var(--text-muted); }
+
+.card-icon {
+    font-size: 34px;
+    line-height: 1;
 }
 
-.theme-btn {
-    background: transparent;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    padding: 3px var(--sp-sm);
-    font-size: var(--text-md);
-    cursor: pointer;
-    line-height: 1.4;
-    transition: outline-color 0.15s;
+.card-ext {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
 }
 
-/* ── Layout ─────────────────────────────────────────── */
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: var(--sp-lg);
+.card-name {
+    padding: var(--pad-cell-y) var(--pad-cell);
+    border-top: 1px solid var(--border);
+    font-size: var(--text-sm);
+    min-width: 0;
 }
 
-/* ── Breadcrumb ─────────────────────────────────────── */
-.breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-sm);
-    padding: 9px 13px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--sp-lg);
-    flex-wrap: wrap;
-    position: relative;
-    overflow: visible;
-    transition: border-color 0.3s;
-}
-
-.breadcrumb-path {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+.card-name a {
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--text);
 }
 
-.breadcrumb-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    flex-shrink: 0;
-}
+.card-name a:hover { color: var(--accent); }
 
-/* ── Buttons ────────────────────────────────────────── */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 30px;
-    padding: 0 var(--sp-md);
-    border-radius: var(--radius);
-    font-size: var(--text-md);
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid transparent;
-    text-decoration: none;
-    white-space: nowrap;
-    transition: outline-color 0.15s;
-}
+/* The download action sits over the preview and only appears on hover, so a
+   wall of thumbnails is not also a wall of buttons.
 
-.btn-primary {
-    background: var(--accent);
-    color: var(--accent-text);
-    border-color: var(--accent-dark);
-}
-
-.btn-ghost {
-    background: transparent;
-    color: var(--text-muted);
-    border-color: var(--border-strong);
-}
-
-/* ── Upload label ───────────────────────────────────── */
-.upload-form {
-    display: inline-flex;
-}
-
-.upload-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 30px;
-    padding: 0 var(--sp-md);
-    border-radius: var(--radius);
-    font-size: var(--text-md);
-    font-weight: 500;
-    cursor: pointer;
-    background: var(--accent);
-    color: var(--accent-text);
-    border: 1px solid var(--accent-dark);
-    transition: outline-color 0.15s;
-}
-
-.container {
-    min-height: calc(100vh - 120px);
-}
-
-.container.drag-over::after {
-    content: "Drop files here to upload";
-    position: fixed;
-    top: var(--drag-top, 0);
-    left: var(--drag-left, 0);
-    right: var(--drag-right, 0);
-    bottom: 0;
-    display: flex;
-    align-items: center;
+   Toggled on `display`, not opacity: share.js's setupMediaContainer sets
+   style.display on mouseenter/leave, and an inline display:none would win over
+   any opacity rule here. */
+.file-card .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 140px;
+    display: none;
+    align-items: flex-end;
     justify-content: center;
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: var(--accent);
+    padding-bottom: var(--gap-control);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent 60%);
+    /* The dimmed area is not a target: clicking the preview opens the lightbox,
+       and only the button itself should swallow that click. Centering the
+       button used to cover the very middle of the image, which is exactly
+       where a person clicks to enlarge it. */
     pointer-events: none;
-    z-index: 500;
-    outline: 1px solid var(--accent);
-    outline-offset: -1px;
-    border-radius: var(--radius-lg);
 }
 
-/* ── Upload Badge ───────────────────────────────────── */
+.file-card .overlay .download-button {
+    pointer-events: auto;
+}
+
+/* ── Lightbox ────────────────────────────────────────────────────────────── */
+.lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.9);
+}
+
+.lightbox-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 92vw;
+    max-height: 92vh;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 12px;
+    right: 20px;
+    font-size: 32px;
+    line-height: 1;
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* ── Upload progress stripe ──────────────────────────────────────────────── */
+/* Pinned directly under the header, the way a browser shows page load. */
+/* State classes match share.js's stripe(): `active` while running, then `done`
+   or `error`, after which the script fades it out via an inline opacity. */
+#upload-stripe {
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 200;
+    opacity: 0;
+}
+
+#upload-stripe.active,
+#upload-stripe.done,
+#upload-stripe.error { opacity: 1; }
+
+#upload-stripe-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    transition: width 0.2s;
+}
+
+#upload-stripe.done  #upload-stripe-fill { background: var(--success); }
+#upload-stripe.error #upload-stripe-fill { background: var(--danger); }
+
+/* ── Upload badge + toast ────────────────────────────────────────────────── */
 .upload-badge {
     display: none;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--text-base);
-    font-weight: 500;
-    color: var(--text-muted);
-    padding: 0 10px;
-    height: 30px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border-strong);
     position: relative;
-    user-select: none;
+    align-items: center;
+    gap: var(--gap-icon);
+    height: var(--h-btn);
+    padding: 0 var(--pad-btn-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
     cursor: pointer;
-    background: var(--bg);
-    transition: outline-color 0.15s;
 }
 
-.upload-badge.visible {
-    display: flex;
-}
+.upload-badge.visible { display: inline-flex; }
+.upload-badge:hover { border-color: var(--border-strong); color: var(--text); }
 
 .upload-badge-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: var(--accent);
-    flex-shrink: 0;
-    animation: dot-pulse 1.4s ease-in-out infinite;
 }
 
-@keyframes dot-pulse {
-
-    0%,
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-
-    50% {
-        opacity: 0.4;
-        transform: scale(0.75);
-    }
-}
-
-#upload-badge-text {
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── Upload Toast ───────────────────────────────────── */
 .upload-toast {
+    display: none;
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + 6px);
     right: 0;
-    width: 340px;
-    background: var(--toast-bg);
-    border: 1px solid var(--toast-border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: var(--toast-shadow);
-    opacity: 0;
-    transform: translateY(-6px) scale(0.98);
-    transform-origin: top right;
-    pointer-events: none;
-    transition: opacity 0.18s ease, transform 0.18s ease;
-    z-index: 200;
+    z-index: 500;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    cursor: default;
+    text-align: left;
 }
 
-.upload-toast.visible {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    pointer-events: auto;
-}
+.upload-toast.visible { display: block; }
 
-.upload-toast-header {
+.upload-toast-header,
+.upload-toast-footer {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 14px 10px;
+    justify-content: space-between;
+    gap: var(--gap-control);
+    padding: var(--pad-cell-y) var(--pad-cell);
+}
+
+.upload-toast-header { border-bottom: 1px solid var(--border); }
+.upload-toast-footer {
+    border-top: 1px solid var(--border);
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+}
+
+.upload-toast-footer-left {
+    display: flex;
+    gap: var(--gap-control);
 }
 
 .upload-toast-title-row {
     display: flex;
     align-items: baseline;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
+    gap: var(--gap-inline);
 }
 
 #upload-toast-pct {
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: -0.5px;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    flex-shrink: 0;
-}
-
-#upload-toast-pct.done {
-    color: var(--color-success);
+    font-weight: var(--weight-semibold);
+    color: var(--accent);
 }
 
 .upload-toast-title {
-    font-size: var(--text-base);
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: var(--text-sm);
+    color: var(--text);
 }
 
 .upload-toast-header-actions {
     display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
+    gap: var(--gap-icon);
 }
 
 .toast-icon-btn {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
+    width: 22px;
+    height: 22px;
     border: none;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-faint);
-    font-size: 13px;
+    font-size: var(--text-sm);
     line-height: 1;
     cursor: pointer;
-    transition: outline-color 0.15s;
-    flex-shrink: 0;
-    padding: 0;
 }
 
-.toast-icon-btn.pause-active {
-    color: var(--accent-dark);
-}
+.toast-icon-btn:hover { color: var(--text); background: var(--bg-hover); }
+.toast-icon-btn.pause-active { color: var(--accent); }
 
 #upload-toast-file-list {
-    padding: 0 14px 6px;
-    display: flex;
-    flex-direction: column;
-    max-height: 220px;
+    max-height: 260px;
     overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
 }
 
-#upload-toast-file-list::-webkit-scrollbar {
-    width: 3px;
-}
-
-#upload-toast-file-list::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
-    border-radius: 2px;
-}
-
-/* ── File rows ──────────────────────────────────────── */
+/* ── One file inside the toast ───────────────────────────────────────────── */
 .upload-file-row {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 7px 0;
-    border-top: 1px solid var(--border);
+    padding: var(--pad-cell-y) var(--pad-cell);
+    border-bottom: 1px solid var(--border);
+    font-size: var(--text-sm);
 }
 
-.upload-file-row:first-child {
-    border-top: none;
-}
+.upload-file-row:last-child { border-bottom: none; }
+.upload-file-row.done { opacity: 0.55; }
 
-.upload-file-type {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: .05em;
-    color: var(--accent-text);
-    background: var(--accent-muted);
-    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-    border-radius: 3px;
-    padding: 2px 4px;
-    flex-shrink: 0;
-    min-width: 30px;
-    text-align: center;
-    line-height: 1.3;
-}
-
-/* CHANGED: overflow: hidden added */
-.upload-file-info {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-}
-
-/* CHANGED: new wrapper for name + size on same line */
 .upload-file-name-row {
     display: flex;
-    align-items: baseline;
-    gap: 6px;
-    min-width: 0;
+    align-items: center;
+    gap: var(--gap-inline);
 }
 
+.upload-file-type { color: var(--text-faint); flex-shrink: 0; }
+
+/* Long names scroll on hover rather than wrapping the row to two lines; the
+   is-overflow class is set from JS once the width is actually known. */
 .upload-file-name {
-    font-size: var(--text-base);
-    color: var(--text);
-    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.3;
-    flex: 1;
-    /* CHANGED: takes remaining space, pushes size to right */
-    min-width: 0;
+    white-space: nowrap;
+    color: var(--text);
 }
 
-.upload-file-row:hover .upload-file-name.is-overflow {
+.upload-file-name.is-overflow:hover {
     text-overflow: clip;
-    animation: marquee 6s linear infinite;
-    padding-right: 2rem;
+    animation: upload-name-scroll 6s linear infinite;
 }
 
-@keyframes marquee {
-    0% {
-        transform: translateX(0);
-    }
-
-    100% {
-        transform: translateX(-100%);
-    }
+@keyframes upload-name-scroll {
+    0%, 10%   { transform: translateX(0); }
+    90%, 100% { transform: translateX(calc(-100% + 180px)); }
 }
+
+.upload-file-info {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-inline);
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+}
+
+.upload-file-size { flex-shrink: 0; }
+
+.upload-file-status--pending   { color: var(--text-faint); }
+.upload-file-status--uploading { color: var(--accent); }
+.upload-file-status--done      { color: var(--success); }
+.upload-file-status--error     { color: var(--danger); }
+.upload-file-status--cancelled { color: var(--text-faint); }
+.upload-file-status--skipped   { color: var(--warn); }
 
 .upload-file-error {
+    margin-top: 2px;
     font-size: var(--text-xs);
-    color: var(--color-error);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: var(--danger);
 }
 
 .upload-file-minibar {
     height: 2px;
-    background: var(--border);
-    border-radius: 1px;
-    overflow: hidden;
     margin-top: 4px;
+    background: var(--border);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
 }
 
 .upload-file-minibar-fill {
     height: 100%;
+    width: 0;
     background: var(--accent);
-    border-radius: 1px;
-    transition: width 0.3s ease;
+    transition: width 0.15s;
 }
 
-/* CHANGED: removed .upload-file-right, size now lives in .upload-file-name-row */
-.upload-file-size {
-    font-size: var(--text-xs);
-    color: var(--text-faint);
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-/* CHANGED: status is now a direct flex child of the row */
-.upload-file-status {
-    font-size: var(--text-xs);
-    font-weight: 600;
-    letter-spacing: .03em;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.upload-file-status--done {
-    color: var(--color-success);
-}
-
-.upload-file-status--uploading {
-    color: var(--accent-dark);
-}
-
-.upload-file-status--pending {
-    color: var(--text-faint);
-}
-
-.upload-file-status--error {
-    color: var(--color-error);
-}
-
-.upload-file-status--skipped {
-    color: var(--text-faint);
-    text-decoration: line-through;
-}
-
-.upload-file-status--cancelled {
-    color: var(--text-faint);
-}
-
-/* Per-file action buttons — always visible when active */
 .upload-file-actions {
     display: flex;
-    align-items: center;
-    gap: 2px;
-    flex-shrink: 0;
+    gap: var(--gap-icon);
+    margin-left: auto;
 }
 
 .upload-file-btn {
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3px;
     border: none;
     background: transparent;
     color: var(--text-faint);
-    font-size: 9px;
-    line-height: 1;
+    font-size: var(--text-xs);
     cursor: pointer;
-    padding: 0;
-    transition: background 0.12s, color 0.12s;
+    padding: 0 2px;
 }
 
-.upload-file-btn:hover {
-    background: var(--accent-muted);
-    color: var(--text);
-}
+.upload-file-btn:hover { color: var(--text); }
+.upload-file-btn--abort:hover { color: var(--danger); }
+.upload-file-btn--pause:hover { color: var(--accent); }
 
-.upload-file-btn--abort:hover {
-    background: #fef2f2;
-    color: #dc2626;
-}
-
-html.dark .upload-file-btn--abort:hover {
-    background: #2d1515;
-    color: #f87171;
-}
-
-.upload-file-btn--pause.is-paused {
-    color: var(--accent-dark);
-}
-
-/* ── Toast footer ───────────────────────────────────── */
-.upload-toast-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 14px 11px;
-    border-top: 1px solid var(--border);
-    gap: var(--sp-sm);
-}
-
-.upload-toast-footer-left {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-}
-
-#upload-toast-sub {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-#upload-toast-eta {
-    font-size: var(--text-sm);
-    color: var(--text-faint);
-}
-
-#upload-toast-speed {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── File grid ──────────────────────────────────────── */
-.file-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(180px, 1fr));
-    column-gap: var(--sp-sm);
-    row-gap: 0;
-    list-style: none;
-}
-
-.file-item,
-.media-item {
-    margin-bottom: var(--sp-sm);
-}
-
-.file-item {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 9px 11px;
-    position: relative;
-    overflow: hidden;
-    transition: outline-color 0.15s;
-}
-
-.file-item a {
-    text-decoration: none;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    font-size: 0.9rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.section-break {
-    grid-column: 1 / -1;
-    height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: 0 !important;
-}
-
-.media-item {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    position: relative;
-    transition: outline-color 0.15s;
-}
-
-img,
-video,
-audio {
-    max-width: 100%;
-    height: auto;
-    display: block;
-}
-
-.media-name {
-    padding: 6px 10px;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    border-top: 1px solid var(--border);
-}
-
-.overlay {
-    position: absolute;
-    inset: 0;
-    background: var(--overlay-bg);
-    display: none;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 10px;
-    pointer-events: auto;
-}
-
-.media-item:hover .overlay {
-    display: flex;
-    background: var(--overlay-hover);
-    pointer-events: none;
-}
-
-.download-button {
-    position: absolute;
-    top: var(--sp-sm);
-    right: var(--sp-sm);
-    background: var(--btn-dark);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    text-decoration: none;
-    font-size: 0.8rem;
-    pointer-events: auto;
-    transition: outline-color 0.15s;
-}
-
-/* ── Lightbox ───────────────────────────────────────── */
-.lightbox {
-    display: none;
+/* ── Drag & drop ─────────────────────────────────────────────────────────── */
+/* The whole page is the drop target; the outline is drawn on the shell so it
+   frames the window rather than one element. */
+.app-shell.drag-over::after {
+    content: "";
     position: fixed;
-    z-index: 2000;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.92);
-    overflow: auto;
-}
-
-.lightbox-content {
-    display: block;
-    margin: auto;
-    max-width: 90%;
-    max-height: 80vh;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    inset: 8px;
+    z-index: 400;
+    border: 2px dashed var(--accent);
     border-radius: var(--radius);
-}
-
-.lightbox-close {
-    position: absolute;
-    top: 18px;
-    right: 28px;
-    color: white;
-    font-size: 36px;
-    font-weight: 300;
-    cursor: pointer;
-    line-height: 1;
-    transition: outline-color 0.15s;
-}
-
-/* ── Responsive ─────────────────────────────────────── */
-@media (max-width: 1024px) {
-    .file-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-
-@media (max-width: 900px) {
-    .file-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    header {
-        position: relative;
-    }
-
-    #upload-stripe {
-        top: 0;
-    }
-
-    .container {
-        margin-top: var(--sp-lg);
-    }
-
-    .file-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-    }
-
-    .upload-toast {
-        width: calc(100vw - 32px);
-        right: -8px;
-    }
-}
-
-@media (max-width: 480px) {
-    .file-grid {
-        grid-template-columns: 1fr 1fr;
-    }
+    pointer-events: none;
 }

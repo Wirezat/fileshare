@@ -6,184 +6,105 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{.Subpath}} — locked</title>
-    <link rel="stylesheet" href="/static/share.css" />
-    <style>
-        .gate-wrap {
-            display: flex;
-            justify-content: center;
-            padding: 80px 16px;
-        }
+    <meta name="robots" content="noindex" />
 
-        .gate-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 32px 28px;
-            width: 100%;
-            max-width: 340px;
-        }
+    <link rel="stylesheet" href="/static/ui/index.css" />
+    <link rel="stylesheet" href="/static/theme.css" />
 
-        .gate-icon {
-            font-size: 26px;
-            margin-bottom: 10px;
-        }
-
-        .gate-title {
-            font-family: var(--font-mono, monospace);
-            font-size: 13px;
-            color: var(--text);
-            margin-bottom: 20px;
-        }
-
-        .gate-error {
-            font-size: 12px;
-            color: var(--danger, #e05555);
-            background: rgba(224, 85, 85, 0.08);
-            border: 1px solid rgba(224, 85, 85, 0.2);
-            border-radius: 4px;
-            padding: 6px 10px;
-            margin-bottom: 12px;
-        }
-
-        .input-wrap {
-            position: relative;
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .gate-input {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 8px 36px 8px 12px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text);
-            font-size: 13px;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-
-        .gate-input.no-toggle {
-            padding-right: 12px;
-        }
-
-        .gate-input:focus {
-            border-color: var(--accent);
-        }
-
-        .toggle-pw {
-            position: absolute;
-            right: 8px;
-            background: none;
-            border: none;
-            padding: 2px;
-            cursor: pointer;
-            color: var(--text-muted, #888);
-            display: flex;
-            align-items: center;
-            opacity: 0.6;
-            transition: opacity 0.15s;
-        }
-
-        .toggle-pw:hover {
-            opacity: 1;
-        }
-
-        .gate-btn {
-            width: 100%;
-            padding: 8px;
-            background: var(--accent);
-            color: var(--btn-text, #fff);
-            border: none;
-            border-radius: 4px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: opacity 0.15s;
-        }
-
-        .gate-btn:hover {
-            opacity: 0.85;
-        }
-    </style>
     <script>
         (function () {
-            const saved = localStorage.getItem('theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (saved === 'dark' || (!saved && prefersDark)) {
+            const s = localStorage.getItem('theme');
+            if (s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches))
                 document.documentElement.classList.add('dark');
-            }
         })();
     </script>
 </head>
 
-<body>
+<body class="app-shell">
 
-    <header>
-        <a class="header-brand" href="{{if .ShowUsername}}/admin{{else}}/{{.Subpath}}{{end}}">
-            <div class="header-logo">🔒</div>
-            <span>{{if .ShowUsername}}Admin{{end}}</span>
-            <span>{{if not .ShowUsername}}{{.Subpath}}{{end}}</span>
-        </a>
+    <header class="header">
+        <span class="header-brand">
+            <span class="header-logo">📂</span>
+            <span>Fileshare</span>
+        </span>
         <div class="header-right">
-            <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()" aria-label="Theme wechseln">🌙</button>
+            <button class="btn btn-icon btn-sm btn-toggle" id="theme-toggle" onclick="toggleTheme()"
+                title="Toggle theme">🌙</button>
         </div>
     </header>
 
-    <div class="container">
-        <div class="gate-wrap">
-            <div class="gate-card">
-                <div class="gate-icon">{{if .ShowUsername}}🛡️{{else}}🔒{{end}}</div>
-                <div class="gate-title">{{if .ShowUsername}}Admin login{{else}}Password required{{end}}</div>
+    <div class="auth-main">
+        <div class="auth-card">
 
-                {{if .WrongCredentials}}
-                <div class="gate-error">{{if .ShowUsername}}Wrong username or password.{{else}}Wrong password — try
-                    again.{{end}}</div>
-                {{end}}
+            <div class="auth-header">
+                <div class="auth-logo">🔒</div>
+                <div class="auth-title">/{{.Subpath}}</div>
+                <div class="auth-sub">This share is password protected</div>
+            </div>
 
-                <form method="POST" action="{{.FormAction}}">
-                    {{if .ShowUsername}}
-                    <div class="input-wrap">
-                        <input class="gate-input no-toggle" type="text" name="username" placeholder="Username"
-                            autocomplete="username" {{if .ShowUsername}}autofocus{{end}} />
+            <div class="auth-body">
+                <!-- A plain form POST, not wui's initAuth: this page is public and
+                     has to work without scripting, and the server already renders
+                     the failed-attempt state. -->
+                <form class="auth-panel active" method="post" action="{{.FormAction}}">
+                    {{if .WrongCredentials}}
+                    <div class="alert danger">
+                        <span class="alert-icon">⚠</span>
+                        <span>Wrong password.</span>
                     </div>
                     {{end}}
-                    <div class="input-wrap">
-                        <input class="gate-input" type="password" id="gate-pw" name="password" placeholder="Password"
-                            autocomplete="current-password" {{if not .ShowUsername}}autofocus{{end}} />
-                        <button type="button" class="toggle-pw" onclick="togglePw()" tabindex="-1"
-                            aria-label="Passwort anzeigen">
-                            <svg id="pw-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
+
+                    <div class="field">
+                        <label class="field-label" for="gate-pw">Password</label>
+                        <div class="input-wrap">
+                            <input class="input has-end-icon" type="password" id="gate-pw" name="password"
+                                autocomplete="current-password" autofocus />
+                            <button type="button" class="gate-reveal" onclick="togglePw()" tabindex="-1"
+                                aria-label="Show password">👁</button>
+                        </div>
                     </div>
-                    <button class="gate-btn" type="submit">{{if .ShowUsername}}Sign in{{else}}Unlock{{end}}</button>
+
+                    <div class="auth-footer">
+                        <span></span>
+                        <button class="btn btn-primary" type="submit">Unlock</button>
+                    </div>
                 </form>
             </div>
+
         </div>
     </div>
 
-    <script>
-        const EYE = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
-        const EYE_OFF = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+    <style>
+        /* The reveal button is the one thing wui's .input-wrap has no piece for:
+           .end-icon is pointer-events:none by design, being a state marker. */
+        .gate-reveal {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            color: var(--text-faint);
+        }
 
+        .gate-reveal:hover { color: var(--text); }
+    </style>
+
+    <script>
         function togglePw() {
             const input = document.getElementById('gate-pw');
-            const btn = input.nextElementSibling;
             const show = input.type === 'password';
             input.type = show ? 'text' : 'password';
-            document.getElementById('pw-icon').innerHTML = show ? EYE_OFF : EYE;
-            btn.setAttribute('aria-label', show ? 'Passwort verbergen' : 'Passwort anzeigen');
+            input.nextElementSibling.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+            input.focus();
         }
 
         function toggleTheme() {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            const dark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', dark ? 'dark' : 'light');
             updateThemeBtn();
         }
 

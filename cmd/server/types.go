@@ -11,8 +11,6 @@ const (
 	shareCssPath  = "./web/css/share.css"
 	shareJsPath   = "./web/js/share.js"
 	setupHtmlPath = "./web/html/setup.html"
-	setupJsPath   = "./web/js/setup.js"
-	setupCssPath  = "./web/css/setup.css"
 	gateHtmlPath  = "./web/html/gate.html"
 
 	adminHtmlPath         = "./web/html/admin.html"
@@ -46,4 +44,5 @@ type PageData struct {
 	Uses         int
 	Expiration   int64
 	AllowPost    bool
+	IsEmpty      bool
 }
