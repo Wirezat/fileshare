@@ -25,9 +25,6 @@ func buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	adminRoutes := map[string]http.HandlerFunc{
-		"/admin":                                       handleAdminUI,
-		"/admin/static/admin.css":                      handleAdminCSS,
-		"/admin/static/admin.js":                       handleAdminJS,
 		"/admin/api/shares":                            handleAdminShares,
 		"/admin/api/logs":                              handleAdminLogs,
 		"/admin/api/logs/stream":                       handleAdminLogsStream,
@@ -37,10 +34,23 @@ func buildMux() *http.ServeMux {
 		"/admin/api/settings/chunk_inactivity_timeout": handleAdminSettingsChunkInactivityTimeout,
 		"/admin/api/settings/prune_expired":            handleAdminFunctionPruneExpired,
 		"/admin/api/uptime":                            handleAdminUptime,
+
+		"/admin":          handleAdminUI,
+		"/admin/logs":     handleAdminLogsPage,
+		"/admin/settings": handleAdminSettingsPage,
+		"/admin/api/me":   handleAdminMe,
 	}
 	for path, h := range adminRoutes {
 		mux.HandleFunc(path, adminAuth(h))
 	}
+
+	// wui library and theme are public; the login page needs them.
+	uiFS := http.StripPrefix("/static/ui/", http.FileServer(http.Dir(uiDir)))
+	mux.Handle("/static/ui/", uiFS)
+	mux.HandleFunc("/static/theme.css", handleThemeCSS)
+
+	jsFS := http.StripPrefix("/admin/static/js/", http.FileServer(http.Dir(adminJsDir)))
+	mux.HandleFunc("/admin/static/js/", adminAuth(jsFS.ServeHTTP))
 
 	// Admin login/logout — no auth middleware.
 	mux.HandleFunc("/admin/login", handleAdminLogin)
@@ -65,6 +75,8 @@ func buildMux() *http.ServeMux {
 	mux.Handle("/", public)
 	mux.HandleFunc("/static/share.css", handleShareCSS)
 	mux.HandleFunc("/static/share.js", handleShareJS)
+
+	mux.Handle("/static/locales/", http.StripPrefix("/static/locales/", http.FileServer(http.Dir(localesDir))))
 
 	return mux
 }
