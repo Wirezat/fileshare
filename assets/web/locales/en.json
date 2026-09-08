@@ -33,10 +33,10 @@
   "shares.value.expired": "expired",
   "shares.value.active": "active",
   "shares.value.on": "on",
+  "shares.value.off": "off",
   "shares.value.unlimited": "unlimited",
   "shares.hint.password_set": "Password protected — click to change",
   "shares.hint.password_none": "No password — click to set one",
-  "shares.hint.toggle_status": "Click to activate or deactivate",
   "shares.hint.toggle_upload": "Click to toggle uploads",
   "shares.hint.edit": "Click to edit",
   "shares.form.subpath": "Subpath",
@@ -102,5 +102,10 @@
   "login.submit": "Sign in",
   "msg.fill_all_fields": "Please fill in both fields.",
   "msg.login_failed": "Wrong username or password.",
-  "msg.network_error": "Could not reach the server."
+  "msg.network_error": "Could not reach the server.",
+  "shares.value.usedup": "used up",
+  "shares.hint.activate": "Switched off by hand — click to activate",
+  "shares.hint.deactivate": "Click to switch this share off",
+  "shares.hint.blocked_date": "The expiry date has passed — set a new one in the Expires column",
+  "shares.hint.blocked_uses": "No uses left — raise the number in the Uses column"
 }

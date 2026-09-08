@@ -33,10 +33,10 @@
   "shares.value.expired": "abgelaufen",
   "shares.value.active": "aktiv",
   "shares.value.on": "an",
+  "shares.value.off": "aus",
   "shares.value.unlimited": "unbegrenzt",
   "shares.hint.password_set": "Passwortgeschützt — zum Ändern klicken",
   "shares.hint.password_none": "Kein Passwort — zum Setzen klicken",
-  "shares.hint.toggle_status": "Klicken, um zu aktivieren oder zu deaktivieren",
   "shares.hint.toggle_upload": "Klicken, um Uploads umzuschalten",
   "shares.hint.edit": "Zum Bearbeiten klicken",
   "shares.form.subpath": "Unterpfad",
@@ -102,5 +102,10 @@
   "login.submit": "Anmelden",
   "msg.fill_all_fields": "Bitte beide Felder ausfüllen.",
   "msg.login_failed": "Benutzername oder Passwort ist falsch.",
-  "msg.network_error": "Server nicht erreichbar."
+  "msg.network_error": "Server nicht erreichbar.",
+  "shares.value.usedup": "aufgebraucht",
+  "shares.hint.activate": "Von Hand abgeschaltet — zum Aktivieren klicken",
+  "shares.hint.deactivate": "Klicken, um diese Freigabe abzuschalten",
+  "shares.hint.blocked_date": "Das Ablaufdatum ist überschritten — in der Spalte „Läuft ab“ ein neues setzen",
+  "shares.hint.blocked_uses": "Keine Zugriffe übrig — in der Spalte „Zugriffe“ erhöhen"
 }
