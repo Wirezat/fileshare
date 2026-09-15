@@ -96,7 +96,7 @@ build() {
         GO="$(find_go)" || error "Source found but Go is not installed (looked in /usr/local/go/bin and PATH)."
         cd "$REPO_ROOT"
         log "Resolving Go modules..."
-        "$GO" mod download
+        "$GO" mod tidy
         log "Building fileshare-backend..."
         "$GO" build -o fileshare-backend   ./cmd/server/
         log "Building fileshare-interface..."

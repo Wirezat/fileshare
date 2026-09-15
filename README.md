@@ -32,7 +32,7 @@ git clone --recursive https://github.com/Wirezat/fileshare
 git submodule update --init
 ```
 
-Without the submodule `assets/web/ui` stays empty and every page renders unstyled. `go.sum` is not tracked, so run `go mod download` before the first build.
+Without the submodule `assets/web/ui` stays empty and every page renders unstyled. `go.sum` is not tracked, so run `go mod tidy` before the first build.
 
 ### 2. First-time setup
 
