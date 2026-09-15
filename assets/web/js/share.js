@@ -510,11 +510,20 @@ function sendChunk(base, uploadId, index, blob, onProgress, fileIndex) {
     });
 }
 
+// Just a stable id to resume and dedupe a chunked upload by — not a security
+// digest, so it must not depend on crypto.subtle, which is undefined outside a
+// secure context (plain http:// on a LAN IP rather than localhost).
 async function computeUploadHash(file) {
-    const buf = await crypto.subtle.digest("SHA-256",
-        new TextEncoder().encode(`${file.name}:${file.size}:${file.lastModified}`)
-    );
-    return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+    const input = `${file.name}:${file.size}:${file.lastModified}`;
+    let h1 = 0xdeadbeef ^ input.length, h2 = 0x41c6ce57 ^ input.length;
+    for (let i = 0; i < input.length; i++) {
+        const ch = input.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
 }
 
 async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
