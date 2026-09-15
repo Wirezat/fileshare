@@ -38,6 +38,8 @@ type PageData struct {
 	Subpath      string
 	UploadTime   int64
 	DirPath      string
+	DirName      string
+	Crumbs       []Crumb
 	Files        []shared.FileInfo
 	ParentDir    string
 	HasParentDir bool
@@ -45,4 +47,16 @@ type PageData struct {
 	Expiration   int64
 	AllowPost    bool
 	IsEmpty      bool
+}
+
+type Crumb struct {
+	Name     string
+	Href     string
+	Siblings []CrumbLink
+}
+
+type CrumbLink struct {
+	Name    string
+	Href    string
+	Current bool
 }

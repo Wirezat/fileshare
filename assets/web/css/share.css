@@ -23,6 +23,8 @@
 #file-list.view-cards .file-table { display: none; }
 #file-list.view-table .file-grid  { display: none; }
 
+#file-list.view-cards { padding: var(--gap-card); }
+
 .file-row .row-icon {
     width: 1%;
     text-align: center;
@@ -40,6 +42,41 @@
 .file-table .col-narrow {
     width: 1%;
     white-space: nowrap;
+}
+
+.crumb-path {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--gap-icon);
+    font-weight: var(--weight-normal);
+}
+
+.crumb-path a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.12s;
+}
+.crumb-path a:hover { color: var(--accent); }
+.crumb-current { color: var(--text); font-weight: var(--weight-semibold); }
+
+.crumb-sep { color: var(--text-faint); }
+
+button.crumb-sep-btn {
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+button.crumb-sep-btn:hover,
+button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
+
+.crumb-path .dropdown-panel {
+    right: auto;
+    left: 0;
+    max-height: 320px;
+    overflow-y: auto;
 }
 
 .file-grid {
@@ -104,6 +141,9 @@
 }
 
 .card-name {
+    display: flex;
+    align-items: baseline;
+    gap: var(--gap-item);
     padding: var(--pad-cell-y) var(--pad-cell);
     border-top: 1px solid var(--border);
     font-size: var(--text-sm);
@@ -112,13 +152,24 @@
 
 .card-name a {
     display: block;
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text);
 }
 
+.card-size {
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+}
+
 .card-name a:hover { color: var(--accent); }
+
+.file-card:hover .wui-marquee-inner { animation-play-state: running; }
 
 .file-card .overlay {
     position: absolute;

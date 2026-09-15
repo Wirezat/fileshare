@@ -40,12 +40,19 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		parentDir = filepath.Join("/", strings.TrimPrefix(filepath.Dir(ctx.diskPath), fd.Path))
 	}
 
+	dirName := ctx.subpath
+	if relPath != "/" {
+		dirName = filepath.Base(relPath)
+	}
+
 	files, _ := getFileInfos(ctx.diskPath, fd.Path)
 
 	if err := tmpl.Execute(w, PageData{
+		Crumbs:       buildCrumbs(ctx.subpath, fd.Path, relPath),
 		Subpath:      ctx.subpath,
 		UploadTime:   fd.UploadTime,
 		DirPath:      relPath,
+		DirName:      dirName,
 		Files:        files,
 		ParentDir:    parentDir,
 		HasParentDir: ctx.diskPath != fd.Path,
@@ -56,6 +63,69 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)
 	}
+}
+
+func buildCrumbs(subpath, sharePath, relPath string) []Crumb {
+	var segments []string
+	if trimmed := strings.Trim(relPath, "/"); trimmed != "" {
+		segments = strings.Split(trimmed, "/")
+	}
+
+	crumbs := make([]Crumb, 0, len(segments)+1)
+	dir := sharePath
+	href := "/" + subpath
+
+	for i := 0; i <= len(segments); i++ {
+		name := subpath
+		if i > 0 {
+			name = segments[i-1]
+			dir = filepath.Join(dir, name)
+			href += "/" + name
+		}
+
+		c := Crumb{Name: name}
+		if i < len(segments) {
+			c.Href = href
+			c.Siblings = subdirLinks(dir, href, segments[i])
+		}
+		crumbs = append(crumbs, c)
+	}
+	return crumbs
+}
+
+func subdirLinks(dirPath, baseHref, current string) []CrumbLink {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil
+	}
+
+	links := make([]CrumbLink, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		isDir := entry.IsDir()
+		if entry.Type()&fs.ModeSymlink != 0 {
+			info, err := os.Stat(filepath.Join(dirPath, name))
+			if err != nil {
+				continue
+			}
+			isDir = info.IsDir()
+		}
+		if !isDir {
+			continue
+		}
+		links = append(links, CrumbLink{
+			Name:    name,
+			Href:    baseHref + "/" + name,
+			Current: name == current,
+		})
+	}
+	if len(links) < 2 {
+		return nil
+	}
+	return links
 }
 
 // getFileInfos returns FileInfo entries for a directory, skipping hidden files.

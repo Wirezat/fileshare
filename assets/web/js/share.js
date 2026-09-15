@@ -69,6 +69,11 @@ function hydrateCards() {
         let preview = card.querySelector(".card-preview");
         if (!preview) return;
 
+        const sizeEl = card.querySelector(".card-size");
+        if (sizeEl && !card.hasAttribute("data-dir")) {
+            sizeEl.textContent = formatBytes(Number(card.dataset.size ?? 0));
+        }
+
         if (card.hasAttribute("data-dir")) return;
 
         const ext = name.split(".").pop().toLowerCase();
@@ -164,6 +169,37 @@ function initViewPicker() {
         if (btn) setFileView(btn.dataset.view);
     });
     setFileView(localStorage.getItem("fileshare-view") === "table" ? "table" : "cards");
+}
+
+function closeCrumbDropdowns(except) {
+    document.querySelectorAll("#breadcrumb-nav .dropdown-panel.open").forEach(p => {
+        if (p === except) return;
+        p.classList.remove("open");
+        p.parentElement.querySelector(".crumb-sep-btn")?.setAttribute("aria-expanded", "false");
+    });
+}
+
+function initCrumbDropdowns() {
+    const nav = $("breadcrumb-nav");
+    if (!nav) return;
+
+    nav.addEventListener("click", e => {
+        const btn = e.target.closest(".crumb-sep-btn");
+        if (!btn) return;
+        e.preventDefault();
+        const panel = btn.parentElement.querySelector(".dropdown-panel");
+        const open = !panel.classList.contains("open");
+        closeCrumbDropdowns(panel);
+        panel.classList.toggle("open", open);
+        btn.setAttribute("aria-expanded", String(open));
+    });
+
+    document.addEventListener("click", e => {
+        if (!e.target.closest("#breadcrumb-nav .dropdown-wrap")) closeCrumbDropdowns();
+    });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") closeCrumbDropdowns();
+    });
 }
 
 function setupMediaContainer(container) {
@@ -575,6 +611,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".media-container").forEach(setupMediaContainer);
     hydrateTable();
     initViewPicker();
+    initCrumbDropdowns();
 
     $("lightbox-close")?.addEventListener("click", closeLightbox);
     $("lightbox")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeLightbox(); });

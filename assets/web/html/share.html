@@ -30,11 +30,10 @@
     </div>
 
     <header class="header">
-        <a class="header-brand" href="/{{.Subpath}}">
+        <div class="header-brand">
             <div class="header-logo">📂</div>
             <span>{{.Subpath}}</span>
-            <span class="header-sub">{{.DirPath}}</span>
-        </a>
+        </div>
         <div class="header-right">
             <span class="share-meta">
                 <span><span class="share-meta-label">Uploaded</span>
@@ -55,14 +54,26 @@
 
             <div class="page-header" id="breadcrumb">
                 <div>
-                    <div class="breadcrumb">
-                        {{if .HasParentDir}}
-                        <a href="/{{.Subpath}}{{.ParentDir}}">..</a>
-                        <span class="breadcrumb-sep">▸</span>
+                    <nav class="page-title crumb-path" id="breadcrumb-nav" aria-label="Path">
+                        {{range $c := .Crumbs}}
+                        {{if $c.Href}}<a href="{{$c.Href}}">{{$c.Name}}</a>{{else}}<span
+                            class="crumb-current">{{$c.Name}}</span>{{end}}
+                        {{if $c.Siblings}}
+                        <span class="dropdown-wrap">
+                            <button type="button" class="crumb-sep crumb-sep-btn" aria-expanded="false"
+                                aria-label="Folders in {{$c.Name}}">›</button>
+                            <div class="dropdown-panel">
+                                {{range $c.Siblings}}
+                                <a class="dropdown-item{{if .Current}} active{{end}}"
+                                    href="{{.Href}}">{{.Name}}</a>
+                                {{end}}
+                            </div>
+                        </span>
+                        {{else if $c.Href}}
+                        <span class="crumb-sep">›</span>
                         {{end}}
-                        <span class="breadcrumb-current">{{.Subpath}}{{.DirPath}}</span>
-                    </div>
-                    <div class="page-title">{{if .DirPath}}{{.DirPath}}{{else}}/{{end}}</div>
+                        {{end}}
+                    </nav>
                 </div>
 
                 <div class="page-header-actions">
@@ -107,15 +118,6 @@
                     {{end}}
 
                     <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">ZIP</a>
-
-                    {{if not .IsEmpty}}
-                    <!-- wui's segmented view-picker, used bare: this page has no
-                         .container header to hang it in. -->
-                    <div class="view-picker" id="view-picker">
-                        <button class="view-picker-btn" data-view="cards" title="Cards">▦</button>
-                        <button class="view-picker-btn" data-view="table" title="Table">☰</button>
-                    </div>
-                    {{end}}
                 </div>
             </div>
 
@@ -125,10 +127,18 @@
                 <div class="empty-state-text">This folder is empty.</div>
             </div>
             {{else}}
-            <div id="file-list">
+            <div class="container">
+                <div class="container-header">
+                    <span class="container-title">{{.DirName}}</span>
+                    <div class="view-picker" id="view-picker">
+                        <button class="view-picker-btn" data-view="cards" title="Cards">▦</button>
+                        <button class="view-picker-btn" data-view="table" title="Table">☰</button>
+                    </div>
+                </div>
+                <div class="container-body container-body-flush" id="file-list">
             <ul class="file-grid">
                 {{range .Files}}
-                <li class="file-card" data-name="{{.Name}}"
+                <li class="file-card" data-name="{{.Name}}" data-size="{{.Size}}"
                     data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}>
                     <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}"{{if not .IsDir}} download{{end}}>
                         <span class="card-icon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
@@ -136,6 +146,7 @@
                     </a>
                     <div class="card-name" title="{{.Name}}">
                         <a href="/{{$.Subpath}}{{.Path}}"{{if not .IsDir}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
+                        <span class="card-size"></span>
                     </div>
                 </li>
                 {{end}}
@@ -159,6 +170,7 @@
                     {{end}}
                 </tbody>
             </table>
+                </div>
             </div>
             {{end}}
 
@@ -175,6 +187,24 @@
     </div>
 
     <script src="/static/share.js"></script>
+
+    <script type="module">
+        import { wireMarquee } from '/static/ui/js/marquee.js';
+
+        function wireNames() {
+            document.querySelectorAll(".card-name a").forEach(el => {
+                if (el.firstElementChild) return;
+                const inner = document.createElement("span");
+                inner.textContent = el.textContent.trim();
+                el.textContent = "";
+                el.appendChild(inner);
+                if (!wireMarquee(el, inner)) el.textContent = inner.textContent;
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", wireNames);
+        window.addEventListener("load", wireNames);
+    </script>
 </body>
 
 </html>
