@@ -89,6 +89,7 @@
       mode:     'login',         // no registration: there is exactly one admin
       redirect: '/admin',
       configUrl: null,           // nothing to ask, registration does not exist
+      loginUrl: '/admin/login',  // read from initAuth's own cfg, not configure()
     }, { t, getLang, setLang });
   </script>
 </body>
