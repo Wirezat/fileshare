@@ -107,6 +107,15 @@
                     {{end}}
 
                     <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">ZIP</a>
+
+                    {{if not .IsEmpty}}
+                    <!-- wui's segmented view-picker, used bare: this page has no
+                         .container header to hang it in. -->
+                    <div class="view-picker" id="view-picker">
+                        <button class="view-picker-btn" data-view="cards" title="Cards">▦</button>
+                        <button class="view-picker-btn" data-view="table" title="Table">☰</button>
+                    </div>
+                    {{end}}
                 </div>
             </div>
 
@@ -116,6 +125,7 @@
                 <div class="empty-state-text">This folder is empty.</div>
             </div>
             {{else}}
+            <div id="file-list">
             <ul class="file-grid">
                 {{range .Files}}
                 <li class="file-card" data-name="{{.Name}}"
@@ -130,6 +140,26 @@
                 </li>
                 {{end}}
             </ul>
+
+            <!-- The same entries as rows. share.js fills icon and type from the
+                 extension maps it already uses for cards, and formats Size. -->
+            <table class="table file-table">
+                <thead>
+                    <tr><th></th><th>Name</th><th>Type</th><th class="col-narrow">Size</th></tr>
+                </thead>
+                <tbody>
+                    {{range .Files}}
+                    <tr class="file-row" data-name="{{.Name}}" data-size="{{.Size}}"
+                        data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}>
+                        <td class="row-icon">{{if .IsDir}}📁{{else}}📄{{end}}</td>
+                        <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}"{{if not .IsDir}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
+                        <td class="row-type"></td>
+                        <td class="row-size col-narrow"></td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            </div>
             {{end}}
 
         </div>

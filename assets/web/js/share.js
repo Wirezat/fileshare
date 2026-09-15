@@ -130,6 +130,42 @@ function hydrateCards() {
     });
 }
 
+// ── Table view ────────────────────────────────────────
+// Same entries as the card grid, server-rendered as <tr>s with empty type and
+// size cells — filled in here from the same extension maps the cards use, and
+// from the same byte formatter the upload toast uses.
+function hydrateTable() {
+    document.querySelectorAll(".file-row").forEach(row => {
+        const name = row.dataset.name ?? "";
+        const isDir = row.hasAttribute("data-dir");
+        row.querySelector(".row-icon").textContent = isDir ? "📁" : (KIND_ICON[name.split(".").pop().toLowerCase()] ?? "📎");
+        row.querySelector(".row-type").textContent = isDir ? "Folder" : fileTypeLabel(name);
+        row.querySelector(".row-size").textContent = isDir ? "" : formatBytes(Number(row.dataset.size ?? 0));
+    });
+}
+
+// ── Card / table view toggle ─────────────────────────────
+function setFileView(view) {
+    const list = $("file-list");
+    if (!list) return;
+    list.classList.remove("view-cards", "view-table");
+    list.classList.add(view === "table" ? "view-table" : "view-cards");
+    document.querySelectorAll("#view-picker .view-picker-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.view === view);
+    });
+    localStorage.setItem("fileshare-view", view);
+}
+
+function initViewPicker() {
+    const picker = $("view-picker");
+    if (!picker) return;
+    picker.addEventListener("click", e => {
+        const btn = e.target.closest(".view-picker-btn");
+        if (btn) setFileView(btn.dataset.view);
+    });
+    setFileView(localStorage.getItem("fileshare-view") === "table" ? "table" : "cards");
+}
+
 function setupMediaContainer(container) {
     const overlay = container.querySelector(".overlay");
     const media = container.querySelector("img, video");
@@ -199,10 +235,14 @@ document.addEventListener("click", e => {
 });
 
 // ── Format helpers ────────────────────────────────────
-const _fmt = (b, sfx = "") =>
-    b < 1024 ? `${b} B${sfx}`
-        : b < 1048576 ? `${(b / 1024).toFixed(1)} KB${sfx}`
-            : `${(b / 1048576).toFixed(1)} MB${sfx}`;
+// Steps past MB: a share can hold files the old MB ceiling rendered as
+// "3072.0 MB".
+const _UNITS = ["B", "KB", "MB", "GB", "TB"];
+const _fmt = (b, sfx = "") => {
+    let i = 0, n = b;
+    while (n >= 1024 && i < _UNITS.length - 1) { n /= 1024; i++; }
+    return `${i === 0 ? n : n.toFixed(1)} ${_UNITS[i]}${sfx}`;
+};
 const formatBytes = b => _fmt(b);
 const formatSpeed = b => _fmt(b, "/s");
 
@@ -524,6 +564,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Cards first; hydrateCards adds .media-container to previewable ones.
     hydrateCards();
     document.querySelectorAll(".media-container").forEach(setupMediaContainer);
+    hydrateTable();
+    initViewPicker();
 
     $("lightbox-close")?.addEventListener("click", closeLightbox);
     $("lightbox")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeLightbox(); });

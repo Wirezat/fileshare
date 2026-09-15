@@ -16,6 +16,32 @@
     .share-meta { display: none; }
 }
 
+/* ── Card / table view toggle ────────────────────────────────────────────── */
+/* #file-list carries the view-cards/view-table class share.js sets from the
+   view-picker choice (persisted per-browser in localStorage); only one of the
+   two lists is ever visible. */
+#file-list.view-cards .file-table { display: none; }
+#file-list.view-table .file-grid  { display: none; }
+
+.file-row .row-icon {
+    width: 1%;
+    text-align: center;
+}
+.file-row .row-name a { color: var(--text); }
+.file-row .row-type {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+.file-row .row-size {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+/* Not a wui class: the size column should take only what it needs. */
+.file-table .col-narrow {
+    width: 1%;
+    white-space: nowrap;
+}
+
 .file-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

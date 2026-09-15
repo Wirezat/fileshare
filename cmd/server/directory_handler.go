@@ -73,16 +73,25 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 		fullPath := filepath.Join(dirPath, entry.Name())
 
 		isDir := entry.IsDir()
+		var size int64
 		if entry.Type()&fs.ModeSymlink != 0 {
+			// Stat follows the link, so both fields describe the target.
 			if info, err := os.Stat(fullPath); err == nil {
 				isDir = info.IsDir()
+				size = info.Size()
 			}
+		} else if info, err := entry.Info(); err == nil {
+			size = info.Size()
+		}
+		if isDir {
+			size = 0 // a directory's own inode size means nothing to a listing
 		}
 
 		infos = append(infos, shared.FileInfo{
 			Name:  entry.Name(),
 			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), entry.Name()),
 			IsDir: isDir,
+			Size:  size,
 		})
 	}
 	return infos, nil

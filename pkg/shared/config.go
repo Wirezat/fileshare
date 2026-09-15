@@ -20,11 +20,12 @@ var configDefaults = Config{
 	// A blank password means the user will be redirected to a setup page to set a password on first run.
 }
 
-// FileInfo holds the name, path, and type of a file or directory.
+// FileInfo holds the name, path, type, and size of a file or directory.
 type FileInfo struct {
 	Name  string
 	Path  string
 	IsDir bool
+	Size  int64 // bytes; 0 for directories
 }
 
 // FileData holds the sharing configuration for a single share.
