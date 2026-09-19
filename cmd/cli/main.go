@@ -86,6 +86,13 @@ func fmtUpload(on bool) string {
 	return colorGray + "off" + colorReset
 }
 
+func fmtOffice(mode string) string {
+	if mode == shared.OfficeOff {
+		return colorGray + "off" + colorReset
+	}
+	return colorGreen + mode + colorReset
+}
+
 func fmtPassword(hash string) string {
 	if hash != "" {
 		return colorYellow + "yes" + colorReset
@@ -262,7 +269,7 @@ func cmdList(asJSON bool) {
 	fmt.Println()
 }
 
-func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool, password string) {
+func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost, allowZip bool, office, password string) {
 	if filePath == "" {
 		helpAdd()
 		os.Exit(1)
@@ -302,6 +309,8 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 		Uses:       uses,
 		Expiration: expiration,
 		AllowPost:  allowPost,
+		NoZip:      !allowZip,
+		Office:     office,
 		Password:   hashedPw,
 	}
 	mustSave(d)
@@ -312,6 +321,8 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost bool
 	fmt.Printf("  Uses     : %s\n", fmtUses(uses))
 	fmt.Printf("  Expires  : %s\n", fmtExpiration(expiration))
 	fmt.Printf("  Upload   : %s\n", fmtUpload(allowPost))
+	fmt.Printf("  ZIP      : %s\n", fmtUpload(allowZip))
+	fmt.Printf("  Office   : %s\n", fmtOffice(office))
 	fmt.Printf("  Password : %s\n", fmtPassword(hashedPw))
 	GoLog.Infof("Share added: /%s -> %s", subpath, absPath)
 }
@@ -345,7 +356,7 @@ func cmdDelete(subpath string, yes bool) {
 	GoLog.Infof("Share deleted: /%s", subpath)
 }
 
-func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newUploadStr, newActiveStr, newPassword string, clearPassword bool) {
+func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newUploadStr, newZipStr, newOffice, newActiveStr, newPassword string, clearPassword bool, setOffice bool) {
 	if subpath == "" {
 		helpEdit()
 		os.Exit(1)
@@ -425,6 +436,31 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newUploadS
 		if newUpload != s.AllowPost {
 			fmt.Printf("  Upload   : %s -> %s\n", fmtUpload(s.AllowPost), fmtUpload(newUpload))
 			s.AllowPost = newUpload
+			changed = true
+		}
+	}
+
+	if newZipStr != "" {
+		newZip, err := parseBoolValue(newZipStr)
+		if err != nil {
+			GoLog.Errorf("-zip: %v", err)
+			os.Exit(1)
+		}
+		if newZip != !s.NoZip {
+			fmt.Printf("  ZIP      : %s -> %s\n", fmtUpload(!s.NoZip), fmtUpload(newZip))
+			s.NoZip = !newZip
+			changed = true
+		}
+	}
+
+	if setOffice {
+		if !shared.ValidOffice(newOffice) {
+			GoLog.Errorf("-office: must be off, view or edit")
+			os.Exit(1)
+		}
+		if newOffice != s.Office {
+			fmt.Printf("  Office   : %s -> %s\n", fmtOffice(s.Office), fmtOffice(newOffice))
+			s.Office = newOffice
 			changed = true
 		}
 	}
@@ -637,6 +673,8 @@ OPTIONS
   -uses,    -u       Max downloads; -1 = unlimited  (default: -1)
   -expires, -e       Expiration: 24h, 7d, 2w, 3m, 1y, unix timestamp, or 0/never
   -upload            Allow uploads to this share
+  -zip               Offer the folder as a ZIP download  (default: true)
+  -office            Office documents: off, view or edit  (default: off)
   -password, -pw     Protect the share with a password
 
 EXAMPLES
@@ -672,6 +710,8 @@ OPTIONS
   -uses,          -u    Change max uses (-1 = unlimited)
   -expires,       -e    Change expiration (duration, unix timestamp, or 0/never)
   -upload               Change upload permission (true/false/yes/no/on/off)
+  -zip                  Change ZIP download permission (true/false)
+  -office               Change office mode (off/view/edit)
   -active               Enable or disable the share (true/false)
   -password,      -pw   Set or change the share password
   -clear-password       Remove the share password
@@ -842,10 +882,19 @@ func main() {
 		allowPost := fs.Bool("upload", false, "")
 		fs.BoolVar(allowPost, "allow-post", false, "") // legacy alias
 		fs.BoolVar(allowPost, "p", false, "")          // legacy alias
+		allowZip := fs.Bool("zip", true, "")
+		office := fs.String("office", "", "")
 		password := fs.String("password", "", "")
 		fs.StringVar(password, "pw", "", "")
 		_ = fs.Parse(args)
 
+		if *office == "off" {
+			*office = shared.OfficeOff
+		}
+		if !shared.ValidOffice(*office) {
+			GoLog.Errorf("-office: must be off, view or edit")
+			os.Exit(1)
+		}
 		if cmd != "add" {
 			*subpath = "" // legacy addrandom forces a random subpath
 		}
@@ -854,7 +903,7 @@ func main() {
 			GoLog.Errorf("Invalid expiration: %v", err)
 			os.Exit(1)
 		}
-		cmdAdd(*subpath, *filePath, *uses, exp, *allowPost, *password)
+		cmdAdd(*subpath, *filePath, *uses, exp, *allowPost, *allowZip, *office, *password)
 
 	// ── delete ───────────────────────────────────────────────────────────────
 	case "delete", "del", "remove", "rm":
@@ -883,6 +932,8 @@ func main() {
 		fs.StringVar(newExpires, "e", "", "")
 		newUpload := fs.String("upload", "", "")
 		fs.StringVar(newUpload, "allow-post", "", "") // legacy alias
+		newZip := fs.String("zip", "", "")
+		newOffice := fs.String("office", "", "")
 		newActive := fs.String("active", "", "")
 		newPassword := fs.String("password", "", "")
 		fs.StringVar(newPassword, "pw", "", "")
@@ -892,7 +943,16 @@ func main() {
 		if *subpath == "" && *oldSubpath != "" {
 			*subpath = *oldSubpath
 		}
-		cmdEdit(*subpath, *newSubpath, *newFile, *newUses, *newExpires, *newUpload, *newActive, *newPassword, *clearPassword)
+		setOffice := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == "office" {
+				setOffice = true
+			}
+		})
+		if *newOffice == "off" {
+			*newOffice = shared.OfficeOff
+		}
+		cmdEdit(*subpath, *newSubpath, *newFile, *newUses, *newExpires, *newUpload, *newZip, *newOffice, *newActive, *newPassword, *clearPassword, setOffice)
 
 	// ── enable / disable ─────────────────────────────────────────────────────
 	case "enable":

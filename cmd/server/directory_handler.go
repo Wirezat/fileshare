@@ -22,6 +22,10 @@ var (
 // serveDirectory renders the directory listing, or streams a ZIP if ?download=zip.
 func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if r.URL.Query().Get("download") == "zip" {
+		if ctx.fileData.NoZip {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		zipAndServe(w, ctx.diskPath)
 		return
 	}
@@ -59,6 +63,7 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		Uses:         fd.Uses,
 		Expiration:   fd.Expiration,
 		AllowPost:    fd.AllowPost,
+		AllowZip:     !fd.NoZip,
 		IsEmpty:      len(files) == 0,
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)

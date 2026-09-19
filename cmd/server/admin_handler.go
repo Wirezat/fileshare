@@ -120,6 +120,10 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "subpath and path are required", http.StatusBadRequest)
 			return
 		}
+		if !shared.ValidOffice(req.Office) {
+			http.Error(w, "office must be empty, view or edit", http.StatusBadRequest)
+			return
+		}
 		// Hash the share password before storing, if one was provided.
 		if req.FileData.Password != "" {
 			hashed, err := shared.HashPassword(req.FileData.Password)
@@ -157,6 +161,8 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			Uses       *int    `json:"uses"`
 			Expiration *int64  `json:"expiration"`
 			AllowPost  *bool   `json:"allow_post"`
+			NoZip      *bool   `json:"no_zip"`
+			Office     *string `json:"office"`
 			Expired    *bool   `json:"expired"`
 			Password   *string `json:"password"`
 		}
@@ -203,6 +209,20 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		if patch.AllowPost != nil {
 			track("allow_post", strconv.FormatBool(*patch.AllowPost))
 			entry.AllowPost = *patch.AllowPost
+		}
+
+		if patch.NoZip != nil {
+			track("no_zip", strconv.FormatBool(*patch.NoZip))
+			entry.NoZip = *patch.NoZip
+		}
+
+		if patch.Office != nil {
+			if !shared.ValidOffice(*patch.Office) {
+				http.Error(w, "office must be empty, view or edit", http.StatusBadRequest)
+				return
+			}
+			track("office", *patch.Office)
+			entry.Office = *patch.Office
 		}
 
 		if patch.Expired != nil {

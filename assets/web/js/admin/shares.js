@@ -45,6 +45,9 @@ function fail(err) {
 let shares = {}
 let filterText = ''
 let page = null
+let officeReady = false
+
+const OFFICE_CYCLE = { '': 'view', view: 'edit', edit: '' }
 
 /* ── Cell renderers ──────────────────────────────────────────────────────── */
 
@@ -95,6 +98,21 @@ function renderUpload(_val, row) {
         'shares.value.on', 'shares.value.off', 'shares.hint.toggle_upload')
 }
 
+function renderZip(_val, row) {
+    return toggleBadge(row, 'zip', !row.s.no_zip,
+        'shares.value.on', 'shares.value.off', 'shares.hint.toggle_zip')
+}
+
+function renderOffice(_val, row) {
+    const mode = row.s.office || ''
+    const label = t(`shares.value.office_${mode || 'off'}`)
+    if (!officeReady) {
+        return `<span class="badge td-faint" title="${esc(t('shares.hint.office_unconfigured'))}">${esc(label)}</span>`
+    }
+    return `<button class="badge ${mode ? 'badge-success' : ''}" data-act="office"`
+        + ` data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.cycle_office'))}">${esc(label)}</button>`
+}
+
 /* Status badge variants; only the flag-controlled states render as a button. */
 const STATUS = {
     manual: { label: 'shares.value.off', hint: 'shares.hint.activate', clickable: true },
@@ -125,6 +143,8 @@ const COLUMNS = [
     { key: 'uses',    labelKey: 'shares.col.uses',    cls: 'cell-editable col-narrow', render: renderUses },
     { key: 'expires', labelKey: 'shares.col.expires', cls: 'cell-editable col-narrow', render: renderExpires },
     { key: 'upload',  labelKey: 'shares.col.upload',  render: renderUpload },
+    { key: 'zip',     labelKey: 'shares.col.zip',     render: renderZip },
+    { key: 'office',  labelKey: 'shares.col.office',  render: renderOffice },
     { key: 'status',  labelKey: 'shares.col.status',  render: renderStatus },
 ]
 
@@ -208,12 +228,36 @@ function newShareForm() {
             `<input class="input" name="password" type="password" autocomplete="new-password">`,
             'shares.form.password_hint'),
     )
-    const check = document.createElement('label')
-    check.className = 'check-item'
-    check.innerHTML = `<input type="checkbox" name="allow_post">`
-    check.append(document.createTextNode(t('shares.form.allow_post')))
-    node.appendChild(check)
+    node.append(
+        checkItem('allow_post', 'shares.form.allow_post', false),
+        checkItem('allow_zip', 'shares.form.allow_zip', true),
+        officeField(),
+    )
     return node
+}
+
+function checkItem(name, labelKey, checked) {
+    const label = document.createElement('label')
+    label.className = 'check-item'
+    label.innerHTML = `<input type="checkbox" name="${esc(name)}"${checked ? ' checked' : ''}>`
+    label.append(document.createTextNode(t(labelKey)))
+    return label
+}
+
+function officeField() {
+    const opts = ['', 'view', 'edit'].map(mode =>
+        `<button type="button" class="radio-opt${mode ? '' : ' active'}" data-office="${mode}"`
+        + `${officeReady || !mode ? '' : ' disabled'}>${esc(t(`shares.value.office_${mode || 'off'}`))}</button>`,
+    ).join('')
+    const wrap = field('shares.form.office', `<div class="radio-group" data-office-group>${opts}</div>`,
+        officeReady ? null : 'shares.hint.office_unconfigured')
+    const group = wrap.querySelector('[data-office-group]')
+    group.addEventListener('click', e => {
+        const btn = e.target.closest('[data-office]')
+        if (!btn || btn.disabled) return
+        group.querySelectorAll('.radio-opt').forEach(b => b.classList.toggle('active', b === btn))
+    })
+    return wrap
 }
 
 /* ── Actions ─────────────────────────────────────────────────────────────── */
@@ -245,6 +289,8 @@ function openNewShare() {
                         uses: parseInt(get('uses').value, 10) || -1,
                         expiration: localInputToTs(get('expiration').value),
                         allow_post: get('allow_post').checked,
+                        no_zip: !get('allow_zip').checked,
+                        office: node.querySelector('[data-office].active').dataset.office,
                     }
                     const pw = get('password').value
                     if (pw) body.password = pw
@@ -365,6 +411,8 @@ function wireTable(el) {
         switch (target.dataset.act) {
             case 'password': openPasswordModal(sub); break
             case 'upload':   patchShare(sub, { allow_post: !shares[sub].allow_post }, true); break
+            case 'zip':      patchShare(sub, { no_zip: !shares[sub].no_zip }, true); break
+            case 'office':   patchShare(sub, { office: OFFICE_CYCLE[shares[sub].office || ''] }, true); break
             case 'status':   patchShare(sub, { expired: !shares[sub].expired }, true); break
             case 'expires':  editExpiration(target, sub); break
         }
@@ -395,6 +443,11 @@ function wireTable(el) {
 /* ── Boot ────────────────────────────────────────────────────────────────── */
 
 await bootChrome()
+
+officeReady = await apiFetch('/admin/api/settings/office')
+    .then(r => r.json())
+    .then(o => Boolean(o.office_url && o.secret_set))
+    .catch(() => false)
 
 page = renderPage({
     pageHeader: {

@@ -16,8 +16,6 @@ var configDefaults = Config{
 	MaxPostSize:            94371840,
 	ChunkInactivityTimeout: 1800,
 	AdminUsername:          "admin",
-	// AdminPassword intentionally has no default.
-	// A blank password means the user will be redirected to a setup page to set a password on first run.
 }
 
 // FileInfo holds the name, path, type, and size of a file or directory.
@@ -28,6 +26,18 @@ type FileInfo struct {
 	Size  int64 // bytes; 0 for directories
 }
 
+// Office modes a share can grant for documents.
+const (
+	OfficeOff  = ""
+	OfficeView = "view"
+	OfficeEdit = "edit"
+)
+
+// ValidOffice reports whether mode is one of the office modes.
+func ValidOffice(mode string) bool {
+	return mode == OfficeOff || mode == OfficeView || mode == OfficeEdit
+}
+
 // FileData holds the sharing configuration for a single share.
 type FileData struct {
 	Path       string `json:"path"`
@@ -36,6 +46,8 @@ type FileData struct {
 	Expiration int64  `json:"expiration"`
 	Expired    bool   `json:"expired"`
 	AllowPost  bool   `json:"allow_post"`
+	NoZip      bool   `json:"no_zip,omitempty"`
+	Office     string `json:"office,omitempty"`
 	Password   string `json:"password"`
 }
 
@@ -107,8 +119,6 @@ func SaveConfig(cfg *Config) error {
 }
 
 // SaveConfigTo writes atomically: encodes to a temp file first, then renames.
-// The temp file is created in the same directory as path so the rename is
-// guaranteed to stay on the same filesystem (cross-device rename would fail).
 func SaveConfigTo(path string, config *Config) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".data.json.tmp*")
