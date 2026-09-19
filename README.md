@@ -10,8 +10,9 @@ Because there were no proper tools that were able to do this in a simple way wit
 - **Web admin UI** — manage all shares from a browser, no terminal required
 - **Password-protected shares** — per-share passwords with token-based sessions
 - **Upload support** — allow others to upload files into a share via chunked upload
+- **Office documents** — view or edit Word, Excel and PowerPoint files in the browser through an ONLYOFFICE-compatible document server
 - **Expiration** — time-based or use-count-based share limits
-- **Directory listing** — browse folders and download as ZIP
+- **Directory listing** — browse folders, preview media and PDFs, download as ZIP (per share switchable)
 - **Live log viewer** — stream server logs in real time from the admin UI
 - **Dark mode** — persisted per browser
 - **CLI tool** — full share management from the command line for scripting and remote access
@@ -23,6 +24,13 @@ Because there were no proper tools that were able to do this in a simple way wit
 ### 1. Install
 
 Just use the installer provided in the release. If you want to build it yourself, the install script is the same I've used in the development process, you can find it in the same place in the code itself.
+
+```sh
+sudo bash scripts/fileshare-installer.sh              # menu: install / update / uninstall
+bash scripts/fileshare-installer.sh --remote user@host # same, but on another machine over ssh
+```
+
+Install builds both binaries, deploys to `/opt/fileshare`, sets up the systemd unit and prints the setup code you need next. Update rebuilds and redeploys without touching `data.json`. Uninstall offers to keep a copy of `data.json` before removing everything.
 
 The web UI lives in a submodule ([wirezatUI](https://github.com/Wirezat/wirezatui)), so clone with it:
 
@@ -63,6 +71,8 @@ Create and manage all shares from the shares tab. Each share maps a public URL s
 | Max uses | How many times the share can be accessed. `-1` for unlimited. |
 | Expires | Optional expiration date and time. |
 | Allow uploads | Let visitors upload files into this share's directory. |
+| ZIP download | Offer the folder as a single ZIP. On by default; switch it off for very large folders. |
+| Office | `off`, `view` or `edit` — how office documents in this share open. Greyed out until a document server is configured under Settings. |
 | Password | Optionally protect the share with a password. |
 
 Shares can be edited, disabled, re-enabled, and deleted inline from the table. A disabled share remains in the list but is inaccessible until re-enabled.
@@ -77,6 +87,7 @@ Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filter
 |---|---|
 | Change username | Updates the admin username. Requires the current password, and ends every other session. |
 | Change password | Updates the admin password (stored as an Argon2id hash). Requires the current password, and ends every other session. |
+| Office integration | Address of your document server and the shared secret it signs requests with. See [Office documents](#office-documents). |
 | Delete expired shares | Permanently removes all expired shares from `data.json`. |
 
 ---
@@ -86,7 +97,8 @@ Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filter
 ### Accessing a share
 
 - `http://host/<subpath>` — serves the file directly or shows a directory listing.
-- Directories can be downloaded as a ZIP via the `?download=zip` query parameter.
+- Images, video and audio preview in place; PDFs open in the browser's own viewer. Every card and table row has a download control, and `?dl=1` on any file URL always returns the raw file.
+- Directories can be downloaded as a ZIP via the `?download=zip` query parameter, unless the share has ZIP switched off.
 - If the share has a password, visitors are shown a password gate before accessing the content.
 
 ### Password-protected shares
@@ -96,6 +108,18 @@ Entering the correct password sets a session cookie scoped to that subpath. The 
 ### Uploads
 
 When a share has uploads enabled, visitors can drag and drop files onto the listing page. Uploads use a chunked protocol with crash-safe resume support.
+
+### Office documents
+
+fileshare can hand `.docx`, `.xlsx`, `.pptx` (and their `.doc`/`.xls`/`.ppt` and OpenDocument cousins) to an ONLYOFFICE-compatible document server — ONLYOFFICE Docs, EuroOffice or any fork that keeps the API — and embed the editor in its own page. Nothing is installed on the fileshare side; you point it at a server you already run.
+
+**Setup.** Under `/admin/settings` enter the server's public address (the one browsers can reach) and the secret it signs requests with — the `JWT_SECRET` of the document server. Both must be set before the Office switch on a share does anything.
+
+**Per share.** `view` opens documents read-only, `edit` lets visitors change and save them. `off` downloads them like any other file. A share with a password works the same way: visitors unlock it as usual, and the document server authenticates itself with its own signed token, so it needs no password.
+
+**How saving works.** The document server fetches the file from fileshare, and when an editor closes with changes it posts a callback. fileshare checks the signature, only ever downloads the saved version from the configured server address, and swaps it in atomically. Anyone who can reach an `edit` share can overwrite its documents — that is the point of `edit`, so hand those links out accordingly. If a file is replaced by upload while someone has it open, the last save wins.
+
+**Networking.** The document server must be able to reach fileshare's public address from inside its own network. Behind a NAT router that does not hairpin, a container typically cannot — for a Podman or Docker setup, add fileshare's hostname to the container's `extra_hosts` pointing at the host gateway, the same way you would for Nextcloud. `ALLOW_PRIVATE_IP_ADDRESS=true` on the document server is needed for that route.
 
 ---
 
@@ -118,7 +142,7 @@ fileshare <command> [options]
 | `list` | Show all shares with status, expiration, upload flag, and password indicator. |
 | `add` | Create a new share. |
 | `delete` | Delete a share. |
-| `edit` | Edit an existing share (path, subpath, uses, expiration, upload, active state, password). |
+| `edit` | Edit an existing share (path, subpath, uses, expiration, upload, zip, office, active state, password). |
 | `enable` | Re-enable a disabled share. |
 | `disable` | Disable a share without deleting it. |
 | `prune` | Delete all expired shares permanently. |
@@ -137,12 +161,14 @@ fileshare list --json
 fileshare add -f /srv/files/report.pdf -s report -e 7d -u 10
 fileshare add -f /srv/uploads -upload           # random subpath, uploads enabled
 fileshare add -f /srv/secret.zip -pw hunter2   # password-protected
+fileshare add -f /srv/docs -office view -zip=false   # office viewer on, no ZIP button
 
 # Edit a share
 fileshare edit -s report -e 30d -u 50
 fileshare edit -s report -pw newpassword
 fileshare edit -s report -clear-password
 fileshare edit -s report -active=false         # disable without deleting
+fileshare edit -s docs -office edit            # off / view / edit
 
 # Enable / disable
 fileshare disable -s report

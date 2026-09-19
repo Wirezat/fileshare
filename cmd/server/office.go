@@ -232,9 +232,9 @@ func serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestConte
 		return
 	}
 
-	parent := filepath.Dir(r.URL.Path)
-	if parent == "/"+ctx.subpath || parent == "." {
-		parent = "/" + ctx.subpath
+	parent := ""
+	if ctx.diskPath != ctx.fileData.Path {
+		parent = filepath.Dir(r.URL.Path)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -302,7 +302,7 @@ func handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	diskPath := filepath.Join(fd.Path, strings.TrimPrefix(r.URL.Path, "/"+subpath))
-	if diskPath == fd.Path || !strings.HasPrefix(diskPath, fd.Path+"/") {
+	if diskPath != fd.Path && !strings.HasPrefix(diskPath, fd.Path+"/") {
 		dsReply(w, http.StatusForbidden, 1)
 		return
 	}
@@ -349,6 +349,9 @@ func replaceFromURL(path, url string, limit int64) error {
 	info, err := os.Stat(target)
 	if err != nil {
 		return err
+	}
+	if info.IsDir() {
+		return errors.New("save target is a directory")
 	}
 	if limit <= 0 {
 		limit = 1 << 30

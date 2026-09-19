@@ -24,7 +24,6 @@
         .office-shell .header { flex: none; }
         .office-frame { flex: 1; min-height: 0; }
         .office-frame iframe { width: 100%; height: 100%; border: none; }
-        .header-file { color: var(--text-muted); font-size: var(--text-sm); margin-left: var(--gap-item); }
     </style>
 </head>
 
@@ -32,7 +31,7 @@
 
     <header class="header">
         <span class="header-brand">
-            <a class="header-logo" href="{{.ParentURL}}" title="/{{.Subpath}}">📂</a>
+            {{if .ParentURL}}<a class="header-logo" href="{{.ParentURL}}" title="/{{.Subpath}}">📂</a>{{else}}<span class="header-logo">📂</span>{{end}}
             <span>{{.Title}}</span>
         </span>
         <div class="header-right">

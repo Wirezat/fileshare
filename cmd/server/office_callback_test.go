@@ -174,3 +174,67 @@ func TestViewShareGetsNoCallback(t *testing.T) {
 		t.Error("view config carries a callbackUrl")
 	}
 }
+
+func withSingleFileShare(t *testing.T, officeURL string) string {
+	t.Helper()
+	dir := t.TempDir()
+	file := filepath.Join(dir, "vertrag.docx")
+	os.WriteFile(file, []byte(docBytes), 0o600)
+	cfg := &shared.Config{
+		AdminUsername: "admin", AdminPassword: testAdminHash,
+		OfficeURL: officeURL, OfficeSecret: testSecret,
+		Files: map[string]shared.FileData{"vertrag": {Path: file, Uses: -1, Office: shared.OfficeEdit}},
+	}
+	if err := shared.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	prev := officeHtmlPath
+	officeHtmlPath = "../../assets/web/html/office.html"
+	t.Cleanup(func() {
+		officeHtmlPath = prev
+		shared.SaveConfig(&shared.Config{AdminUsername: "admin", AdminPassword: testAdminHash, Files: map[string]shared.FileData{}})
+		os.Remove("data.json")
+	})
+	return file
+}
+
+func TestSingleFileShareRoundTrip(t *testing.T) {
+	ds := fakeDS(t, "signed version")
+	file := withSingleFileShare(t, ds.URL)
+
+	page := get(t, "/vertrag").Body.String()
+	for _, want := range []string{`"mode":"edit"`, `"url":"http://example.com/vertrag?dl=1"`, `"callbackUrl":"http://example.com/vertrag?callback=1"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("viewer lacks %s", want)
+		}
+	}
+	if strings.Contains(page, `href="/"`) {
+		t.Error("viewer links back to the server root, which is not a listing")
+	}
+
+	if rec := get(t, "/vertrag?dl=1"); rec.Body.String() != docBytes {
+		t.Fatalf("dl served %q", rec.Body.String())
+	}
+
+	rec := callback(t, "/vertrag?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)
+	if rec.Code != http.StatusOK || dsError(t, rec) != 0 {
+		t.Fatalf("callback: status %d, body %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := os.ReadFile(file); string(got) != "signed version" {
+		t.Errorf("file = %q, want the saved version", got)
+	}
+}
+
+func TestCallbackRefusesToWriteADirectory(t *testing.T) {
+	ds := fakeDS(t, "x")
+	dir := withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, ds.URL, testSecret)
+	os.Mkdir(filepath.Join(dir, "ordner.docx"), 0o755)
+
+	rec := callback(t, "/docs/ordner.docx?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)
+	if rec.Code == http.StatusOK {
+		t.Error("callback accepted a directory as save target")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "ordner.docx")); err != nil {
+		t.Error("directory vanished")
+	}
+}
