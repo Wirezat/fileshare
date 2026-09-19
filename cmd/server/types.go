@@ -47,6 +47,7 @@ type PageData struct {
 	Expiration   int64
 	AllowPost    bool
 	AllowZip     bool
+	Office       bool
 	IsEmpty      bool
 }
 

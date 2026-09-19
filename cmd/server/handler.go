@@ -77,8 +77,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		return nil, false
 	}
 
-	// Password gate — checked after expiry so expired shares still 410 first.
-	if fileData.Password != "" && !hasPasswordCookie(r, subpath) {
+	if fileData.Password != "" && !hasPasswordCookie(r, subpath) && !dsTokenAllows(r, config.OfficeSecret) {
 		serveGatePage(w, gateData{
 			Subpath:    subpath,
 			FormAction: "/" + subpath + "/unlock",
@@ -140,9 +139,12 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		}
 	}
 
-	if ctx.fileInfo.IsDir() {
+	switch {
+	case ctx.fileInfo.IsDir():
 		serveDirectory(w, r, ctx)
-	} else {
+	case officeWanted(r, ctx):
+		serveOfficeViewer(w, r, ctx)
+	default:
 		serveShareFile(w, r, ctx.diskPath)
 	}
 }

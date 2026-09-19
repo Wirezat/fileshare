@@ -1,0 +1,60 @@
+{{define "office"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{.Title}}</title>
+    <meta name="robots" content="noindex" />
+
+    <link rel="stylesheet" href="/static/ui/index.css" />
+    <link rel="stylesheet" href="/static/theme.css" />
+
+    <script>
+        (function () {
+            const s = localStorage.getItem('theme');
+            if (s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches))
+                document.documentElement.classList.add('dark');
+        })();
+    </script>
+
+    <style>
+        .office-shell { display: flex; flex-direction: column; height: 100vh; }
+        .office-shell .header { flex: none; }
+        .office-frame { flex: 1; min-height: 0; }
+        .office-frame iframe { width: 100%; height: 100%; border: none; }
+        .header-file { color: var(--text-muted); font-size: var(--text-sm); margin-left: var(--gap-item); }
+    </style>
+</head>
+
+<body class="app-shell office-shell">
+
+    <header class="header">
+        <span class="header-brand">
+            <a class="header-logo" href="{{.ParentURL}}" title="/{{.Subpath}}">📂</a>
+            <span>{{.Title}}</span>
+        </span>
+        <div class="header-right">
+            <a class="btn btn-ghost btn-sm" href="{{.DownloadURL}}" download>Download</a>
+            <button class="btn btn-icon btn-sm btn-toggle" id="theme-toggle" onclick="toggleTheme()"
+                title="Toggle theme">🌙</button>
+        </div>
+    </header>
+
+    <div class="office-frame" id="office"></div>
+
+    <script src="{{.APIScript}}"></script>
+    <script>
+        new DocsAPI.DocEditor("office", {{.Config}});
+
+        function toggleTheme() {
+            const dark = !document.documentElement.classList.contains('dark');
+            document.documentElement.classList.toggle('dark', dark);
+            localStorage.setItem('theme', dark ? 'dark' : 'light');
+        }
+    </script>
+</body>
+
+</html>
+{{end}}

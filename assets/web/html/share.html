@@ -142,12 +142,12 @@
                 {{range .Files}}
                 <li class="file-card" data-name="{{.Name}}" data-size="{{.Size}}"
                     data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}>
-                    <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}"{{if not .IsDir}} download{{end}}>
+                    <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (and $.Office (officeDoc .Name)))}} download{{end}}>
                         <span class="card-icon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
                         <span class="card-ext"></span>
                     </a>
                     <div class="card-name" title="{{.Name}}">
-                        <a href="/{{$.Subpath}}{{.Path}}"{{if not .IsDir}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
+                        <a href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (and $.Office (officeDoc .Name)))}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
                         <span class="card-size"></span>
                     </div>
                 </li>
@@ -165,7 +165,7 @@
                     <tr class="file-row" data-name="{{.Name}}" data-size="{{.Size}}"
                         data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}>
                         <td class="row-icon">{{if .IsDir}}📁{{else}}📄{{end}}</td>
-                        <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}"{{if not .IsDir}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
+                        <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (and $.Office (officeDoc .Name)))}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
                         <td class="row-type"></td>
                         <td class="row-size col-narrow"></td>
                     </tr>
