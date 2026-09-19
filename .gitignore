@@ -19,3 +19,6 @@ diff.txt
 # IDE
 .idea/
 .vscode/
+
+# Playwright MCP artifacts
+.playwright-mcp/

@@ -46,6 +46,8 @@ type Config struct {
 	ChunkInactivityTimeout int                 `json:"chunkInactivityTimeout"`
 	AdminUsername          string              `json:"admin_username"`
 	AdminPassword          string              `json:"admin_password"`
+	OfficeURL              string              `json:"office_url,omitempty"`
+	OfficeSecret           string              `json:"office_secret,omitempty"`
 	Files                  map[string]FileData `json:"files"`
 }
 

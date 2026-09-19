@@ -1,6 +1,5 @@
-/* fileshare / admin/settings.js — admin credentials and destructive upkeep.
-   Three containers: username, password, danger zone. Field markup is built
-   from wui's form classes.
+/* fileshare / admin/settings.js — admin credentials, office integration and
+   destructive upkeep. Field markup is built from wui's form classes.
 */
 
 import { renderPage, showModal } from '/static/ui/js/wui.js'
@@ -46,15 +45,17 @@ async function submitCredential(node, url, payload, doneKey) {
     }
 }
 
-function actions(labelKey, onClick) {
+function actions(...buttons) {
     const bar = document.createElement('div')
     bar.className = 'form-actions'
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'btn btn-primary'
-    btn.textContent = t(labelKey)
-    btn.addEventListener('click', onClick)
-    bar.appendChild(btn)
+    for (const { labelKey, variant = 'primary', onClick } of buttons) {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = `btn btn-${variant}`
+        btn.textContent = t(labelKey)
+        btn.addEventListener('click', onClick)
+        bar.appendChild(btn)
+    }
     return bar
 }
 
@@ -76,14 +77,14 @@ function usernameForm() {
         description('settings.username.desc'),
         field('settings.current', passwordInput('current')),
         field('settings.username.new', `<input class="input" name="username" autocomplete="off">`),
-        actions('settings.username.submit', () => {
+        actions({ labelKey: 'settings.username.submit', onClick: () => {
             const current = get('current').value
             const username = get('username').value.trim()
             if (!current) return showToast({ tone: 'danger', messageKey: t('settings.current_required') })
             if (!username) return showToast({ tone: 'danger', messageKey: t('settings.username.empty') })
             submitCredential(node, '/admin/api/settings/username',
                 { current_password: current, new_username: username }, 'settings.username.done')
-        }),
+        } }),
     )
     return node
 }
@@ -105,7 +106,7 @@ function passwordForm() {
         field('settings.current', passwordInput('current')),
         field('settings.password.new', passwordInput('next')),
         confirmField,
-        actions('settings.password.submit', () => {
+        actions({ labelKey: 'settings.password.submit', onClick: () => {
             const current = get('current').value
             const next = get('next').value
             const confirm = get('confirm').value
@@ -114,7 +115,7 @@ function passwordForm() {
             if (next !== confirm) return showToast({ tone: 'danger', messageKey: t('settings.password.mismatch') })
             submitCredential(node, '/admin/api/settings/password',
                 { current_password: current, new_password: next }, 'settings.password.done')
-        }),
+        } }),
     )
 
     const marker = node.querySelector('[data-match]')
@@ -144,16 +145,9 @@ function dangerZone() {
     alert.className = 'alert danger'
     alert.innerHTML = `<span class="alert-icon">⚠</span><span>${esc(t('settings.danger.prune_warning'))}</span>`
 
-    const bar = document.createElement('div')
-    bar.className = 'form-actions'
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'btn btn-danger'
-    btn.textContent = t('settings.danger.prune')
-    btn.addEventListener('click', confirmPrune)
-    bar.appendChild(btn)
-
-    node.append(alert, bar)
+    node.append(alert, actions(
+        { labelKey: 'settings.danger.prune', variant: 'danger', onClick: confirmPrune },
+    ))
     return node
 }
 
@@ -180,9 +174,117 @@ function confirmPrune() {
     })
 }
 
+/* ── Office integration ──────────────────────────────────────────────────── */
+
+/* Reads the stored connection. The secret itself never leaves the server, so
+   the response only says whether one exists. */
+async function loadOffice() {
+    try {
+        return await (await apiFetch('/admin/api/settings/office')).json()
+    } catch {
+        return { office_url: '', secret_set: false }
+    }
+}
+
+function officeForm(state) {
+    const node = document.createElement('div')
+    node.className = 'form-stack settings-form'
+    const get = name => node.querySelector(`[name="${name}"]`)
+
+    const urlField = field('settings.office.url',
+        `<input class="input" name="office_url" type="url" autocomplete="off"`
+        + ` placeholder="https://office.example.com" value="${esc(state.office_url)}">`,
+        'settings.office.url_caption')
+
+    const secretField = field('settings.office.secret', passwordInput('office_secret'),
+        'settings.office.secret_stored')
+    const secretCaption = secretField.querySelector('.field-caption')
+
+    const paint = () => {
+        secretCaption.textContent = t(state.secret_set
+            ? 'settings.office.secret_stored'
+            : 'settings.office.secret_missing')
+    }
+
+    async function patch(body) {
+        await apiFetch('/admin/api/settings/office', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        })
+    }
+
+    /* The secret field is left empty to keep the stored one, so it is only sent
+       when the admin actually typed a new one. */
+    async function save() {
+        const url = get('office_url').value.trim()
+        const secret = get('office_secret').value
+        if (!url) return showToast({ tone: 'danger', messageKey: t('settings.office.url_required') })
+        if (!secret && !state.secret_set) {
+            return showToast({ tone: 'danger', messageKey: t('settings.office.secret_required') })
+        }
+        const body = { office_url: url }
+        if (secret) body.office_secret = secret
+        try {
+            await patch(body)
+            state.office_url = url
+            if (secret) {
+                state.secret_set = true
+                get('office_secret').value = ''
+            }
+            paint()
+            ok('settings.office.done')
+        } catch (err) {
+            fail(err)
+        }
+    }
+
+    function confirmRemove() {
+        showModal({
+            preset: 'danger-confirm',
+            titleKey: 'settings.office.title',
+            messageKey: 'settings.office.remove_confirm',
+            actions: [
+                { labelKey: 'common.cancel', variant: 'ghost' },
+                {
+                    labelKey: 'common.delete',
+                    variant: 'danger',
+                    onClick: async () => {
+                        try {
+                            await patch({ office_url: '', office_secret: '' })
+                            state.office_url = ''
+                            state.secret_set = false
+                            get('office_url').value = ''
+                            get('office_secret').value = ''
+                            paint()
+                            ok('settings.office.removed')
+                        } catch (err) {
+                            fail(err)
+                        }
+                    },
+                },
+            ],
+        })
+    }
+
+    node.append(
+        description('settings.office.desc'),
+        urlField,
+        secretField,
+        actions(
+            { labelKey: 'settings.office.submit', onClick: save },
+            { labelKey: 'settings.office.remove', variant: 'danger', onClick: confirmRemove },
+        ),
+    )
+    paint()
+    return node
+}
+
 /* ── Boot ────────────────────────────────────────────────────────────────── */
 
 await bootChrome()
+
+const office = await loadOffice()
 
 renderPage({
     pageHeader: {
@@ -192,6 +294,7 @@ renderPage({
     main: [
         { id: 'username', title: 'settings.username.title', content: { type: 'raw', node: usernameForm() } },
         { id: 'password', title: 'settings.password.title', content: { type: 'raw', node: passwordForm() } },
+        { id: 'office',   title: 'settings.office.title',   content: { type: 'raw', node: officeForm(office) } },
         { id: 'danger',   title: 'settings.danger.title',   content: { type: 'raw', node: dangerZone() } },
     ],
 })
