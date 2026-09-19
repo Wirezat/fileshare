@@ -129,6 +129,21 @@ html.dark .header-logo {
     margin-bottom: var(--gap-inline);
 }
 
+.pw-reveal {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-faint);
+}
+
+.pw-reveal:hover { color: var(--text); }
+
 .settings-form .field,
 .settings-form .form-actions,
 .settings-form .alert {

@@ -18,7 +18,32 @@ function field(labelKey, inputHTML, captionKey) {
 }
 
 function passwordInput(name) {
-    return `<input class="input" type="password" name="${esc(name)}" autocomplete="off">`
+    return `<div class="input-wrap">`
+        + `<input class="input has-end-icon" type="password" name="${esc(name)}" autocomplete="off" data-pw>`
+        + `<button type="button" class="pw-reveal" tabindex="-1" data-reveal`
+        + ` aria-label="${esc(t('settings.reveal'))}">\u{1F441}</button>`
+        + `</div>`
+}
+
+/* Wires every reveal button in a form. The input is focused afterwards, which
+   also clears a stored-secret placeholder sitting in it. */
+function wireReveals(node) {
+    for (const btn of node.querySelectorAll('[data-reveal]')) {
+        const input = btn.parentElement.querySelector('input')
+        btn.addEventListener('click', () => {
+            const hidden = input.type === 'password'
+            input.type = hidden ? 'text' : 'password'
+            btn.textContent = hidden ? '\u{1F648}' : '\u{1F441}'
+            input.focus()
+        })
+    }
+}
+
+function resetReveals(node) {
+    for (const btn of node.querySelectorAll('[data-reveal]')) {
+        btn.parentElement.querySelector('input').type = 'password'
+        btn.textContent = '\u{1F441}'
+    }
 }
 
 function ok(messageKey) {
@@ -39,6 +64,7 @@ async function submitCredential(node, url, payload, doneKey) {
         })
         node.querySelectorAll('input').forEach(i => { i.value = '' })
         node.querySelectorAll('.end-icon').forEach(i => { i.textContent = '' })
+        resetReveals(node)
         ok(doneKey)
     } catch (err) {
         fail(err)
@@ -74,7 +100,6 @@ function usernameForm() {
     const get = name => node.querySelector(`[name="${name}"]`)
 
     node.append(
-        description('settings.username.desc'),
         field('settings.current', passwordInput('current')),
         field('settings.username.new', `<input class="input" name="username" autocomplete="off">`),
         actions({ labelKey: 'settings.username.submit', onClick: () => {
@@ -86,6 +111,7 @@ function usernameForm() {
                 { current_password: current, new_username: username }, 'settings.username.done')
         } }),
     )
+    wireReveals(node)
     return node
 }
 
@@ -132,6 +158,7 @@ function passwordForm() {
     get('next').addEventListener('input', check)
     get('confirm').addEventListener('input', check)
 
+    wireReveals(node)
     return node
 }
 
@@ -174,6 +201,8 @@ function confirmPrune() {
     })
 }
 
+const SECRET_PLACEHOLDER = '\u2022'.repeat(24)
+
 /* ── Office integration ──────────────────────────────────────────────────── */
 
 /* Reads the stored connection. The secret itself never leaves the server, so
@@ -193,18 +222,26 @@ function officeForm(state) {
 
     const urlField = field('settings.office.url',
         `<input class="input" name="office_url" type="url" autocomplete="off"`
-        + ` placeholder="https://office.example.com" value="${esc(state.office_url)}">`,
-        'settings.office.url_caption')
+        + ` placeholder="https://office.example.com" value="${esc(state.office_url)}">`)
 
-    const secretField = field('settings.office.secret', passwordInput('office_secret'),
-        'settings.office.secret_stored')
-    const secretCaption = secretField.querySelector('.field-caption')
+    const secretField = field('settings.office.secret', passwordInput('office_secret'))
 
+    /* A stored secret never reaches the browser, so the field shows a
+       placeholder of the same shape a saved password has. Focusing clears it
+       for typing; leaving it untouched puts it back, so a stray click does not
+       read as a deletion. */
     const paint = () => {
-        secretCaption.textContent = t(state.secret_set
-            ? 'settings.office.secret_stored'
-            : 'settings.office.secret_missing')
+        const el = get('office_secret')
+        if (state.secret_set) {
+            el.value = SECRET_PLACEHOLDER
+            el.dataset.stored = '1'
+        } else {
+            el.value = ''
+            delete el.dataset.stored
+        }
     }
+
+    const typed = () => (get('office_secret').dataset.stored ? '' : get('office_secret').value)
 
     async function patch(body) {
         await apiFetch('/admin/api/settings/office', {
@@ -218,7 +255,7 @@ function officeForm(state) {
        when the admin actually typed a new one. */
     async function save() {
         const url = get('office_url').value.trim()
-        const secret = get('office_secret').value
+        const secret = typed()
         if (!url) return showToast({ tone: 'danger', messageKey: t('settings.office.url_required') })
         if (!secret && !state.secret_set) {
             return showToast({ tone: 'danger', messageKey: t('settings.office.secret_required') })
@@ -228,10 +265,7 @@ function officeForm(state) {
         try {
             await patch(body)
             state.office_url = url
-            if (secret) {
-                state.secret_set = true
-                get('office_secret').value = ''
-            }
+            if (secret) state.secret_set = true
             paint()
             ok('settings.office.done')
         } catch (err) {
@@ -255,7 +289,6 @@ function officeForm(state) {
                             state.office_url = ''
                             state.secret_set = false
                             get('office_url').value = ''
-                            get('office_secret').value = ''
                             paint()
                             ok('settings.office.removed')
                         } catch (err) {
@@ -276,6 +309,19 @@ function officeForm(state) {
             { labelKey: 'settings.office.remove', variant: 'danger', onClick: confirmRemove },
         ),
     )
+
+    const secretEl = get('office_secret')
+    secretEl.addEventListener('focus', () => {
+        if (secretEl.dataset.stored) {
+            secretEl.value = ''
+            delete secretEl.dataset.stored
+        }
+    })
+    secretEl.addEventListener('blur', () => {
+        if (state.secret_set && secretEl.value === '') paint()
+    })
+
+    wireReveals(node)
     paint()
     return node
 }
