@@ -186,9 +186,22 @@ button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
     pointer-events: none;
 }
 
+.file-card:hover .overlay { display: flex; }
+
 .file-card .overlay .download-button {
     pointer-events: auto;
 }
+
+.file-card-inline .card-preview-icon { color: var(--accent); }
+.file-card-inline .card-ext { color: var(--accent); }
+.file-row-inline .row-type { color: var(--accent); }
+
+.row-download {
+    color: var(--text-faint);
+    text-decoration: none;
+    font-size: var(--text-md);
+}
+.row-download:hover { color: var(--text); }
 
 .lightbox {
     display: none;

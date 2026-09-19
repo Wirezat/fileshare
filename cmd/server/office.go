@@ -39,6 +39,12 @@ func officeExt(name string) string {
 	return strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
 }
 
+// opensInline reports whether clicking a file shows it instead of saving it:
+// PDFs always, office documents when the share has office enabled.
+func opensInline(office bool, name string) bool {
+	return officeExt(name) == "pdf" || (office && officeDocType(name) != "")
+}
+
 // officeDocKey identifies one revision of a file to the document server; it
 // changes whenever the file's size or modification time does.
 func officeDocKey(path string, info os.FileInfo) string {

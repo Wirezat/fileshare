@@ -57,10 +57,29 @@ const MEDIA_KIND = {
 
 const KIND_ICON = {
     zip: "📦", rar: "📦", "7z": "📦", tar: "📦", gz: "📦",
-    pdf: "📄", doc: "📄", docx: "📄",
-    xls: "📊", xlsx: "📊", csv: "📊",
+    pdf: "📄", doc: "📄", docx: "📄", odt: "📄",
+    xls: "📊", xlsx: "📊", ods: "📊", csv: "📊",
+    ppt: "📽️", pptx: "📽️", odp: "📽️",
     txt: "📝", md: "📝", log: "📝",
 };
+
+const OFFICE_EXT = new Set(["docx", "doc", "odt", "xlsx", "xls", "ods", "pptx", "ppt", "odp"]);
+const officeOn = document.querySelector(".file-grid")?.hasAttribute("data-office") ?? false;
+
+const opensInline = ext => ext === "pdf" || (officeOn && OFFICE_EXT.has(ext));
+
+function downloadOverlay(href) {
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    const btn = document.createElement("a");
+    btn.className = "btn btn-primary btn-sm download-button";
+    btn.href = href + "?dl=1";
+    btn.download = "";
+    btn.textContent = "Download";
+    btn.addEventListener("click", e => e.stopPropagation());
+    overlay.appendChild(btn);
+    return overlay;
+}
 
 function hydrateCards() {
     document.querySelectorAll(".file-card").forEach(card => {
@@ -80,8 +99,11 @@ function hydrateCards() {
         const kind = MEDIA_KIND[ext];
 
         if (!kind) {
-            card.querySelector(".card-icon").textContent = KIND_ICON[ext] ?? "📎";
+            const inline = opensInline(ext);
+            card.classList.toggle("file-card-inline", inline);
+            card.querySelector(".card-icon").textContent = inline ? "📖" : (KIND_ICON[ext] ?? "📎");
             card.querySelector(".card-ext").textContent = fileTypeLabel(name);
+            card.appendChild(downloadOverlay(href));
             return;
         }
 
@@ -121,17 +143,7 @@ function hydrateCards() {
             preview.replaceChildren(audio);
         }
 
-        if (kind !== "audio") {
-            const overlay = document.createElement("div");
-            overlay.className = "overlay";
-            const btn = document.createElement("a");
-            btn.className = "btn btn-primary btn-sm download-button";
-            btn.href = href;
-            btn.download = "";
-            btn.textContent = "Download";
-            overlay.appendChild(btn);
-            card.appendChild(overlay);
-        }
+        if (kind !== "audio") card.appendChild(downloadOverlay(href));
     });
 }
 
@@ -143,8 +155,20 @@ function hydrateTable() {
     document.querySelectorAll(".file-row").forEach(row => {
         const name = row.dataset.name ?? "";
         const isDir = row.hasAttribute("data-dir");
-        row.querySelector(".row-icon").textContent = isDir ? "📁" : (KIND_ICON[name.split(".").pop().toLowerCase()] ?? "📎");
+        const ext = name.split(".").pop().toLowerCase();
+        const inline = !isDir && (opensInline(ext) || ext in MEDIA_KIND);
+        row.classList.toggle("file-row-inline", inline);
+        row.querySelector(".row-icon").textContent = isDir ? "📁" : inline ? "📖" : (KIND_ICON[ext] ?? "📎");
         row.querySelector(".row-type").textContent = isDir ? "Folder" : fileTypeLabel(name);
+        if (!isDir) {
+            const dl = document.createElement("a");
+            dl.className = "row-download";
+            dl.href = row.dataset.href + "?dl=1";
+            dl.download = "";
+            dl.title = "Download";
+            dl.textContent = "⭳";
+            row.querySelector(".row-dl").appendChild(dl);
+        }
         row.querySelector(".row-size").textContent = isDir ? "" : formatBytes(Number(row.dataset.size ?? 0));
     });
 }
@@ -203,12 +227,8 @@ function initCrumbDropdowns() {
 }
 
 function setupMediaContainer(container) {
-    const overlay = container.querySelector(".overlay");
     const media = container.querySelector("img, video");
     if (media) mediaElements.push(media);
-    container.addEventListener("mouseenter", () => overlay && (overlay.style.display = "flex"));
-    container.addEventListener("mouseleave", () => overlay && (overlay.style.display = "none"));
-    overlay?.querySelector(".download-button")?.addEventListener("click", e => e.stopPropagation());
     if (media) {
         container.addEventListener("click", () => openLightbox(media));
         if (media.tagName === "VIDEO")

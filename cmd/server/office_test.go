@@ -200,3 +200,23 @@ func TestOfficeConfigIsSignedAndReadOnly(t *testing.T) {
 		t.Errorf("permissions.edit = %v, want false", perms["edit"])
 	}
 }
+
+func TestOpensInline(t *testing.T) {
+	cases := []struct {
+		office bool
+		name   string
+		want   bool
+	}{
+		{true, "bericht.docx", true},
+		{false, "bericht.docx", false},
+		{true, "scan.pdf", true},
+		{false, "scan.pdf", true},
+		{true, "notiz.txt", false},
+		{true, "archiv.zip", false},
+	}
+	for _, tc := range cases {
+		if got := opensInline(tc.office, tc.name); got != tc.want {
+			t.Errorf("opensInline(%v, %q) = %v, want %v", tc.office, tc.name, got, tc.want)
+		}
+	}
+}

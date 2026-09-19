@@ -152,7 +152,9 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 // serveShareFile hands out the shared file inside a CSP sandbox, so user-supplied
 // content cannot run script against the admin API on this origin.
 func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
-	w.Header().Set("Content-Security-Policy", "sandbox")
+	if officeExt(diskPath) != "pdf" {
+		w.Header().Set("Content-Security-Policy", "sandbox")
+	}
 	http.ServeFile(w, r, diskPath)
 }
 

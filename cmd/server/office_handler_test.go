@@ -162,3 +162,27 @@ func TestEditModeRendersAsViewForNow(t *testing.T) {
 		t.Error("edit share did not fall back to a read-only viewer")
 	}
 }
+
+func TestPdfIsServedWithoutTheSandbox(t *testing.T) {
+	dir := withOfficeShare(t, shared.FileData{}, "", "")
+	os.WriteFile(filepath.Join(dir, "scan.pdf"), []byte("%PDF-1.4 fake"), 0o600)
+
+	pdf := get(t, "/docs/scan.pdf")
+	if pdf.Code != http.StatusOK || pdf.Header().Get("Content-Security-Policy") != "" {
+		t.Errorf("pdf: status %d, CSP %q, want 200 and no sandbox", pdf.Code, pdf.Header().Get("Content-Security-Policy"))
+	}
+	if ct := pdf.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/pdf") {
+		t.Errorf("pdf Content-Type = %q", ct)
+	}
+
+	txt := get(t, "/docs/notiz.txt")
+	if txt.Header().Get("Content-Security-Policy") != "sandbox" {
+		t.Errorf("txt lost its sandbox: %q", txt.Header().Get("Content-Security-Policy"))
+	}
+
+	os.WriteFile(filepath.Join(dir, "fake.pdf"), []byte("<html><script>alert(1)</script>"), 0o600)
+	fake := get(t, "/docs/fake.pdf")
+	if ct := fake.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/pdf") {
+		t.Errorf("html disguised as .pdf served as %q", ct)
+	}
+}
