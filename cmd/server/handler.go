@@ -26,6 +26,11 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Method == http.MethodPost && r.URL.Query().Get("callback") == "1" {
+		handleOfficeCallback(w, r)
+		return
+	}
+
 	ctx, ok := prepareRequest(w, r)
 	if !ok {
 		return

@@ -154,15 +154,6 @@ func TestPasswordShareOpensForTheDocumentServer(t *testing.T) {
 	}
 }
 
-func TestEditModeRendersAsViewForNow(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, "https://office.example.com", testSecret)
-
-	body := get(t, "/docs/bericht.docx").Body.String()
-	if !strings.Contains(body, `"mode":"view"`) || strings.Contains(body, `"mode":"edit"`) {
-		t.Error("edit share did not fall back to a read-only viewer")
-	}
-}
-
 func TestPdfIsServedWithoutTheSandbox(t *testing.T) {
 	dir := withOfficeShare(t, shared.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "scan.pdf"), []byte("%PDF-1.4 fake"), 0o600)
