@@ -125,11 +125,11 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		return
 	}
 
-	isFileDownload := !ctx.fileInfo.IsDir()
-	isShareRoot := ctx.diskPath == ctx.fileData.Path
-	shouldCount := isShareRoot && (isFileDownload || !hasSessionCookie(r, ctx.subpath))
+	newVisit := r.Method == http.MethodGet &&
+		!hasSessionCookie(r, ctx.subpath) &&
+		!dsTokenAllows(r, ctx.config.OfficeSecret)
 
-	if shouldCount && fd.Uses > 0 {
+	if newVisit && fd.Uses > 0 {
 		fd.Uses--
 		if fd.Uses == 0 {
 			fd.Expired = true
@@ -139,9 +139,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 			GoLog.Errorf("failed to save config: %v", err)
 			return
 		}
-		if !isFileDownload {
-			setSessionCookie(w, ctx.subpath)
-		}
+		setSessionCookie(w, ctx.subpath)
 	}
 
 	switch {

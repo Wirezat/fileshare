@@ -68,7 +68,7 @@ Create and manage all shares from the shares tab. Each share maps a public URL s
 |---|---|
 | Subpath | The URL path, e.g., `docs` → `http://host/docs`. Leave empty for a random value. |
 | Path | Absolute path to the file or folder on the server. |
-| Max uses | How many times the share can be accessed. `-1` for unlimited. |
+| Max uses | How many visits the share allows. A visit is one browser session on the share, however many files it opens; the document server's own requests belong to the visit that started them. `-1` for unlimited. |
 | Expires | Optional expiration date and time. |
 | Allow uploads | Let visitors upload files into this share's directory. |
 | ZIP download | Offer the folder as a single ZIP. On by default; switch it off for very large folders. |
