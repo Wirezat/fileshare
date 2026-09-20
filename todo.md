@@ -4,7 +4,7 @@
 
 - [x] **Filter in der Listing-Seite** — Eingabefeld, das Karten/Zeilen clientseitig nach Name ausblendet.
 - [x] **Auswahl-ZIP** — mehrere Dateien/Ordner anhaken, nur die als ZIP laden. ZIP-Streamer bekommt eine Pfadliste als Parameter.
-- [ ] **Text-/Code-Preview** — `.txt`, `.md`, `.json`, `.log`, Quellcode inline anzeigen statt Download; Markdown gerendert.
+- [x] **Text-/Code-Preview** — `.txt`, `.md`, `.json`, `.log`, Quellcode inline anzeigen statt Download; Markdown gerendert.
 - [ ] **Open-Graph-Tags** auf der Share-Seite — Messenger-Vorschau mit Dateiname, Größe, ggf. Thumbnail.
 
 ## Admin

@@ -21,7 +21,7 @@ const mediaElements = [];
 function openLightbox(mediaEl) {
     isLightboxOpen = true;
     const img = $("lightbox-img"), vid = $("lightbox-video");
-    img.style.display = vid.style.display = "none";
+    img.style.display = vid.style.display = $("lightbox-text").style.display = "none";
     currentMediaIndex = mediaElements.indexOf(mediaEl);
     if (mediaEl.tagName === "IMG") {
         img.src = mediaEl.src;
@@ -40,6 +40,32 @@ function closeLightbox() {
     $("lightbox-video").pause();
     $("lightbox").style.display = "none";
     document.body.style.overflow = "";
+}
+
+async function openTextLightbox(href) {
+    const panel = $("lightbox-text");
+    $("lightbox-img").style.display = $("lightbox-video").style.display = "none";
+    panel.textContent = "Loading…";
+    panel.style.display = "block";
+    $("lightbox").style.display = "block";
+    document.body.style.overflow = "hidden";
+    isLightboxOpen = true;
+    try {
+        const res = await fetch(href + "?view=text");
+        if (!res.ok) throw new Error(await res.text());
+        panel.innerHTML = await res.text();
+    } catch (err) {
+        panel.textContent = String(err.message || err).trim() || "Preview failed.";
+    }
+}
+
+function initTextPreview() {
+    document.addEventListener("click", e => {
+        const link = e.target.closest("[data-text] a:not(.row-download):not(.download-button)");
+        if (!link || link.hasAttribute("download") || e.ctrlKey || e.metaKey || e.button !== 0) return;
+        e.preventDefault();
+        openTextLightbox(link.closest("[data-text]").dataset.href);
+    });
 }
 
 function navigateLightbox(dir) {
@@ -99,7 +125,7 @@ function hydrateCards() {
         const kind = MEDIA_KIND[ext];
 
         if (!kind) {
-            const inline = opensInline(ext);
+            const inline = opensInline(ext) || card.hasAttribute("data-text");
             card.classList.toggle("file-card-inline", inline);
             card.querySelector(".card-icon").textContent = inline ? "📖" : (KIND_ICON[ext] ?? "📎");
             card.querySelector(".card-ext").textContent = fileTypeLabel(name);
@@ -156,7 +182,7 @@ function hydrateTable() {
         const name = row.dataset.name ?? "";
         const isDir = row.hasAttribute("data-dir");
         const ext = name.split(".").pop().toLowerCase();
-        const inline = !isDir && (opensInline(ext) || ext in MEDIA_KIND);
+        const inline = !isDir && (opensInline(ext) || ext in MEDIA_KIND || row.hasAttribute("data-text"));
         row.classList.toggle("file-row-inline", inline);
         row.querySelector(".row-icon").textContent = isDir ? "📁" : inline ? "📖" : (KIND_ICON[ext] ?? "📎");
         row.querySelector(".row-type").textContent = isDir ? "Folder" : fileTypeLabel(name);
@@ -694,6 +720,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initCrumbDropdowns();
     initFilter();
     initSelection();
+    initTextPreview();
 
     $("lightbox-close")?.addEventListener("click", closeLightbox);
     $("lightbox")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeLightbox(); });

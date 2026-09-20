@@ -197,7 +197,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 func loadTemplate() (*template.Template, error) {
 	dirTemplateOnce.Do(func() {
 		dirTemplate, dirTemplateErr = template.New("directory").
-			Funcs(template.FuncMap{"opensInline": opensInline}).
+			Funcs(template.FuncMap{"opensInline": opensInline, "isText": isText}).
 			ParseFiles(shareHtmlPath)
 		if dirTemplateErr != nil {
 			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)

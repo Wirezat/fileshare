@@ -147,6 +147,8 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		serveDirectory(w, r, ctx)
 	case officeWanted(r, ctx):
 		serveOfficeViewer(w, r, ctx)
+	case textWanted(r, ctx):
+		serveTextView(w, r, ctx)
 	default:
 		serveShareFile(w, r, ctx.diskPath)
 	}
