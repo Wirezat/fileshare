@@ -118,7 +118,7 @@
                     {{end}}
 
                     {{if .AllowZip}}
-                    <a href="#" class="btn btn-ghost" onclick="downloadAsZip(event)">ZIP</a>
+                    <a href="#" class="btn btn-ghost" id="zip-btn" onclick="downloadAsZip(event)">ZIP</a>
                     {{end}}
                 </div>
             </div>
@@ -132,9 +132,13 @@
             <div class="container">
                 <div class="container-header">
                     <span class="container-title">{{.DirName}}</span>
-                    <div class="view-picker" id="view-picker">
-                        <button class="view-picker-btn" data-view="cards" title="Cards">▦</button>
-                        <button class="view-picker-btn" data-view="table" title="Table">☰</button>
+                    <div class="list-tools">
+                        <input class="input list-filter" id="file-filter" type="search" placeholder="Filter…"
+                            aria-label="Filter files" autocomplete="off" />
+                        <div class="view-picker" id="view-picker">
+                            <button class="view-picker-btn" data-view="cards" title="Cards">▦</button>
+                            <button class="view-picker-btn" data-view="table" title="Table">☰</button>
+                        </div>
                     </div>
                 </div>
                 <div class="container-body container-body-flush" id="file-list">
@@ -142,6 +146,7 @@
                 {{range .Files}}
                 <li class="file-card" data-name="{{.Name}}" data-size="{{.Size}}"
                     data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}>
+                    <input type="checkbox" class="select-box card-select" aria-label="Select {{.Name}}" />
                     <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (opensInline $.Office .Name))}} download{{end}}>
                         <span class="card-icon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
                         <span class="card-ext"></span>
@@ -158,12 +163,13 @@
                  extension maps it already uses for cards, and formats Size. -->
             <table class="table file-table">
                 <thead>
-                    <tr><th></th><th>Name</th><th>Type</th><th class="col-narrow">Size</th><th class="col-narrow"></th></tr>
+                    <tr><th class="col-narrow"><input type="checkbox" id="select-all" aria-label="Select all" /></th><th></th><th>Name</th><th>Type</th><th class="col-narrow">Size</th><th class="col-narrow"></th></tr>
                 </thead>
                 <tbody>
                     {{range .Files}}
                     <tr class="file-row" data-name="{{.Name}}" data-size="{{.Size}}"
                         data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}>
+                        <td class="row-select col-narrow"><input type="checkbox" class="select-box" aria-label="Select {{.Name}}" /></td>
                         <td class="row-icon">{{if .IsDir}}📁{{else}}📄{{end}}</td>
                         <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (opensInline $.Office .Name))}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
                         <td class="row-type"></td>
@@ -173,6 +179,7 @@
                     {{end}}
                 </tbody>
             </table>
+            <div class="filter-empty" id="filter-empty" hidden>No matching entries.</div>
                 </div>
             </div>
             {{end}}

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -89,15 +90,21 @@ func compressSmall(job fileJob) (*fileResult, error) {
 }
 
 // zipAndServe streams a ZIP archive of dirPath directly to the HTTP client.
+// roots are entries of dirPath (relative, already validated) to include; an
+// empty list means the whole directory.
 //
 // Small files (≤ smallFileThreshold) are compressed in parallel by a worker pool
 // and written via CreateRaw — no double-compression. Large files are streamed
 // straight from disk by the ZIP writer. Backpressure keeps RAM usage bounded.
-func zipAndServe(w http.ResponseWriter, dirPath string) {
+func zipAndServe(w http.ResponseWriter, dirPath string, roots []string) {
 	folderName := filepath.Base(filepath.Clean(dirPath))
+	zipName := folderName
+	if len(roots) > 0 {
+		zipName += "-selection"
+	}
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition",
-		fmt.Sprintf(`attachment; filename="%s.zip"`, folderName))
+		fmt.Sprintf(`attachment; filename="%s.zip"`, zipName))
 
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 1 {
@@ -150,9 +157,15 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 	}()
 
 	go func() {
-		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		walk := func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				GoLog.Warnf("walk %s: %v", path, err)
+				return nil
+			}
+			if strings.HasPrefix(info.Name(), ".") && path != dirPath {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			if info.IsDir() {
@@ -165,7 +178,13 @@ func zipAndServe(w http.ResponseWriter, dirPath string) {
 			}
 			jobs <- fileJob{absPath: path, relPath: rel, info: info}
 			return nil
-		})
+		}
+		if len(roots) == 0 {
+			_ = filepath.Walk(dirPath, walk)
+		}
+		for _, root := range roots {
+			_ = filepath.Walk(filepath.Join(dirPath, root), walk)
+		}
 		close(jobs)
 	}()
 

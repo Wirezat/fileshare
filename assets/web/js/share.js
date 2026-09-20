@@ -195,6 +195,64 @@ function initViewPicker() {
     setFileView(localStorage.getItem("fileshare-view") === "table" ? "table" : "cards");
 }
 
+// ── Filter & selection ────────────────────────────────
+// Cards and rows are the same entries twice; both carry data-name, and a
+// checkbox in either view marks the entry in both.
+const selected = new Set();
+
+function applyFilter(query) {
+    const q = query.trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll(".file-card, .file-row").forEach(el => {
+        const hit = !q || (el.dataset.name ?? "").toLowerCase().includes(q);
+        el.hidden = !hit;
+        if (hit) shown++;
+    });
+    const empty = $("filter-empty");
+    if (empty) empty.hidden = shown > 0;
+}
+
+function initFilter() {
+    const input = $("file-filter");
+    if (!input) return;
+    input.addEventListener("input", () => applyFilter(input.value));
+    input.addEventListener("keydown", e => {
+        if (e.key === "Escape") { input.value = ""; applyFilter(""); }
+    });
+}
+
+function setSelected(name, on) {
+    selected[on ? "add" : "delete"](name);
+    document.querySelectorAll(".select-box").forEach(box => {
+        if (box.closest("[data-name]")?.dataset.name === name) box.checked = on;
+    });
+}
+
+function updateZipButton() {
+    const btn = $("zip-btn");
+    if (btn) btn.textContent = selected.size ? `ZIP (${selected.size})` : "ZIP";
+    const all = $("select-all");
+    if (all) {
+        const rows = document.querySelectorAll(".file-row:not([hidden])");
+        const picked = [...rows].filter(r => selected.has(r.dataset.name)).length;
+        all.checked = rows.length > 0 && picked === rows.length;
+        all.indeterminate = picked > 0 && picked < rows.length;
+    }
+}
+
+function initSelection() {
+    document.addEventListener("change", e => {
+        const box = e.target.closest(".select-box");
+        if (!box) return;
+        setSelected(box.closest("[data-name]").dataset.name, box.checked);
+        updateZipButton();
+    });
+    $("select-all")?.addEventListener("change", e => {
+        document.querySelectorAll(".file-row:not([hidden])").forEach(row => setSelected(row.dataset.name, e.target.checked));
+        updateZipButton();
+    });
+}
+
 function closeCrumbDropdowns(except) {
     document.querySelectorAll("#breadcrumb-nav .dropdown-panel.open").forEach(p => {
         if (p === except) return;
@@ -239,8 +297,10 @@ function setupMediaContainer(container) {
 // ── ZIP ───────────────────────────────────────────────
 function downloadAsZip(e) {
     e.preventDefault();
+    const params = new URLSearchParams({ download: "zip" });
+    selected.forEach(name => params.append("f", name));
     const a = Object.assign(document.createElement("a"), {
-        href: location.origin + location.pathname + "?download=zip",
+        href: location.origin + location.pathname + "?" + params,
         download: "archive.zip",
     });
     document.body.append(a);
@@ -632,6 +692,8 @@ document.addEventListener("DOMContentLoaded", () => {
     hydrateTable();
     initViewPicker();
     initCrumbDropdowns();
+    initFilter();
+    initSelection();
 
     $("lightbox-close")?.addEventListener("click", closeLightbox);
     $("lightbox")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeLightbox(); });

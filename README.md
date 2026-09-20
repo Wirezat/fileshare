@@ -12,7 +12,7 @@ Because there were no proper tools that were able to do this in a simple way wit
 - **Upload support** — allow others to upload files into a share via chunked upload
 - **Office documents** — view or edit Word, Excel and PowerPoint files in the browser through an ONLYOFFICE-compatible document server
 - **Expiration** — time-based or use-count-based share limits
-- **Directory listing** — browse folders, preview media and PDFs, download as ZIP (per share switchable)
+- **Directory listing** — browse folders, filter by name, preview media and PDFs, download the folder or a selection as ZIP (per share switchable)
 - **Live log viewer** — stream server logs in real time from the admin UI
 - **Dark mode** — persisted per browser
 - **CLI tool** — full share management from the command line for scripting and remote access
@@ -98,7 +98,8 @@ Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filter
 
 - `http://host/<subpath>` — serves the file directly or shows a directory listing.
 - Images, video and audio preview in place; PDFs open in the browser's own viewer. Every card and table row has a download control, and `?dl=1` on any file URL always returns the raw file.
-- Directories can be downloaded as a ZIP via the `?download=zip` query parameter, unless the share has ZIP switched off.
+- Directories can be downloaded as a ZIP via the `?download=zip` query parameter, unless the share has ZIP switched off. Hidden entries (dot-files and dot-folders) stay out of the archive, as they do out of the listing. Tick entries in the listing and the ZIP button downloads only those; on the URL that is a repeated `f=<name>` parameter per entry, folders included recursively.
+- A filter field above the listing narrows it by name; Escape clears it. The filter hides entries but keeps their selection.
 - If the share has a password, visitors are shown a password gate before accessing the content.
 
 ### Password-protected shares

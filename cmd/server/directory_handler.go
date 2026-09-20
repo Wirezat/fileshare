@@ -20,13 +20,19 @@ var (
 )
 
 // serveDirectory renders the directory listing, or streams a ZIP if ?download=zip.
+// Repeated f= parameters restrict the ZIP to those entries of the directory.
 func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if r.URL.Query().Get("download") == "zip" {
 		if ctx.fileData.NoZip {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
-		zipAndServe(w, ctx.diskPath)
+		roots, ok := zipSelection(r.URL.Query()["f"])
+		if !ok {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		zipAndServe(w, ctx.diskPath, roots)
 		return
 	}
 
@@ -69,6 +75,20 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)
 	}
+}
+
+// zipSelection cleans the requested entry names and reports false when one
+// escapes the directory or is hidden.
+func zipSelection(raw []string) ([]string, bool) {
+	roots := make([]string, 0, len(raw))
+	for _, f := range raw {
+		clean := filepath.Clean(f)
+		if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".") {
+			return nil, false
+		}
+		roots = append(roots, clean)
+	}
+	return roots, true
 }
 
 func buildCrumbs(subpath, sharePath, relPath string) []Crumb {

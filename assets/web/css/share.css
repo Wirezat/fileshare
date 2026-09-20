@@ -25,6 +25,29 @@
 
 #file-list.view-cards { padding: var(--gap-card); }
 
+.list-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-control);
+}
+.list-filter {
+    width: 10rem;
+    height: 28px;
+}
+.filter-empty {
+    padding: var(--gap-card);
+    color: var(--text-muted);
+    text-align: center;
+}
+.file-card[hidden] { display: none; }
+.card-select {
+    position: absolute;
+    top: var(--gap-control);
+    left: var(--gap-control);
+    z-index: 2;
+}
+.file-table .row-select { width: 1%; }
+
 .file-row .row-icon {
     width: 1%;
     text-align: center;
