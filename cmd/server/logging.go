@@ -20,8 +20,7 @@ type contextKey string
 const (
 	maxBodyBytes            = 1 << 20 // 1 MB
 	multipartKey contextKey = "multipart"
-	//TODO: this should be configurable
-	logmaxLen = 4096
+	logmaxLen               = 4096
 )
 
 // parsedMultipart holds the result of a single multipart parse,
