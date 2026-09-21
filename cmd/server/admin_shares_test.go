@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -153,6 +154,52 @@ func TestNoZipIsOmittedWhenFalse(t *testing.T) {
 	}
 	if strings.Contains(string(b), "office") {
 		t.Errorf("office serialised for a default share: %s", b)
+	}
+}
+
+func TestShareQRReturnsAPNG(t *testing.T) {
+	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr?subpath=docs", nil)
+	rec := httptest.NewRecorder()
+	handleAdminShareQR(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+	cfg, err := png.DecodeConfig(rec.Body)
+	if err != nil {
+		t.Fatalf("body did not decode as a PNG: %v", err)
+	}
+	if cfg.Width != shareQRSize || cfg.Height != shareQRSize {
+		t.Errorf("QR image is %dx%d, want %dx%d", cfg.Width, cfg.Height, shareQRSize, shareQRSize)
+	}
+}
+
+func TestShareQRMissingShareIs404(t *testing.T) {
+	withShare(t, "", shared.FileData{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr?subpath=nope", nil)
+	rec := httptest.NewRecorder()
+	handleAdminShareQR(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestShareQRRequiresSubpath(t *testing.T) {
+	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr", nil)
+	rec := httptest.NewRecorder()
+	handleAdminShareQR(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
 	}
 }
 

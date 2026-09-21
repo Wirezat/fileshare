@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 func configOrErr(w http.ResponseWriter) (*shared.Config, bool) {
@@ -273,6 +274,36 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+const shareQRSize = 512
+
+// handleAdminShareQR answers with a PNG QR code encoding the share's public URL.
+func handleAdminShareQR(w http.ResponseWriter, r *http.Request) {
+	if !methodOnly(w, r, http.MethodGet) {
+		return
+	}
+	subpath, ok := subpathOrErr(w, r)
+	if !ok {
+		return
+	}
+	config, ok := configOrErr(w)
+	if !ok {
+		return
+	}
+	if _, exists := config.Files[subpath]; !exists {
+		http.Error(w, "share not found", http.StatusNotFound)
+		return
+	}
+
+	png, err := qrcode.Encode(absoluteURL(r, "/"+subpath), qrcode.Medium, shareQRSize)
+	if err != nil {
+		GoLog.Errorf("failed to generate QR code for %s: %v", subpath, err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(png)
 }
 
 func handleAdminLogs(w http.ResponseWriter, r *http.Request) {

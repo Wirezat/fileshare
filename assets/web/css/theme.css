@@ -52,6 +52,16 @@ html.dark .header-logo {
     gap: var(--gap-field);
 }
 
+.qr-modal {
+    align-items: center;
+}
+.qr-modal img {
+    width: 280px;
+    max-width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius);
+}
+
 .log-panel {
     display: flex;
     flex-direction: column;

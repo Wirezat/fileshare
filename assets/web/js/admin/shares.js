@@ -55,9 +55,18 @@ function renderSubpath(_val, row) {
     const hint = locked ? 'shares.hint.password_set' : 'shares.hint.password_none'
     return `<span class="cell-subpath">`
         + `<a class="td-link" href="/${esc(row.sub)}" target="_blank" rel="noopener">/${esc(row.sub)}</a>`
+        + `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--text-muted)"`
+        + ` data-act="copy" data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.copy_link'))}">⎘</button>`
+        + `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--text-muted)"`
+        + ` data-act="qr" data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.qr'))}">▦</button>`
         + `<button class="btn btn-icon btn-sm btn-toggle" data-act="password"`
         + ` data-sub="${esc(row.sub)}" aria-pressed="${locked}"`
         + ` title="${esc(t(hint))}">${locked ? '🔒' : '🔓'}</button></span>`
+}
+
+function renderActions(_val, row) {
+    return `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--danger)"`
+        + ` data-act="delete" data-sub="${esc(row.sub)}" title="${esc(t('common.delete'))}">🗑</button>`
 }
 
 function editableCell(row, field, text) {
@@ -137,6 +146,7 @@ const COLUMNS = [
     { key: 'zip',     labelKey: 'shares.col.zip',     render: renderZip },
     { key: 'office',  labelKey: 'shares.col.office',  render: renderOffice },
     { key: 'status',  labelKey: 'shares.col.status',  render: renderStatus },
+    { key: 'actions', labelKey: 'shares.col.actions', cls: 'col-narrow', render: renderActions },
 ]
 
 /* ── Data → rows ─────────────────────────────────────────────────────────── */
@@ -361,6 +371,32 @@ function confirmDelete(sub) {
     })
 }
 
+async function copyShareLink(sub) {
+    const url = `${location.origin}/${sub}`
+    try {
+        await navigator.clipboard.writeText(url)
+        showToast({ messageKey: t('shares.toast.link_copied') })
+    } catch (err) {
+        fail(err)
+    }
+}
+
+function openQrModal(sub) {
+    const node = document.createElement('div')
+    node.className = 'form-stack qr-modal'
+    const img = document.createElement('img')
+    img.src = `${API}/qr?subpath=${encodeURIComponent(sub)}`
+    img.alt = `/${sub}`
+    node.appendChild(img)
+
+    showModal({
+        preset: 'form',
+        titleKey: 'shares.qr.title',
+        content: { type: 'raw', node },
+        actions: [{ labelKey: 'common.close', variant: 'ghost' }],
+    })
+}
+
 /* Swaps the expiry cell for a native datetime input; commits on change and blur. */
 function editExpiration(span, sub) {
     if (span.dataset.editing) return
@@ -403,6 +439,9 @@ function wireTable(el) {
             case 'office':   patchShare(sub, { office: OFFICE_CYCLE[shares[sub].office || ''] }, true); break
             case 'status':   patchShare(sub, { expired: !shares[sub].expired }, true); break
             case 'expires':  editExpiration(target, sub); break
+            case 'copy':     copyShareLink(sub); break
+            case 'qr':       openQrModal(sub); break
+            case 'delete':   confirmDelete(sub); break
         }
     })
 
@@ -451,7 +490,6 @@ page = renderPage({
                 columns: COLUMNS,
                 rows: [],
                 emptyMessageKey: 'shares.empty',
-                rowActions: [{ labelKey: 'common.delete', onClick: row => confirmDelete(row.sub) }],
             },
         },
     ],
