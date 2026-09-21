@@ -12,6 +12,7 @@ data.json
 # Dev-data
 fileshare-architektur.md
 diff.txt
+docs/
 
 # Logs
 *.log
