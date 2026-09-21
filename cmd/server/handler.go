@@ -78,7 +78,11 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}
 
 	if fileData.Expired {
-		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		if isPreviewBot(r) {
+			serveExpiredPreview(w, r, subpath)
+		} else {
+			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		}
 		return nil, false
 	}
 
@@ -121,13 +125,21 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		if err := shared.SaveConfig(ctx.config); err != nil {
 			GoLog.Errorf("failed to save config after expiry: %v", err)
 		}
-		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		if isPreviewBot(r) {
+			serveExpiredPreview(w, r, ctx.subpath)
+		} else {
+			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		}
 		return
 	}
 
 	switch {
 	case ctx.fileInfo.IsDir():
 		serveDirectory(w, r, ctx)
+	case wantsPreviewImage(r, ctx):
+		servePreviewImage(w, r, ctx)
+	case previewWanted(r, ctx):
+		servePreview(w, r, ctx)
 	case officeWanted(r, ctx):
 		serveOfficeViewer(w, r, ctx)
 	case textWanted(r, ctx):

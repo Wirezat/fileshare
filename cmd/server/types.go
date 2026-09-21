@@ -6,12 +6,15 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-const (
+var (
 	shareHtmlPath = "./web/html/share.html"
+	gateHtmlPath  = "./web/html/gate.html"
+)
+
+const (
 	shareCssPath  = "./web/css/share.css"
 	shareJsPath   = "./web/js/share.js"
 	setupHtmlPath = "./web/html/setup.html"
-	gateHtmlPath  = "./web/html/gate.html"
 
 	adminHtmlPath         = "./web/html/admin.html"
 	adminLogsHtmlPath     = "./web/html/admin-logs.html"
@@ -43,6 +46,7 @@ type PageData struct {
 	Files        []shared.FileInfo
 	ParentDir    string
 	HasParentDir bool
+	Description  string
 	Expiration   int64
 	AllowPost    bool
 	AllowZip     bool

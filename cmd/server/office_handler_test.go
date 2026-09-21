@@ -29,10 +29,15 @@ func withOfficeShare(t *testing.T, fd shared.FileData, officeURL, secret string)
 	if err := shared.SaveConfig(cfg); err != nil {
 		t.Fatal(err)
 	}
-	prev := officeHtmlPath
+	prevOffice, prevPreview := officeHtmlPath, previewHtmlPath
+	prevShare, prevGate := shareHtmlPath, gateHtmlPath
 	officeHtmlPath = "../../assets/web/html/office.html"
+	previewHtmlPath = "../../assets/web/html/preview.html"
+	shareHtmlPath = "../../assets/web/html/share.html"
+	gateHtmlPath = "../../assets/web/html/gate.html"
 	t.Cleanup(func() {
-		officeHtmlPath = prev
+		officeHtmlPath, previewHtmlPath = prevOffice, prevPreview
+		shareHtmlPath, gateHtmlPath = prevShare, prevGate
 		shared.SaveConfig(&shared.Config{AdminUsername: "admin", AdminPassword: testAdminHash, Files: map[string]shared.FileData{}})
 		os.Remove("data.json")
 	})

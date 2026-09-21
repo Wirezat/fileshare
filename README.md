@@ -11,8 +11,9 @@ Because there were no proper tools that were able to do this in a simple way wit
 - **Password-protected shares** — per-share passwords with token-based sessions
 - **Upload support** — allow others to upload files into a share via chunked upload
 - **Office documents** — view or edit Word, Excel and PowerPoint files in the browser through an ONLYOFFICE-compatible document server
-- **Expiration** — time-based or use-count-based share limits
+- **Expiration** — time-based share limits
 - **Directory listing** — browse folders, filter by name, preview media, PDFs, text and Markdown, download the folder or a selection as ZIP (per share switchable)
+- **Link previews** — pasting a share link into a messenger shows a proper preview instead of a bare URL
 - **Live log viewer** — stream server logs in real time from the admin UI
 - **Dark mode** — persisted per browser
 - **CLI tool** — full share management from the command line for scripting and remote access
@@ -120,6 +121,10 @@ fileshare can hand `.docx`, `.xlsx`, `.pptx` (and their `.doc`/`.xls`/`.ppt` and
 **How saving works.** The document server fetches the file from fileshare, and when an editor closes with changes it posts a callback. fileshare checks the signature, only ever downloads the saved version from the configured server address, and swaps it in atomically. Anyone who can reach an `edit` share can overwrite its documents — that is the point of `edit`, so hand those links out accordingly. If a file is replaced by upload while someone has it open, the last save wins.
 
 **Networking.** The document server must be able to reach fileshare's public address from inside its own network. Behind a NAT router that does not hairpin, a container typically cannot — for a Podman or Docker setup, add fileshare's hostname to the container's `extra_hosts` pointing at the host gateway, the same way you would for Nextcloud. `ALLOW_PRIVATE_IP_ADDRESS=true` on the document server is needed for that route.
+
+### Link previews
+
+Pasting a share link into a messenger (Telegram, Discord, WhatsApp, Slack, Signal, Threema, iMessage) shows a proper preview instead of a bare URL. A file share shows its name, type, size and expiry, with an inline image or video where the file is one; a folder share shows how many files and folders it holds and their total size; a password-protected share shows only that it is protected, nothing about its contents. This only changes what the crawler that fetches the link sees — visitors still get the normal page or file.
 
 ---
 

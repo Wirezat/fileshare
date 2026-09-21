@@ -66,6 +66,7 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		Files:        files,
 		ParentDir:    parentDir,
 		HasParentDir: ctx.diskPath != fd.Path,
+		Description:  dirDescription(files, fd.Expiration),
 		Expiration:   fd.Expiration,
 		AllowPost:    fd.AllowPost,
 		AllowZip:     !fd.NoZip,
