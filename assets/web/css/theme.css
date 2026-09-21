@@ -34,13 +34,6 @@ html.dark .header-logo {
     color: #241a08;
 }
 
-.cell-subpath {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--gap-icon);
-    white-space: nowrap;
-}
-
 .col-narrow {
     white-space: nowrap;
     width: 1%;

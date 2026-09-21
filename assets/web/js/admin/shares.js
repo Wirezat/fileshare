@@ -51,17 +51,25 @@ const OFFICE_CYCLE = { '': 'view', view: 'edit', edit: '' }
 /* ── Cell renderers ──────────────────────────────────────────────────────── */
 
 function renderSubpath(_val, row) {
+    return `<a class="td-link" href="/${esc(row.sub)}" target="_blank" rel="noopener">/${esc(row.sub)}</a>`
+}
+
+function renderCopy(_val, row) {
+    return `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--text-muted)"`
+        + ` data-act="copy" data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.copy_link'))}">⎘</button>`
+}
+
+function renderQr(_val, row) {
+    return `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--text-muted)"`
+        + ` data-act="qr" data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.qr'))}">▦</button>`
+}
+
+function renderPassword(_val, row) {
     const locked = !!row.s.password
     const hint = locked ? 'shares.hint.password_set' : 'shares.hint.password_none'
-    return `<span class="cell-subpath">`
-        + `<a class="td-link" href="/${esc(row.sub)}" target="_blank" rel="noopener">/${esc(row.sub)}</a>`
-        + `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--text-muted)"`
-        + ` data-act="copy" data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.copy_link'))}">⎘</button>`
-        + `<button class="btn btn-icon btn-sm btn-icon-color" style="--_icon-color:var(--text-muted)"`
-        + ` data-act="qr" data-sub="${esc(row.sub)}" title="${esc(t('shares.hint.qr'))}">▦</button>`
-        + `<button class="btn btn-icon btn-sm btn-toggle" data-act="password"`
+    return `<button class="btn btn-icon btn-sm btn-toggle" data-act="password"`
         + ` data-sub="${esc(row.sub)}" aria-pressed="${locked}"`
-        + ` title="${esc(t(hint))}">${locked ? '🔒' : '🔓'}</button></span>`
+        + ` title="${esc(t(hint))}">${locked ? '🔒' : '🔓'}</button>`
 }
 
 function renderActions(_val, row) {
@@ -138,8 +146,11 @@ function renderStatus(_val, row) {
 }
 
 const COLUMNS = [
-    { key: 'sub',     labelKey: 'shares.col.subpath', render: renderSubpath },
-    { key: 'path',    labelKey: 'shares.col.path',    grow: true, cls: 'cell-editable td-mono',
+    { key: 'sub',      labelKey: 'shares.col.subpath', render: renderSubpath },
+    { key: 'copy',     labelKey: 'shares.col.copy',    cls: 'col-narrow', render: renderCopy },
+    { key: 'qr',       labelKey: 'shares.col.qr',      cls: 'col-narrow', render: renderQr },
+    { key: 'password', labelKey: 'shares.col.password', cls: 'col-narrow', render: renderPassword },
+    { key: 'path',     labelKey: 'shares.col.path',    grow: true, cls: 'cell-editable td-mono',
       render: (_v, row) => editableCell(row, 'path', row.s.path) },
     { key: 'expires', labelKey: 'shares.col.expires', cls: 'cell-editable col-narrow', render: renderExpires },
     { key: 'upload',  labelKey: 'shares.col.upload',  render: renderUpload },
