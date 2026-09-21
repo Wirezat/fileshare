@@ -9,14 +9,10 @@ import (
 	"time"
 )
 
-const UnlimitedUses = -1
-
-// IsExpired reports whether a share has expired due to manual expiry,
-// exhausted uses, or a passed expiration timestamp.
+// IsExpired reports whether a share has expired due to manual expiry
+// or a passed expiration timestamp.
 func IsExpired(fd FileData) bool {
-	return fd.Expired ||
-		(fd.Uses != UnlimitedUses && fd.Uses <= 0) ||
-		(fd.Expiration != 0 && fd.Expiration < time.Now().Unix())
+	return fd.Expired || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix())
 }
 
 // ParseExpiration parses a human-readable expiration string into a Unix timestamp.

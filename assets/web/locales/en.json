@@ -21,7 +21,6 @@
   "shares.load_failed": "Could not load shares: {error}",
   "shares.col.subpath": "Subpath",
   "shares.col.path": "Path",
-  "shares.col.uses": "Uses",
   "shares.col.expires": "Expires",
   "shares.col.upload": "Upload",
   "shares.col.status": "Status",
@@ -41,8 +40,6 @@
   "shares.form.subpath": "Subpath",
   "shares.form.subpath_hint": "Leave empty for a random one",
   "shares.form.path": "File or folder path on the server",
-  "shares.form.uses": "Max uses",
-  "shares.form.uses_hint": "−1 means unlimited",
   "shares.form.expires": "Expires",
   "shares.form.expires_hint": "Leave empty to never expire",
   "shares.form.allow_post": "Allow uploads into this share",
@@ -122,9 +119,7 @@
   "msg.fill_all_fields": "Please fill in both fields.",
   "msg.login_failed": "Wrong username or password.",
   "msg.network_error": "Could not reach the server.",
-  "shares.value.usedup": "used up",
   "shares.hint.activate": "Switched off by hand — click to activate",
   "shares.hint.deactivate": "Click to switch this share off",
-  "shares.hint.blocked_date": "The expiry date has passed — set a new one in the Expires column",
-  "shares.hint.blocked_uses": "No uses left — raise the number in the Uses column"
+  "shares.hint.blocked_date": "The expiry date has passed — set a new one in the Expires column"
 }

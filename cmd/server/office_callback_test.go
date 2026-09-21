@@ -183,7 +183,7 @@ func withSingleFileShare(t *testing.T, officeURL string) string {
 	cfg := &shared.Config{
 		AdminUsername: "admin", AdminPassword: testAdminHash,
 		OfficeURL: officeURL, OfficeSecret: testSecret,
-		Files: map[string]shared.FileData{"vertrag": {Path: file, Uses: -1, Office: shared.OfficeEdit}},
+		Files: map[string]shared.FileData{"vertrag": {Path: file, Office: shared.OfficeEdit}},
 	}
 	if err := shared.SaveConfig(cfg); err != nil {
 		t.Fatal(err)

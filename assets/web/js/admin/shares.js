@@ -23,16 +23,15 @@ function localInputToTs(val) {
     return val ? Math.floor(new Date(val).getTime() / 1000) : 0
 }
 
-/* Inactive = switched off, out of uses, or past its expiry (same rule as the server). */
+/* Inactive = switched off, or past its expiry (same rule as the server). */
 function isInactive(s) {
     return blockedBy(s) !== null
 }
 
-/* Which condition is keeping a share down ('flag' | 'uses' | 'date'), or null. */
+/* Which condition is keeping a share down ('flag' | 'date'), or null. */
 function blockedBy(s) {
     if (s.expired) return 'manual'
     if (s.expiration !== 0 && s.expiration < Date.now() / 1000) return 'date'
-    if (s.uses === 0) return 'uses'
     return null
 }
 
@@ -64,12 +63,6 @@ function renderSubpath(_val, row) {
 function editableCell(row, field, text) {
     return `<span class="field-editable" data-inline data-sub="${esc(row.sub)}"`
         + ` data-field="${esc(field)}" title="${esc(t('shares.hint.edit'))}">${esc(text)}</span>`
-}
-
-function renderUses(_val, row) {
-    const u = row.s.uses
-    const text = u === -1 ? '∞' : String(u)
-    return editableCell(row, 'uses', text)
 }
 
 function renderExpires(_val, row) {
@@ -117,7 +110,6 @@ function renderOffice(_val, row) {
 const STATUS = {
     manual: { label: 'shares.value.off', hint: 'shares.hint.activate', clickable: true },
     date: { label: 'shares.value.expired', hint: 'shares.hint.blocked_date', clickable: false },
-    uses: { label: 'shares.value.usedup', hint: 'shares.hint.blocked_uses', clickable: false },
 }
 
 function renderStatus(_val, row) {
@@ -140,7 +132,6 @@ const COLUMNS = [
     { key: 'sub',     labelKey: 'shares.col.subpath', render: renderSubpath },
     { key: 'path',    labelKey: 'shares.col.path',    grow: true, cls: 'cell-editable td-mono',
       render: (_v, row) => editableCell(row, 'path', row.s.path) },
-    { key: 'uses',    labelKey: 'shares.col.uses',    cls: 'cell-editable col-narrow', render: renderUses },
     { key: 'expires', labelKey: 'shares.col.expires', cls: 'cell-editable col-narrow', render: renderExpires },
     { key: 'upload',  labelKey: 'shares.col.upload',  render: renderUpload },
     { key: 'zip',     labelKey: 'shares.col.zip',     render: renderZip },
@@ -220,8 +211,6 @@ function newShareForm() {
             `<input class="input" name="subpath" autocomplete="off">`, 'shares.form.subpath_hint'),
         field('shares.form.path',
             `<input class="input" name="path" autocomplete="off" placeholder="/srv/files/report.pdf">`),
-        field('shares.form.uses',
-            `<input class="input" name="uses" type="number" min="-1" value="-1">`, 'shares.form.uses_hint'),
         field('shares.form.expires',
             `<input class="input" name="expiration" type="datetime-local">`, 'shares.form.expires_hint'),
         field('shares.form.password',
@@ -286,7 +275,6 @@ function openNewShare() {
                     const body = {
                         subpath,
                         path,
-                        uses: parseInt(get('uses').value, 10) || -1,
                         expiration: localInputToTs(get('expiration').value),
                         allow_post: get('allow_post').checked,
                         no_zip: !get('allow_zip').checked,
@@ -428,12 +416,6 @@ function wireTable(el) {
             if (!raw || raw === shares[sub].path) return refresh()
             shares[sub].path = raw
             return patchShare(sub, { path: raw })
-        }
-        if (name === 'uses') {
-            const n = raw === '∞' ? -1 : parseInt(raw, 10)
-            if (!Number.isInteger(n) || n === shares[sub].uses) return refresh()
-            shares[sub].uses = n
-            return patchShare(sub, { uses: n })
         }
     })
 

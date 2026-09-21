@@ -68,7 +68,6 @@ Create and manage all shares from the shares tab. Each share maps a public URL s
 |---|---|
 | Subpath | The URL path, e.g., `docs` → `http://host/docs`. Leave empty for a random value. |
 | Path | Absolute path to the file or folder on the server. |
-| Max uses | How many visits the share allows. A visit is one browser session on the share, however many files it opens; the document server's own requests belong to the visit that started them. `-1` for unlimited. |
 | Expires | Optional expiration date and time. |
 | Allow uploads | Let visitors upload files into this share's directory. |
 | ZIP download | Offer the folder as a single ZIP. On by default; switch it off for very large folders. |
@@ -143,7 +142,7 @@ fileshare <command> [options]
 | `list` | Show all shares with status, expiration, upload flag, and password indicator. |
 | `add` | Create a new share. |
 | `delete` | Delete a share. |
-| `edit` | Edit an existing share (path, subpath, uses, expiration, upload, zip, office, active state, password). |
+| `edit` | Edit an existing share (path, subpath, expiration, upload, zip, office, active state, password). |
 | `enable` | Re-enable a disabled share. |
 | `disable` | Disable a share without deleting it. |
 | `prune` | Delete all expired shares permanently. |
@@ -159,13 +158,13 @@ fileshare list
 fileshare list --json
 
 # Add a share
-fileshare add -f /srv/files/report.pdf -s report -e 7d -u 10
+fileshare add -f /srv/files/report.pdf -s report -e 7d
 fileshare add -f /srv/uploads -upload           # random subpath, uploads enabled
 fileshare add -f /srv/secret.zip -pw hunter2   # password-protected
 fileshare add -f /srv/docs -office view -zip=false   # office viewer on, no ZIP button
 
 # Edit a share
-fileshare edit -s report -e 30d -u 50
+fileshare edit -s report -e 30d
 fileshare edit -s report -pw newpassword
 fileshare edit -s report -clear-password
 fileshare edit -s report -active=false         # disable without deleting

@@ -43,7 +43,6 @@ type PageData struct {
 	Files        []shared.FileInfo
 	ParentDir    string
 	HasParentDir bool
-	Uses         int
 	Expiration   int64
 	AllowPost    bool
 	AllowZip     bool

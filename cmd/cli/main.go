@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -66,17 +65,6 @@ func fmtExpiration(ts int64) string {
 	}
 	diff := time.Until(t)
 	return fmt.Sprintf("%dd %dh", int(diff.Hours())/24, int(diff.Hours())%24)
-}
-
-func fmtUses(u int) string {
-	switch u {
-	case shared.UnlimitedUses:
-		return "inf"
-	case 0:
-		return colorRed + "0" + colorReset
-	default:
-		return strconv.Itoa(u)
-	}
 }
 
 func fmtUpload(on bool) string {
@@ -225,10 +213,9 @@ func cmdList(asJSON bool) {
 		return
 	}
 
-	fmt.Printf("%-22s %-26s %6s  %-14s %-8s %-5s %s\n",
+	fmt.Printf("%-22s %-26s %-14s %-8s %-5s %s\n",
 		colorBold+"SUBPATH"+colorReset,
 		colorBold+"PATH"+colorReset,
-		colorBold+"USES"+colorReset,
 		colorBold+"EXPIRES"+colorReset,
 		colorBold+"UPLOAD"+colorReset,
 		colorBold+"PW"+colorReset,
@@ -256,10 +243,9 @@ func cmdList(asJSON bool) {
 			status = colorYellow + "path missing" + colorReset
 		}
 
-		fmt.Printf("%s%-22s%s %-26s %6s  %-14s %-8s %-5s %s\n",
+		fmt.Printf("%s%-22s%s %-26s %-14s %-8s %-5s %s\n",
 			subColor, "/"+sub, colorReset,
 			truncatePath(s.Path, 25),
-			fmtUses(s.Uses),
 			fmtExpiration(s.Expiration),
 			fmtUpload(s.AllowPost),
 			fmtPassword(s.Password),
@@ -269,7 +255,7 @@ func cmdList(asJSON bool) {
 	fmt.Println()
 }
 
-func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost, allowZip bool, office, password string) {
+func cmdAdd(subpath, filePath string, expiration int64, allowPost, allowZip bool, office, password string) {
 	if filePath == "" {
 		helpAdd()
 		os.Exit(1)
@@ -306,7 +292,6 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost, all
 	d.Files[subpath] = shared.FileData{
 		Path:       absPath,
 		UploadTime: time.Now().Unix(),
-		Uses:       uses,
 		Expiration: expiration,
 		AllowPost:  allowPost,
 		NoZip:      !allowZip,
@@ -318,7 +303,6 @@ func cmdAdd(subpath, filePath string, uses int, expiration int64, allowPost, all
 	fmt.Printf("%s+%s Share added:\n", colorGreen, colorReset)
 	fmt.Printf("  Subpath  : /%s\n", subpath)
 	fmt.Printf("  Path     : %s\n", absPath)
-	fmt.Printf("  Uses     : %s\n", fmtUses(uses))
 	fmt.Printf("  Expires  : %s\n", fmtExpiration(expiration))
 	fmt.Printf("  Upload   : %s\n", fmtUpload(allowPost))
 	fmt.Printf("  ZIP      : %s\n", fmtUpload(allowZip))
@@ -356,7 +340,7 @@ func cmdDelete(subpath string, yes bool) {
 	GoLog.Infof("Share deleted: /%s", subpath)
 }
 
-func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newUploadStr, newZipStr, newOffice, newActiveStr, newPassword string, clearPassword bool, setOffice bool) {
+func cmdEdit(subpath, newSubpath, newFile, newExpiresStr, newUploadStr, newZipStr, newOffice, newActiveStr, newPassword string, clearPassword bool, setOffice bool) {
 	if subpath == "" {
 		helpEdit()
 		os.Exit(1)
@@ -395,19 +379,6 @@ func cmdEdit(subpath, newSubpath, newFile, newUsesStr, newExpiresStr, newUploadS
 		fmt.Printf("  Path     : %s -> %s\n", s.Path, abs)
 		s.Path = abs
 		changed = true
-	}
-
-	if newUsesStr != "" {
-		newUses, err := strconv.Atoi(newUsesStr)
-		if err != nil {
-			GoLog.Errorf("Invalid uses value %q — must be an integer (-1 = unlimited)", newUsesStr)
-			os.Exit(1)
-		}
-		if newUses != s.Uses {
-			fmt.Printf("  Uses     : %s -> %s\n", fmtUses(s.Uses), fmtUses(newUses))
-			s.Uses = newUses
-			changed = true
-		}
 	}
 
 	if newExpiresStr != "" {
@@ -670,7 +641,6 @@ USAGE
 OPTIONS
   -subpath, -s       URL subpath (omit for random)
   -file,    -f       File or folder path on the server  [required]
-  -uses,    -u       Max downloads; -1 = unlimited  (default: -1)
   -expires, -e       Expiration: 24h, 7d, 2w, 3m, 1y, unix timestamp, or 0/never
   -upload            Allow uploads to this share
   -zip               Offer the folder as a ZIP download  (default: true)
@@ -707,7 +677,6 @@ OPTIONS
   -subpath,       -s    Share to edit  [required]
   -new-subpath,   -n    Rename to a different subpath
   -file,          -f    Change the server file/folder path
-  -uses,          -u    Change max uses (-1 = unlimited)
   -expires,       -e    Change expiration (duration, unix timestamp, or 0/never)
   -upload               Change upload permission (true/false/yes/no/on/off)
   -zip                  Change ZIP download permission (true/false)
@@ -874,8 +843,6 @@ func main() {
 		fs.StringVar(subpath, "s", "", "")
 		filePath := fs.String("file", "", "")
 		fs.StringVar(filePath, "f", "", "")
-		uses := fs.Int("uses", -1, "")
-		fs.IntVar(uses, "u", -1, "")
 		expires := fs.String("expires", "", "")
 		fs.StringVar(expires, "e", "", "")
 		fs.StringVar(expires, "t", "", "") // legacy alias
@@ -903,7 +870,7 @@ func main() {
 			GoLog.Errorf("Invalid expiration: %v", err)
 			os.Exit(1)
 		}
-		cmdAdd(*subpath, *filePath, *uses, exp, *allowPost, *allowZip, *office, *password)
+		cmdAdd(*subpath, *filePath, exp, *allowPost, *allowZip, *office, *password)
 
 	// ── delete ───────────────────────────────────────────────────────────────
 	case "delete", "del", "remove", "rm":
@@ -926,8 +893,6 @@ func main() {
 		fs.StringVar(newSubpath, "n", "", "")
 		newFile := fs.String("file", "", "")
 		fs.StringVar(newFile, "f", "", "")
-		newUses := fs.String("uses", "", "")
-		fs.StringVar(newUses, "u", "", "")
 		newExpires := fs.String("expires", "", "")
 		fs.StringVar(newExpires, "e", "", "")
 		newUpload := fs.String("upload", "", "")
@@ -952,7 +917,7 @@ func main() {
 		if *newOffice == "off" {
 			*newOffice = shared.OfficeOff
 		}
-		cmdEdit(*subpath, *newSubpath, *newFile, *newUses, *newExpires, *newUpload, *newZip, *newOffice, *newActive, *newPassword, *clearPassword, setOffice)
+		cmdEdit(*subpath, *newSubpath, *newFile, *newExpires, *newUpload, *newZip, *newOffice, *newActive, *newPassword, *clearPassword, setOffice)
 
 	// ── enable / disable ─────────────────────────────────────────────────────
 	case "enable":

@@ -158,7 +158,6 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 
 		var patch struct {
 			Path       *string `json:"path"`
-			Uses       *int    `json:"uses"`
 			Expiration *int64  `json:"expiration"`
 			AllowPost  *bool   `json:"allow_post"`
 			NoZip      *bool   `json:"no_zip"`
@@ -194,11 +193,6 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			}
 			track("path", *patch.Path)
 			entry.Path = *patch.Path
-		}
-
-		if patch.Uses != nil {
-			track("uses", strconv.Itoa(*patch.Uses))
-			entry.Uses = *patch.Uses
 		}
 
 		if patch.Expiration != nil {

@@ -41,8 +41,6 @@
                 <span><span class="share-meta-label">Expires</span>
                     {{if eq .Expiration 0}}<span>never</span>{{else}}<span id="time-left"
                         data-timestamp="{{.Expiration}}"></span>{{end}}</span>
-                <span><span class="share-meta-label">Uses</span>
-                    {{if eq .Uses -1}}<span>∞</span>{{else}}<span id="uses" data-uses="{{.Uses}}"></span>{{end}}</span>
             </span>
             <button class="btn btn-icon btn-sm btn-toggle" id="theme-toggle" onclick="toggleTheme()"
                 title="Toggle theme">🌙</button>

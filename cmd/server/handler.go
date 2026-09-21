@@ -111,7 +111,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}, true
 }
 
-// handleGet serves a file or directory, enforcing expiration and use limits.
+// handleGet serves a file or directory, enforcing expiration.
 func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	fd := ctx.fileData
 
@@ -123,23 +123,6 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		}
 		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
 		return
-	}
-
-	newVisit := r.Method == http.MethodGet &&
-		!hasSessionCookie(r, ctx.subpath) &&
-		!dsTokenAllows(r, ctx.config.OfficeSecret)
-
-	if newVisit && fd.Uses > 0 {
-		fd.Uses--
-		if fd.Uses == 0 {
-			fd.Expired = true
-		}
-		ctx.config.Files[ctx.subpath] = fd
-		if err := shared.SaveConfig(ctx.config); err != nil {
-			GoLog.Errorf("failed to save config: %v", err)
-			return
-		}
-		setSessionCookie(w, ctx.subpath)
 	}
 
 	switch {
@@ -188,23 +171,6 @@ func resolveUploadTarget(w http.ResponseWriter, r *http.Request) (shared.FileDat
 		return shared.FileData{}, false
 	}
 	return fd, true
-}
-
-// hasSessionCookie returns true if the browser already has a session cookie for this share.
-func hasSessionCookie(r *http.Request, subpath string) bool {
-	_, err := r.Cookie("session_" + subpath)
-	return err == nil
-}
-
-// setSessionCookie sets a session-scoped cookie for this share.
-func setSessionCookie(w http.ResponseWriter, subpath string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_" + subpath,
-		Value:    "1",
-		Path:     "/" + subpath,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	})
 }
 
 var (

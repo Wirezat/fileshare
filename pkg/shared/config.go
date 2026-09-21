@@ -42,7 +42,6 @@ func ValidOffice(mode string) bool {
 type FileData struct {
 	Path       string `json:"path"`
 	UploadTime int64  `json:"upload_time"`
-	Uses       int    `json:"uses"`
 	Expiration int64  `json:"expiration"`
 	Expired    bool   `json:"expired"`
 	AllowPost  bool   `json:"allow_post"`

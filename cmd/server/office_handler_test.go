@@ -20,9 +20,6 @@ func withOfficeShare(t *testing.T, fd shared.FileData, officeURL, secret string)
 	os.WriteFile(filepath.Join(dir, "bericht.docx"), []byte(docBytes), 0o600)
 	os.WriteFile(filepath.Join(dir, "notiz.txt"), []byte("plain"), 0o600)
 	fd.Path = dir
-	if fd.Uses == 0 {
-		fd.Uses = -1
-	}
 
 	cfg := &shared.Config{
 		AdminUsername: "admin", AdminPassword: testAdminHash,

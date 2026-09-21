@@ -27,7 +27,7 @@ func textShare(t *testing.T, name, content string) *requestContext {
 		subpath:  "docs",
 		diskPath: path,
 		fileInfo: info,
-		fileData: shared.FileData{Path: dir, Uses: -1},
+		fileData: shared.FileData{Path: dir},
 	}
 }
 

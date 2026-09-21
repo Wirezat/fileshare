@@ -349,9 +349,6 @@ if (_timeLeftEl) {
         : `${Math.floor(diff / 86400000)}d ${Math.floor(diff % 86400000 / 3600000)}h ${Math.floor(diff % 3600000 / 60000)}m`;
 }
 
-const _usesEl = $("uses");
-if (_usesEl?.dataset.uses != null) _usesEl.innerText = _usesEl.dataset.uses;
-
 // ── Upload toast toggle ───────────────────────────────
 let uploadToastOpen = false;
 
