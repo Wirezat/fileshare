@@ -146,7 +146,7 @@ function renderStatus(_val, row) {
 }
 
 const COLUMNS = [
-    { key: 'sub',      labelKey: 'shares.col.subpath', render: renderSubpath },
+    { key: 'sub',      labelKey: 'shares.col.subpath', cls: 'col-narrow', render: renderSubpath },
     { key: 'copy',     labelKey: 'shares.col.copy',    cls: 'col-narrow', render: renderCopy },
     { key: 'qr',       labelKey: 'shares.col.qr',      cls: 'col-narrow', render: renderQr },
     { key: 'password', labelKey: 'shares.col.password', cls: 'col-narrow', render: renderPassword },
