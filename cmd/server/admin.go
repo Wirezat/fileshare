@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
@@ -174,7 +173,5 @@ func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	// Apply immediately — no restart required.
-	storage.SetInactivityTimeout(time.Duration(body.Seconds) * time.Second)
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -50,13 +50,6 @@ var bufPool = sync.Pool{
 	},
 }
 
-// Storage is the interface for chunked file uploads.
-type Storage interface {
-	InitChunk(uploadID, filename string, totalChunks int, destDir string) (missingChunks []int, err error)
-	ReceiveChunk(uploadID string, index int, r io.Reader) (done bool, err error)
-	SetInactivityTimeout(d time.Duration)
-}
-
 // sessionMeta is persisted as meta.json inside each chunk directory.
 // It allows resume across server restarts.
 // NOTE: Received[] is intentionally NOT persisted here anymore.
@@ -77,26 +70,15 @@ type chunkSession struct {
 }
 
 // LocalStorage saves assembled uploads to the local filesystem.
-type LocalStorage struct {
-	mu                sync.RWMutex
-	inactivityTimeout time.Duration
-}
+type LocalStorage struct{}
 
 var (
 	sessionsMu sync.RWMutex
 	sessions   = map[string]*chunkSession{}
 )
 
-func NewLocalStorage(cfg *shared.Config) *LocalStorage {
-	return &LocalStorage{
-		inactivityTimeout: time.Duration(cfg.ChunkInactivityTimeout) * time.Second,
-	}
-}
-
-func (s *LocalStorage) SetInactivityTimeout(d time.Duration) {
-	s.mu.Lock()
-	s.inactivityTimeout = d
-	s.mu.Unlock()
+func NewLocalStorage() *LocalStorage {
+	return &LocalStorage{}
 }
 
 // InitChunk registers or resumes an upload session.
@@ -327,16 +309,19 @@ func cleanupSession(uploadID string) {
 }
 
 // StartReaper periodically removes sessions that have been inactive longer than
-// inactivityTimeout. It scans disk instead of the RAM map so it also catches
-// sessions left behind by a server restart.
+// the configured chunk inactivity timeout. It scans disk instead of the RAM
+// map so it also catches sessions left behind by a server restart.
 func (s *LocalStorage) StartReaper() {
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
-			s.mu.RLock()
-			timeout := s.inactivityTimeout
-			s.mu.RUnlock()
+			config, err := shared.LoadConfig()
+			if err != nil {
+				GoLog.Errorf("chunk reaper: failed to load config: %v", err)
+				continue
+			}
+			timeout := time.Duration(config.ChunkInactivityTimeout) * time.Second
 
 			entries, err := os.ReadDir(chunkTempBase)
 			if err != nil {

@@ -130,9 +130,8 @@ Pasting a share link into a messenger (Telegram, Discord, WhatsApp, Slack, Signa
 
 ## CLI
 
-The CLI tool provides full share management for use in scripts or over SSH. It reads and writes `data.json` directly.
+The CLI tool provides full share management for use in scripts or over SSH. It reads and writes `data.json` directly, and a running server picks up its changes on the very next request — no cache to reload, no restart needed.
 
-**A running server will not see CLI changes.** The server caches the config in memory, so `add`, `edit`, `delete`, `disable` and `prune` only take effect after `systemctl restart fileshare`. Changes made through the admin UI apply immediately, because they go through the same process that holds the cache.
 Note: This was the original interface for the program, so I wanted to keep it as a legacy option. Since I've made the WebUI,
 its updates are entirely Vibe Coded, but it should work without problems. I guess. I haven't put the most of work into it
 

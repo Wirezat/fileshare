@@ -12,7 +12,7 @@
 - [ ] **Share-Statistik** — Besuche, letzter Zugriff, Downloads pro Datei; Zeitstempel zur bestehenden Visit-Zählung, Anzeige im Admin.
 - [ ] **Webhook-Benachrichtigung** — POST an ntfy/Gotify/Discord bei Upload und Ablauf, konfigurierbar unter Settings.
 - [x] **QR-Code** für den Share-Link im Admin.
-- [ ] **Config-Reload per SIGHUP** — CLI-Änderungen ohne Restart übernehmen.
+- [x] **Config-Reload** — CLI-Änderungen ohne Restart übernehmen. Kein SIGHUP nötig: `LoadConfig()` liest bei jedem Aufruf direkt von der Platte statt zu cachen.
 
 ## Sicherheit / Robustheit
 

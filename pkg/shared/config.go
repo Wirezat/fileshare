@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sync/atomic"
 )
 
 const defaultConfigPath = "./data.json"
@@ -62,19 +61,11 @@ type Config struct {
 	Files                  map[string]FileData `json:"files"`
 }
 
-var configCache atomic.Pointer[Config]
-
-// LoadConfig loads the config from the default path.
+// LoadConfig loads the config from the default path. It always reads from
+// disk, so changes another process makes (the CLI) are visible on the very
+// next call — no cache to go stale, nothing to invalidate.
 func LoadConfig() (*Config, error) {
-	if p := configCache.Load(); p != nil {
-		return p, nil
-	}
-	cfg, err := LoadConfigFrom(defaultConfigPath)
-	if err != nil {
-		return nil, err
-	}
-	configCache.Store(cfg)
-	return cfg, nil
+	return LoadConfigFrom(defaultConfigPath)
 }
 
 // LoadConfigFrom loads the config from the given path.
@@ -110,11 +101,7 @@ func applyDefaults(cfg *Config) {
 
 // SaveConfig writes the config atomically to the default path.
 func SaveConfig(cfg *Config) error {
-	if err := SaveConfigTo(defaultConfigPath, cfg); err != nil {
-		return err
-	}
-	configCache.Store(cfg)
-	return nil
+	return SaveConfigTo(defaultConfigPath, cfg)
 }
 
 // SaveConfigTo writes atomically: encodes to a temp file first, then renames.

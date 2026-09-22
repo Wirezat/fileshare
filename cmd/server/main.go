@@ -115,7 +115,7 @@ func main() {
 
 	initSetupToken(config)
 
-	storage = NewLocalStorage(config)
+	storage = NewLocalStorage()
 	storage.StartReaper()
 	startTokenReaper()
 	startAdminTokenReaper()
