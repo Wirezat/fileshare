@@ -13,34 +13,30 @@ import (
 // startExpirationWatcher polls the config at the given interval and marks
 // shares as expired when IsExpired returns true. Runs as a background goroutine.
 func startExpirationWatcher(interval time.Duration) {
-	go func() {
-		GoLog.Infof("expiration watcher started (interval: %s)", interval)
-		for {
-			time.Sleep(interval)
+	GoLog.Infof("expiration watcher started (interval: %s)", interval)
+	runEvery(interval, func() {
+		config, err := shared.LoadConfig()
+		if err != nil {
+			GoLog.Errorf("failed to load config: %v", err)
+			return
+		}
 
-			config, err := shared.LoadConfig()
-			if err != nil {
-				GoLog.Errorf("failed to load config: %v", err)
-				continue
-			}
-
-			changed := false
-			for subpath, fd := range config.Files {
-				if !fd.Expired && shared.IsExpired(fd) {
-					fd.Expired = true
-					config.Files[subpath] = fd
-					changed = true
-					GoLog.Infof("file expired: %s", subpath)
-				}
-			}
-
-			if changed {
-				if err := shared.SaveConfig(config); err != nil {
-					GoLog.Errorf("failed to save config after expiration update: %v", err)
-				}
+		changed := false
+		for subpath, fd := range config.Files {
+			if !fd.Expired && shared.IsExpired(fd) {
+				fd.Expired = true
+				config.Files[subpath] = fd
+				changed = true
+				GoLog.Infof("file expired: %s", subpath)
 			}
 		}
-	}()
+
+		if changed {
+			if err := shared.SaveConfig(config); err != nil {
+				GoLog.Errorf("failed to save config after expiration update: %v", err)
+			}
+		}
+	})
 }
 
 // clientIP resolves the caller's address. Forwarding headers (X-Forwarded-For

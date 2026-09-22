@@ -88,18 +88,14 @@ func (l *limiter) allow(w http.ResponseWriter, key, what string) bool {
 }
 
 func startLimiterReaper() {
-	go func() {
-		ticker := time.NewTicker(limiterReapInt)
-		defer ticker.Stop()
-		for range ticker.C {
-			now := time.Now()
-			for _, l := range []*limiter{loginLimiter, unlockLimiter} {
-				l.mu.Lock()
-				for key := range l.failures {
-					l.prune(key, now)
-				}
-				l.mu.Unlock()
+	runEvery(limiterReapInt, func() {
+		now := time.Now()
+		for _, l := range []*limiter{loginLimiter, unlockLimiter} {
+			l.mu.Lock()
+			for key := range l.failures {
+				l.prune(key, now)
 			}
+			l.mu.Unlock()
 		}
-	}()
+	})
 }

@@ -312,31 +312,27 @@ func cleanupSession(uploadID string) {
 // the configured chunk inactivity timeout. It scans disk instead of the RAM
 // map so it also catches sessions left behind by a server restart.
 func (s *LocalStorage) StartReaper() {
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			config, err := shared.LoadConfig()
-			if err != nil {
-				GoLog.Errorf("chunk reaper: failed to load config: %v", err)
-				continue
-			}
-			timeout := time.Duration(config.ChunkInactivityTimeout) * time.Second
-
-			entries, err := os.ReadDir(chunkTempBase)
-			if err != nil {
-				continue
-			}
-
-			now := time.Now()
-			for _, e := range entries {
-				if !e.IsDir() {
-					continue
-				}
-				s.reapEntry(e.Name(), now, timeout)
-			}
+	runEvery(5*time.Minute, func() {
+		config, err := shared.LoadConfig()
+		if err != nil {
+			GoLog.Errorf("chunk reaper: failed to load config: %v", err)
+			return
 		}
-	}()
+		timeout := time.Duration(config.ChunkInactivityTimeout) * time.Second
+
+		entries, err := os.ReadDir(chunkTempBase)
+		if err != nil {
+			return
+		}
+
+		now := time.Now()
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			s.reapEntry(e.Name(), now, timeout)
+		}
+	})
 }
 
 func (s *LocalStorage) reapEntry(id string, now time.Time, timeout time.Duration) {
