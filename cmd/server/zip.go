@@ -16,7 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	GoLog "github.com/Wirezat/GoLog"
+	"github.com/Wirezat/GoLog"
 )
 
 const (

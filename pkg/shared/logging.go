@@ -2,22 +2,22 @@ package shared
 
 import (
 	"bufio"
-	"io"
+	"encoding/json"
 	"os"
 	"strings"
 	"sync"
-	"time"
 )
 
-const (
-	maxLogEntries = 500
-	tailInterval  = 200 * time.Millisecond
-)
+const maxLogEntries = 500
 
+// LogEntry is a line in the admin log view. Request is set only for HTTP
+// access log entries — Message stays a short summary, the full structured
+// request data lives in Request instead of being embedded as JSON text.
 type LogEntry struct {
-	Level   string `json:"level"`
-	Time    string `json:"time"`
-	Message string `json:"message"`
+	Level   string          `json:"level"`
+	Time    string          `json:"time"`
+	Message string          `json:"message"`
+	Request json.RawMessage `json:"request,omitempty"`
 }
 
 type LogStore struct {
@@ -55,7 +55,8 @@ func parseLine(line string) (LogEntry, bool) {
 	return LogEntry{Level: level, Time: rest[1:j], Message: msg}, true
 }
 
-func (l *LogStore) add(entry LogEntry) {
+// Add appends entry to the ring buffer and pushes it to every subscriber.
+func (l *LogStore) Add(entry LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if len(l.entries) >= maxLogEntries {
@@ -109,7 +110,9 @@ func (l *LogStore) Unsubscribe(ch chan LogEntry) {
 	}
 }
 
-// Load reads a log file and populates the ring buffer.
+// Load reads a log file and populates the ring buffer. Each line is either
+// a GoLog text line ("[LEVEL] [time] message") or, for a persisted request
+// log entry, a JSON-encoded LogEntry — told apart by its first character.
 func (l *LogStore) Load(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -118,37 +121,17 @@ func (l *LogStore) Load(path string) error {
 	defer f.Close()
 	s := bufio.NewScanner(f)
 	for s.Scan() {
-		if entry, ok := parseLine(s.Text()); ok {
-			l.add(entry)
+		line := strings.TrimSpace(s.Text())
+		if strings.HasPrefix(line, "{") {
+			var entry LogEntry
+			if json.Unmarshal([]byte(line), &entry) == nil {
+				l.Add(entry)
+			}
+			continue
+		}
+		if entry, ok := parseLine(line); ok {
+			l.Add(entry)
 		}
 	}
 	return s.Err()
-}
-
-// Tail watches a log file for new lines and feeds them into the ring buffer.
-// Seeks to EOF first to avoid duplicating already-loaded entries.
-func (l *LogStore) Tail(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Seek(0, io.SeekEnd); err != nil {
-		f.Close()
-		return err
-	}
-	go func() {
-		defer f.Close()
-		r := bufio.NewReader(f)
-		for {
-			line, err := r.ReadString('\n')
-			if err != nil {
-				time.Sleep(tailInterval)
-				continue
-			}
-			if entry, ok := parseLine(strings.TrimRight(line, "\n")); ok {
-				l.add(entry)
-			}
-		}
-	}()
-	return nil
 }

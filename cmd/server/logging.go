@@ -5,11 +5,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/pkg/shared"
@@ -80,8 +84,10 @@ func multipartMiddleware(config *shared.Config) func(http.Handler) http.Handler 
 	}
 }
 
-// loggingMiddleware logs every request. For multipart uploads it reads
-// file metadata from the context instead of parsing the body again.
+// loggingMiddleware records every request straight to the admin log store —
+// not through GoLog's text log, since the full request (headers, body,
+// files) is structured data, not a log message. For multipart uploads it
+// reads file metadata from the context instead of parsing the body again.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/log" {
@@ -89,14 +95,57 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if data, err := buildRequestLog(r).toJSON(); err == nil {
-			GoLog.Info(string(data))
+		rl := buildRequestLog(r)
+		if data, err := rl.toJSON(); err == nil {
+			entry := shared.LogEntry{
+				Level:   "INFO",
+				Time:    time.Now().Format(time.RFC3339),
+				Message: fmt.Sprintf("%s %s", rl.Method, rl.URL),
+				Request: data,
+			}
+			shared.Logger.Add(entry)
+			persistRequestLog(entry)
 		} else {
 			GoLog.Warnf("loggingMiddleware: failed to serialize request: %v", err)
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+var (
+	requestLogMu   sync.Mutex
+	requestLogFile *os.File
+)
+
+// openRequestLog appends request-log entries to the same file GoLog writes
+// to, one JSON object per line, so they survive a restart via LogStore.Load
+// the same way app log lines do.
+func openRequestLog() {
+	path := GoLog.LogPath()
+	if path == "" {
+		return
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		GoLog.Warnf("openRequestLog: %v", err)
+		return
+	}
+	requestLogMu.Lock()
+	requestLogFile = f
+	requestLogMu.Unlock()
+}
+
+func persistRequestLog(entry shared.LogEntry) {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return
+	}
+	requestLogMu.Lock()
+	defer requestLogMu.Unlock()
+	if requestLogFile != nil {
+		fmt.Fprintln(requestLogFile, string(data))
+	}
 }
 
 func (rl *requestLog) toJSON() ([]byte, error) {

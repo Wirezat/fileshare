@@ -21,23 +21,13 @@ const state = {
 
 /* ── One log line ────────────────────────────────────────────────────────── */
 
-/* Parses a loggingMiddleware JSON request line; returns null for plain messages. */
-function parseRequest(message) {
-    try {
-        const p = JSON.parse(message)
-        return (p && p.method && p.url) ? p : null
-    } catch {
-        return null
-    }
-}
-
 function buildLine(entry) {
     const div = document.createElement('div')
     div.className = `log-line log-${entry.level.toLowerCase()}`
     div.dataset.level = entry.level
 
     const time = entry.time.substring(11, 19)
-    const req = parseRequest(entry.message)
+    const req = entry.request
 
     if (req) {
         div.classList.add('log-request')

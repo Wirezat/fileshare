@@ -93,17 +93,19 @@ func startServer(config *shared.Config) {
 }
 
 func main() {
+	GoLog.OnRecord = func(r GoLog.Record) {
+		shared.Logger.Add(shared.LogEntry{Level: r.Level, Time: r.Time, Message: r.Message})
+	}
+
 	if err := GoLog.ToFile(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
+	openRequestLog()
 
 	if path := GoLog.LogPath(); path != "" {
 		if err := shared.Logger.Load(path); err != nil {
 			GoLog.Errorf("failed to load log history: %v", err)
-		}
-		if err := shared.Logger.Tail(path); err != nil {
-			GoLog.Errorf("failed to start log tail: %v", err)
 		}
 	}
 
