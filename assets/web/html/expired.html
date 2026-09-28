@@ -1,0 +1,85 @@
+{{define "expired"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{.Subpath}} — expired</title>
+    <meta name="robots" content="noindex" />
+
+    <link rel="stylesheet" href="/static/ui/index.css" />
+    <link rel="stylesheet" href="/static/theme.css" />
+
+    <script>
+        (function () {
+            const s = localStorage.getItem('theme');
+            if (s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches))
+                document.documentElement.classList.add('dark');
+        })();
+    </script>
+</head>
+
+<body class="app-shell">
+
+    <header class="header">
+        <span class="header-brand">
+            <span class="header-logo">📂</span>
+            <span>Fileshare</span>
+        </span>
+        <div class="header-right">
+            <button class="btn btn-icon btn-sm btn-toggle" id="theme-toggle" onclick="toggleTheme()"
+                title="Toggle theme">🌙</button>
+        </div>
+    </header>
+
+    <div class="auth-main">
+        <div class="auth-card">
+
+            <div class="auth-header">
+                <div class="auth-logo error-logo-danger">⏳</div>
+                <div class="auth-title">/{{.Subpath}}</div>
+                <div class="auth-sub">This share has expired</div>
+            </div>
+
+            <div class="auth-body">
+                <p class="error-note">
+                    The person who shared this link set it to expire. Ask them for a
+                    new one if you still need access.
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <style>
+        .error-note {
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            line-height: var(--line-height);
+        }
+
+        .error-logo-danger {
+            background: var(--danger);
+        }
+    </style>
+
+    <script>
+        function toggleTheme() {
+            const dark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', dark ? 'dark' : 'light');
+            updateThemeBtn();
+        }
+
+        function updateThemeBtn() {
+            const btn = document.getElementById('theme-toggle');
+            if (btn) btn.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+        }
+
+        updateThemeBtn();
+    </script>
+
+</body>
+
+</html>
+{{end}}

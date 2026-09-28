@@ -300,7 +300,13 @@ func TestExpiredSharePreview(t *testing.T) {
 	if rec.Code != http.StatusGone {
 		t.Fatalf("status = %d, want 410", rec.Code)
 	}
-	if ct := rec.Header().Get("Content-Type"); strings.HasPrefix(ct, "text/html") {
-		t.Error("a real browser got the html preview page instead of the plain error")
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want html", ct)
+	}
+	if strings.Contains(rec.Body.String(), "og:description") {
+		t.Error("a real browser got the bot preview page instead of the styled expired page")
+	}
+	if !strings.Contains(rec.Body.String(), "This share has expired") {
+		t.Errorf("expired page lacks the expected message: %s", rec.Body.String())
 	}
 }

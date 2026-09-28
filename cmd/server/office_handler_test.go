@@ -31,13 +31,17 @@ func withOfficeShare(t *testing.T, fd shared.FileData, officeURL, secret string)
 	}
 	prevOffice, prevPreview := officeHtmlPath, previewHtmlPath
 	prevShare, prevGate := shareHtmlPath, gateHtmlPath
+	prevNotFound, prevExpired := notFoundHtmlPath, expiredHtmlPath
 	officeHtmlPath = "../../assets/web/html/office.html"
 	previewHtmlPath = "../../assets/web/html/preview.html"
 	shareHtmlPath = "../../assets/web/html/share.html"
 	gateHtmlPath = "../../assets/web/html/gate.html"
+	notFoundHtmlPath = "../../assets/web/html/notfound.html"
+	expiredHtmlPath = "../../assets/web/html/expired.html"
 	t.Cleanup(func() {
 		officeHtmlPath, previewHtmlPath = prevOffice, prevPreview
 		shareHtmlPath, gateHtmlPath = prevShare, prevGate
+		notFoundHtmlPath, expiredHtmlPath = prevNotFound, prevExpired
 		shared.SaveConfig(&shared.Config{AdminUsername: "admin", AdminPassword: testAdminHash, Files: map[string]shared.FileData{}})
 		os.Remove("data.json")
 	})

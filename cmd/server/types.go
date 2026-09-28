@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	shareHtmlPath = "./web/html/share.html"
-	gateHtmlPath  = "./web/html/gate.html"
+	shareHtmlPath    = "./web/html/share.html"
+	gateHtmlPath     = "./web/html/gate.html"
+	notFoundHtmlPath = "./web/html/notfound.html"
+	expiredHtmlPath  = "./web/html/expired.html"
 )
 
 const (

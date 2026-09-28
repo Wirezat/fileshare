@@ -65,7 +65,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 
 	fileData, exists := config.Files[subpath]
 	if !exists {
-		http.NotFound(w, r)
+		serveNotFoundPage(w)
 		return nil, false
 	}
 
@@ -81,7 +81,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		if isPreviewBot(r) {
 			serveExpiredPreview(w, r, subpath)
 		} else {
-			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+			serveExpiredPage(w, subpath)
 		}
 		return nil, false
 	}
@@ -102,7 +102,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 			return nil, false
 		}
 		GoLog.Errorf("failed to stat %s: %v", diskPath, err)
-		http.NotFound(w, r)
+		serveNotFoundPage(w)
 		return nil, false
 	}
 
@@ -128,7 +128,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 		if isPreviewBot(r) {
 			serveExpiredPreview(w, r, ctx.subpath)
 		} else {
-			http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+			serveExpiredPage(w, ctx.subpath)
 		}
 		return
 	}
@@ -218,6 +218,69 @@ func serveGatePage(w http.ResponseWriter, data gateData) {
 	}
 }
 
+var (
+	notFoundTemplate     *template.Template
+	notFoundTemplateErr  error
+	notFoundTemplateOnce sync.Once
+)
+
+func loadNotFoundTemplate() (*template.Template, error) {
+	notFoundTemplateOnce.Do(func() {
+		notFoundTemplate, notFoundTemplateErr = template.New("notfound").ParseFiles(notFoundHtmlPath)
+	})
+	return notFoundTemplate, notFoundTemplateErr
+}
+
+// serveNotFoundPage answers with the styled 404 page for a real browser
+// navigation. API-style endpoints keep using http.NotFound.
+func serveNotFoundPage(w http.ResponseWriter) {
+	tmpl, err := loadNotFoundTemplate()
+	if err != nil {
+		GoLog.Errorf("failed to load notfound template: %v", err)
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	if err := tmpl.ExecuteTemplate(w, "notfound", nil); err != nil {
+		GoLog.Errorf("failed to render notfound template: %v", err)
+	}
+}
+
+var (
+	expiredTemplate     *template.Template
+	expiredTemplateErr  error
+	expiredTemplateOnce sync.Once
+)
+
+// expiredData is the template context for the expired-share page.
+type expiredData struct {
+	Subpath string
+}
+
+func loadExpiredTemplate() (*template.Template, error) {
+	expiredTemplateOnce.Do(func() {
+		expiredTemplate, expiredTemplateErr = template.New("expired").ParseFiles(expiredHtmlPath)
+	})
+	return expiredTemplate, expiredTemplateErr
+}
+
+// serveExpiredPage answers with the styled expired-share page for a real
+// browser navigation. Preview bots get serveExpiredPreview instead.
+func serveExpiredPage(w http.ResponseWriter, subpath string) {
+	tmpl, err := loadExpiredTemplate()
+	if err != nil {
+		GoLog.Errorf("failed to load expired template: %v", err)
+		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusGone)
+	if err := tmpl.ExecuteTemplate(w, "expired", expiredData{Subpath: subpath}); err != nil {
+		GoLog.Errorf("failed to render expired template: %v", err)
+	}
+}
+
 // handleUnlock handles POST /{subpath}/unlock — verifies the share password,
 // issues a token cookie on success, and redirects to the share.
 // Not wrapped in loggingMiddleware intentionally — form body contains the password.
@@ -233,7 +296,7 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 
 	fd, exists := config.Files[subpath]
 	if !exists {
-		http.NotFound(w, r)
+		serveNotFoundPage(w)
 		return
 	}
 
