@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -220,5 +221,35 @@ func TestZipDownloadDeniedWhenNoZip(t *testing.T) {
 	}
 	if ct := rec.Header().Get("Content-Type"); strings.Contains(ct, "zip") {
 		t.Errorf("a zip was served anyway: Content-Type %s", ct)
+	}
+}
+
+func TestShareCreateCleansTrailingSlash(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "notiz.txt"), []byte("plain"), 0o600)
+	withShare(t, "", shared.FileData{})
+
+	rec := postShare(t, `{"subpath":"docs","path":"`+dir+`/"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+	if got := shareOf(t, "docs").Path; got != dir {
+		t.Errorf("Path = %q, want %q", got, dir)
+	}
+	if rec := get(t, "/docs/notiz.txt"); rec.Code != http.StatusOK {
+		t.Errorf("GET status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSharePatchCleansTrailingSlash(t *testing.T) {
+	dir := t.TempDir()
+	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+
+	rec := patchShare(t, "docs", `{"path":"`+dir+`//"}`)
+	if rec.Code/100 != 2 {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := shareOf(t, "docs").Path; got != dir {
+		t.Errorf("Path = %q, want %q", got, dir)
 	}
 }

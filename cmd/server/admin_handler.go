@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -143,6 +144,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Subpath already exists", http.StatusConflict)
 			return
 		}
+		req.Path = filepath.Clean(req.Path)
 		req.FileData.UploadTime = time.Now().Unix()
 		config.Files[req.Subpath] = req.FileData
 		if !saveOrErr(w, config) {
@@ -192,8 +194,9 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "path cannot be empty", http.StatusBadRequest)
 				return
 			}
-			track("path", *patch.Path)
-			entry.Path = *patch.Path
+			cleaned := filepath.Clean(*patch.Path)
+			track("path", cleaned)
+			entry.Path = cleaned
 		}
 
 		if patch.Expiration != nil {
