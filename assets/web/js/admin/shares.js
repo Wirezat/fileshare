@@ -6,6 +6,7 @@ import { renderPage, showModal }        from '/static/ui/js/wui.js'
 import { getLang, t }                  from '/static/ui/js/i18n.js'
 import { showToast }                   from '/static/ui/js/components/toast.js'
 import { attachInlineEdit }            from '/static/ui/js/inline-edit.js'
+import { attachPathPicker }            from './pathpicker.js'
 import { bootChrome, PATHS, esc, tf, apiFetch } from './chrome.js'
 
 const API = '/admin/api/shares'
@@ -45,6 +46,7 @@ let shares = {}
 let filterText = ''
 let page = null
 let officeReady = false
+let newSharePicker = null
 
 const OFFICE_CYCLE = { '': 'view', view: 'edit', edit: '' }
 
@@ -275,6 +277,9 @@ function officeField() {
 function openNewShare() {
     const node = newShareForm()
     const get = name => node.querySelector(`[name="${name}"]`)
+
+    newSharePicker?.destroy()
+    newSharePicker = attachPathPicker(get('path'))
 
     showModal({
         preset: 'form',
