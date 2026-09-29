@@ -224,6 +224,11 @@ function field(labelKey, inputHTML, hintKey) {
 function newShareForm() {
     const node = document.createElement('div')
     node.className = 'form-stack'
+    const passwordForm = document.createElement('form')
+    passwordForm.addEventListener('submit', e => e.preventDefault())
+    passwordForm.append(field('shares.form.password',
+        `<input class="input" name="password" type="password" autocomplete="new-password">`,
+        'shares.form.password_hint'))
     node.append(
         field('shares.form.subpath',
             `<input class="input" name="subpath" autocomplete="off">`, 'shares.form.subpath_hint'),
@@ -231,9 +236,7 @@ function newShareForm() {
             `<input class="input" name="path" autocomplete="off" placeholder="/srv/files/report.pdf">`),
         field('shares.form.expires',
             `<input class="input" name="expiration" type="datetime-local">`, 'shares.form.expires_hint'),
-        field('shares.form.password',
-            `<input class="input" name="password" type="password" autocomplete="new-password">`,
-            'shares.form.password_hint'),
+        passwordForm,
     )
     node.append(
         checkItem('allow_post', 'shares.form.allow_post', false),
