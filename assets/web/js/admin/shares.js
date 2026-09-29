@@ -5,7 +5,6 @@
 import { renderPage, showModal }        from '/static/ui/js/wui.js'
 import { getLang, t }                  from '/static/ui/js/i18n.js'
 import { showToast }                   from '/static/ui/js/components/toast.js'
-import { attachInlineEdit }            from '/static/ui/js/inline-edit.js'
 import { attachPathPicker }            from './pathpicker.js'
 import { bootChrome, PATHS, esc, tf, apiFetch } from './chrome.js'
 
@@ -79,9 +78,9 @@ function renderActions(_val, row) {
         + ` data-act="delete" data-sub="${esc(row.sub)}" title="${esc(t('common.delete'))}">🗑</button>`
 }
 
-function editableCell(row, field, text) {
-    return `<span class="field-editable" data-inline data-sub="${esc(row.sub)}"`
-        + ` data-field="${esc(field)}" title="${esc(t('shares.hint.edit'))}">${esc(text)}</span>`
+function editableCell(row, act, text) {
+    return `<span class="field-editable" data-act="${esc(act)}" data-sub="${esc(row.sub)}"`
+        + ` title="${esc(t('shares.hint.edit'))}">${esc(text)}</span>`
 }
 
 function renderExpires(_val, row) {
@@ -187,10 +186,6 @@ function currentStats() {
 function refresh() {
     page.get('stats').update({ stats: currentStats() })
     page.get('table').update({ rows: currentRows() })
-    // update() rebuilds the tbody, so the inline-edit spans are re-wired here.
-    page.get('table').el
-        .querySelectorAll('.field-editable[data-inline]')
-        .forEach(attachInlineEdit)
 }
 
 async function loadShares() {
@@ -441,6 +436,35 @@ function editExpiration(span, sub) {
     })
 }
 
+/* Swaps the path cell for an input with the directory picker; commits on Enter and blur. */
+function editPath(span, sub) {
+    if (span.dataset.editing) return
+    span.dataset.editing = '1'
+
+    const input = document.createElement('input')
+    input.className = 'input td-mono'
+    input.value = shares[sub].path
+    span.replaceWith(input)
+    const picker = attachPathPicker(input)
+    input.focus()
+
+    let done = false
+    const finish = raw => {
+        if (done) return
+        done = true
+        picker.destroy()
+        const next = raw === null ? '' : raw.trim().replace(/(.)\/+$/, '$1')
+        if (!next || next === shares[sub].path) return refresh()
+        shares[sub].path = next
+        patchShare(sub, { path: next })
+    }
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.defaultPrevented) finish(input.value)
+        if (e.key === 'Escape') finish(null)
+    })
+    input.addEventListener('blur', () => finish(input.value))
+}
+
 /* ── Wiring ──────────────────────────────────────────────────────────────── */
 
 function wireTable(el) {
@@ -455,26 +479,12 @@ function wireTable(el) {
             case 'office':   patchShare(sub, { office: OFFICE_CYCLE[shares[sub].office || ''] }, true); break
             case 'status':   patchShare(sub, { expired: !shares[sub].expired }, true); break
             case 'expires':  editExpiration(target, sub); break
+            case 'path':     editPath(target, sub); break
             case 'copy':     copyShareLink(sub); break
             case 'qr':       openQrModal(sub); break
             case 'delete':   confirmDelete(sub); break
         }
     })
-
-    el.addEventListener('inline-commit', e => {
-        const { sub, field: name } = e.target.dataset
-        const raw = e.detail.value.trim()
-
-        // Local copy is updated before the request, so the blur commit that
-        // follows Enter sees the new value and does not send a second write.
-        if (name === 'path') {
-            if (!raw || raw === shares[sub].path) return refresh()
-            shares[sub].path = raw
-            return patchShare(sub, { path: raw })
-        }
-    })
-
-    el.addEventListener('inline-cancel', refresh)
 }
 
 /* ── Boot ────────────────────────────────────────────────────────────────── */
