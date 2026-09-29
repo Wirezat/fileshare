@@ -6,8 +6,9 @@ import { apiFetch } from './chrome.js'
 const PAGE = 50
 
 function splitPath(value) {
-    const cut = value.lastIndexOf('/')
-    return { dir: value.slice(0, cut + 1) || '/', filter: value.slice(cut + 1) }
+    const clean = value.replace(/\/{2,}/g, '/')
+    const cut = clean.lastIndexOf('/')
+    return { dir: clean.slice(0, cut + 1) || '/', filter: clean.slice(cut + 1) }
 }
 
 function parentOf(dir) {
@@ -25,6 +26,10 @@ export function attachPathPicker(input) {
     const drop = document.createElement('div')
     drop.className = 'wui-ac-drop'
     document.body.appendChild(drop)
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && drop.classList.contains('open')) e.stopPropagation()
+    })
 
     let listing = { dir: null, entries: [] }
     async function entriesOf(dir) {
@@ -56,15 +61,14 @@ export function attachPathPicker(input) {
             const entries = await entriesOf(dir)
             if (!entries) return { rows: [], hasMore: false }
             const f = filter.toLowerCase()
-            const rows = entries.filter(e => e.name.toLowerCase().startsWith(f))
-            if (dir !== '/' && !filter) rows.unshift({ name: '..', dir: true, up: true })
+            const rows = entries.filter(e => e.name.toLowerCase().startsWith(f)).map(e => ({ ...e, base: dir }))
+            if (dir !== '/' && !filter) rows.unshift({ name: '..', dir: true, up: true, base: dir })
             return { rows: rows.slice(offset, offset + PAGE), hasMore: offset + PAGE < rows.length }
         },
         onSelect: row => {
-            const { dir } = splitPath(input.value)
-            if (row.up) return descend(parentOf(dir))
-            if (row.dir) return descend(`${dir}${row.name}/`)
-            input.value = dir + row.name
+            if (row.up) return descend(parentOf(row.base))
+            if (row.dir) return descend(`${row.base}${row.name}/`)
+            input.value = row.base + row.name
         },
     })
 

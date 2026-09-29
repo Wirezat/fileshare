@@ -376,7 +376,6 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 	}
 	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
 		GoLog.Warnf("admin username change rejected: wrong current password")
-		// 403, not 401: the session itself is still valid.
 		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
 	}
@@ -409,7 +408,6 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
 		GoLog.Warnf("admin password change rejected: wrong current password")
-		// 403, not 401: the session itself is still valid.
 		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
 	}

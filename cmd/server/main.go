@@ -47,7 +47,6 @@ func buildMux() *http.ServeMux {
 		mux.HandleFunc(path, adminAuth(h))
 	}
 
-	// wui library and theme are public; the login page needs them.
 	uiFS := http.StripPrefix("/static/ui/", http.FileServer(http.Dir(uiDir)))
 	mux.Handle("/static/ui/", uiFS)
 	mux.HandleFunc("/static/theme.css", handleThemeCSS)
@@ -59,7 +58,6 @@ func buildMux() *http.ServeMux {
 	mux.HandleFunc("/admin/login", handleAdminLogin)
 	mux.HandleFunc("/admin/logout", handleAdminLogout)
 
-	// Setup routes — no auth, and no logging to avoid capturing password setup attempts.
 	mux.HandleFunc("GET /setup", handleSetupUI)
 	mux.HandleFunc("POST /setup/api/init", handleSetupInit)
 
@@ -67,7 +65,6 @@ func buildMux() *http.ServeMux {
 	mux.HandleFunc("POST /{subpath}/chunk-init", handleChunkInit)
 	mux.HandleFunc("POST /{subpath}/chunk", handleChunkReceive)
 
-	// Share unlock — not wrapped in loggingMiddleware (form body contains password).
 	mux.HandleFunc("POST /{subpath}/unlock", handleUnlock)
 
 	// Public routes.
