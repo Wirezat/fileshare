@@ -27,6 +27,7 @@ func buildMux() *http.ServeMux {
 	adminRoutes := map[string]http.HandlerFunc{
 		"/admin/api/shares":                            handleAdminShares,
 		"/admin/api/shares/qr":                         handleAdminShareQR,
+		"/admin/api/browse":                            handleAdminBrowse,
 		"/admin/api/logs":                              handleAdminLogs,
 		"/admin/api/logs/stream":                       handleAdminLogsStream,
 		"/admin/api/settings/username":                 handleAdminSettingsUsername,
