@@ -34,7 +34,7 @@ export function attachPathPicker(input) {
             listing = { dir, entries: (await res.json()).entries }
             return listing.entries
         } catch {
-            return []
+            return null
         }
     }
 
@@ -53,8 +53,10 @@ export function attachPathPicker(input) {
         fetch: async (q, offset) => {
             if (!input.isConnected) return { rows: [], hasMore: false }
             const { dir, filter } = splitPath(q)
+            const entries = await entriesOf(dir)
+            if (!entries) return { rows: [], hasMore: false }
             const f = filter.toLowerCase()
-            const rows = (await entriesOf(dir)).filter(e => e.name.toLowerCase().startsWith(f))
+            const rows = entries.filter(e => e.name.toLowerCase().startsWith(f))
             if (dir !== '/' && !filter) rows.unshift({ name: '..', dir: true, up: true })
             return { rows: rows.slice(offset, offset + PAGE), hasMore: offset + PAGE < rows.length }
         },
