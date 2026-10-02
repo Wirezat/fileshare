@@ -1,0 +1,611 @@
+{
+  "ticket": {
+    "id": "review/11",
+    "name": "11-login-und-session"
+  },
+  "title": "Login und Session",
+  "subtitle": "Admin-Zugriff prüfen, anmelden, Session halten. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Prüfen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Anmelden",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Browser ruft /admin-Seite oder -API auf"
+            ]
+          },
+          {
+            "id": "load",
+            "type": "dec",
+            "text": [
+              "2. data.json lesbar?",
+              "~admin.go:25"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~admin.go:28"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "sess",
+            "type": "dec",
+            "text": [
+              "3. Passwort gesetzt, Session gültig?",
+              "~admin.go:31 · admin_session.go:45-51"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "run",
+            "type": "proc",
+            "text": [
+              "4. Admin-Handler läuft",
+              "~main.go:27-47",
+              "Seiten, /api/*, /me, /uptime"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "nav",
+            "type": "dec",
+            "text": [
+              "5. Browser-Navigation?",
+              "~admin.go:14-19",
+              "Sec-Fetch-Mode oder Accept"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e401",
+            "type": "proc",
+            "text": [
+              "!401 Unauthorized",
+              "~admin.go:33"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "nopw",
+            "type": "dec",
+            "text": [
+              "6. Passwort schon gesetzt?",
+              "~admin.go:36-39"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "setup",
+            "type": "proc",
+            "text": [
+              "Weiterleitung /setup",
+              "~admin.go:38",
+              "→ Workflow 10"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "login",
+            "type": "proc",
+            "text": [
+              "7. Login-Seite, POST /admin/login",
+              "~admin.go:60-63"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "rate",
+            "type": "dec",
+            "text": [
+              "8. Versuche frei (je IP)?",
+              "~admin.go:64-67"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e429",
+            "type": "proc",
+            "text": [
+              "!429 Too many attempts",
+              "~ratelimit.go:85"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "cred",
+            "type": "dec",
+            "text": [
+              "9. Name und Passwort stimmen?",
+              "~admin.go:69-92",
+              "JSON oder Formular, Argon2id oder bcrypt"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "wrong",
+            "type": "proc",
+            "text": [
+              "Fehlversuch zählen",
+              "!401 Wrong username or password",
+              "~admin.go:87-91"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "rehash",
+            "type": "proc",
+            "text": [
+              "10. Hash veraltet? Neu hashen",
+              "~admin.go:96-105"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "tok",
+            "type": "proc",
+            "text": [
+              "11. Session-Token erzeugen",
+              "24 Byte, 7 Tage fest",
+              "~admin_session.go:14-20"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "cookie",
+            "type": "proc",
+            "text": [
+              "12. Cookie admin_session",
+              "Path /admin, HttpOnly, Strict",
+              "~admin_session.go:54-63 · admin.go:107-114"
+            ],
+            "phase": 2,
+            "note": [
+              "Logout: admin.go:122-128"
+            ]
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "13. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "load"
+          },
+          {
+            "from": "load",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "load",
+            "to": "sess",
+            "label": "Ja"
+          },
+          {
+            "from": "sess",
+            "to": "run",
+            "label": "Ja"
+          },
+          {
+            "from": "sess",
+            "to": "nav",
+            "label": "Nein"
+          },
+          {
+            "from": "nav",
+            "to": "e401",
+            "label": "Nein"
+          },
+          {
+            "from": "nav",
+            "to": "nopw",
+            "label": "Ja"
+          },
+          {
+            "from": "nopw",
+            "to": "setup",
+            "label": "Nein"
+          },
+          {
+            "from": "nopw",
+            "to": "login",
+            "label": "Ja"
+          },
+          {
+            "from": "login",
+            "to": "rate"
+          },
+          {
+            "from": "rate",
+            "to": "e429",
+            "label": "Nein"
+          },
+          {
+            "from": "rate",
+            "to": "cred",
+            "label": "Ja"
+          },
+          {
+            "from": "cred",
+            "to": "wrong",
+            "label": "Nein"
+          },
+          {
+            "from": "cred",
+            "to": "rehash",
+            "label": "Ja"
+          },
+          {
+            "from": "rehash",
+            "to": "tok"
+          },
+          {
+            "from": "tok",
+            "to": "cookie"
+          },
+          {
+            "from": "cookie",
+            "to": "end"
+          },
+          {
+            "from": "run",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          },
+          {
+            "from": "e401",
+            "to": "end"
+          },
+          {
+            "from": "setup",
+            "to": "end"
+          },
+          {
+            "from": "e429",
+            "to": "end"
+          },
+          {
+            "from": "wrong",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Prüfen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Anmelden",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Browser ruft /admin-Seite oder -API auf"
+              ]
+            },
+            {
+              "id": "load",
+              "type": "dec",
+              "text": [
+                "2. data.json lesbar?",
+                "~admin.go:25"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~admin.go:28"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "sess",
+              "type": "dec",
+              "text": [
+                "3. Passwort gesetzt, Session gültig?",
+                "~admin.go:31 · admin_session.go:45-51"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "run",
+              "type": "proc",
+              "text": [
+                "4. Admin-Handler läuft",
+                "~main.go:27-47",
+                "Seiten, /api/*, /me, /uptime"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "nav",
+              "type": "dec",
+              "text": [
+                "5. Browser-Navigation?",
+                "~admin.go:14-19",
+                "Sec-Fetch-Mode oder Accept"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e401",
+              "type": "proc",
+              "text": [
+                "!401 Unauthorized",
+                "~admin.go:33"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "nopw",
+              "type": "dec",
+              "text": [
+                "6. Passwort schon gesetzt?",
+                "~admin.go:36-39"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "setup",
+              "type": "proc",
+              "text": [
+                "Weiterleitung /setup",
+                "~admin.go:38",
+                "→ Workflow 10"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "login",
+              "type": "proc",
+              "text": [
+                "7. Login-Seite, POST /admin/login",
+                "~admin.go:60-63"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "rate",
+              "type": "dec",
+              "text": [
+                "8. Versuche frei (je IP)?",
+                "~admin.go:64-67"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e429",
+              "type": "proc",
+              "text": [
+                "!429 Too many attempts",
+                "~ratelimit.go:85"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "cred",
+              "type": "dec",
+              "text": [
+                "9. Name und Passwort stimmen?",
+                "~admin.go:69-92",
+                "JSON oder Formular, Argon2id oder bcrypt"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Auch Benutzernamen in konstanter Zeit vergleichen?"
+              ]
+            },
+            {
+              "id": "wrong",
+              "type": "proc",
+              "text": [
+                "Fehlversuch zählen",
+                "!401 Wrong username or password",
+                "~admin.go:87-91"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "rehash",
+              "type": "proc",
+              "text": [
+                "10. Hash veraltet? Neu hashen",
+                "~admin.go:96-105"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "tok",
+              "type": "proc",
+              "text": [
+                "11. Session-Token erzeugen",
+                "24 Byte, 7 Tage fest",
+                "~admin_session.go:14-20"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Session bei Nutzung verlängern (heute fest 7 Tage)?"
+              ]
+            },
+            {
+              "id": "cookie",
+              "type": "proc",
+              "text": [
+                "12. Cookie admin_session",
+                "Path /admin, HttpOnly, Strict",
+                "~admin_session.go:54-63 · admin.go:107-114"
+              ],
+              "phase": 2,
+              "note": [
+                "Logout: admin.go:122-128"
+              ]
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "13. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "load"
+            },
+            {
+              "from": "load",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "load",
+              "to": "sess",
+              "label": "Ja"
+            },
+            {
+              "from": "sess",
+              "to": "run",
+              "label": "Ja"
+            },
+            {
+              "from": "sess",
+              "to": "nav",
+              "label": "Nein"
+            },
+            {
+              "from": "nav",
+              "to": "e401",
+              "label": "Nein"
+            },
+            {
+              "from": "nav",
+              "to": "nopw",
+              "label": "Ja"
+            },
+            {
+              "from": "nopw",
+              "to": "setup",
+              "label": "Nein"
+            },
+            {
+              "from": "nopw",
+              "to": "login",
+              "label": "Ja"
+            },
+            {
+              "from": "login",
+              "to": "rate"
+            },
+            {
+              "from": "rate",
+              "to": "e429",
+              "label": "Nein"
+            },
+            {
+              "from": "rate",
+              "to": "cred",
+              "label": "Ja"
+            },
+            {
+              "from": "cred",
+              "to": "wrong",
+              "label": "Nein"
+            },
+            {
+              "from": "cred",
+              "to": "rehash",
+              "label": "Ja"
+            },
+            {
+              "from": "rehash",
+              "to": "tok"
+            },
+            {
+              "from": "tok",
+              "to": "cookie"
+            },
+            {
+              "from": "cookie",
+              "to": "end"
+            },
+            {
+              "from": "run",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            },
+            {
+              "from": "e401",
+              "to": "end"
+            },
+            {
+              "from": "setup",
+              "to": "end"
+            },
+            {
+              "from": "e429",
+              "to": "end"
+            },
+            {
+              "from": "wrong",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

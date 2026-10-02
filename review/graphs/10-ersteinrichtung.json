@@ -1,0 +1,673 @@
+{
+  "ticket": {
+    "id": "review/10",
+    "name": "10-ersteinrichtung"
+  },
+  "title": "Ersteinrichtung",
+  "subtitle": "Erster Admin-Zugang über Setup-Seite und Setup-Code. Soll = Ist: in dieser Aufnahme kein Prozessbefund.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Start",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Prüfen",
+            "color": "ta"
+          },
+          {
+            "id": 3,
+            "title": "Anlegen",
+            "color": "ext"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Server startet ohne Admin-Passwort"
+            ]
+          },
+          {
+            "id": "token",
+            "type": "proc",
+            "text": [
+              "2. Setup-Code erzeugen (16 Byte)",
+              "~setup_handler.go:19-29",
+              "nur im Server-Log sichtbar"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "open",
+            "type": "proc",
+            "text": [
+              "3. Betreiber öffnet /setup",
+              "~setup_handler.go:33 · admin.go:36-40",
+              "/admin leitet hierher um"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "ui",
+            "type": "dec",
+            "text": [
+              "4. Passwort schon gesetzt?",
+              "~setup_handler.go:39"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "redir",
+            "type": "proc",
+            "text": [
+              "Weiterleitung /admin",
+              "~setup_handler.go:40"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "post",
+            "type": "proc",
+            "text": [
+              "5. POST /setup/api/init",
+              "~setup_handler.go:48"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "done",
+            "type": "dec",
+            "text": [
+              "6. Passwort schon gesetzt?",
+              "~setup_handler.go:54"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e403a",
+            "type": "proc",
+            "text": [
+              "!403 Setup already complete",
+              "~setup_handler.go:55"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "rate",
+            "type": "dec",
+            "text": [
+              "7. Versuche frei?",
+              "~setup_handler.go:58",
+              "Schlüssel setup|IP, Limiter wie beim Login"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e429",
+            "type": "proc",
+            "text": [
+              "!429 Too many attempts",
+              "~ratelimit.go:85"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "body",
+            "type": "dec",
+            "text": [
+              "8. Body lesbar?",
+              "~setup_handler.go:66"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~setup_handler.go:37 · :76"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "code",
+            "type": "dec",
+            "text": [
+              "9. Setup-Code stimmt?",
+              "~setup_handler.go:69-74",
+              "Vergleich in konstanter Zeit"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "wrong",
+            "type": "proc",
+            "text": [
+              "Fehlversuch zählen",
+              "!403 Wrong setup code",
+              "~setup_handler.go:70-73"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "pw",
+            "type": "dec",
+            "text": [
+              "10. Passwort nicht leer?",
+              "~setup_handler.go:75"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "save",
+            "type": "dec",
+            "text": [
+              "11. Hashen und speichern",
+              "~setup_handler.go:80-94",
+              "Name optional, Argon2id"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~setup_handler.go:86 · :92"
+            ],
+            "phase": 3,
+            "error": true
+          },
+          {
+            "id": "once",
+            "type": "proc",
+            "text": [
+              "12. Setup-Code verwerfen",
+              "~setup_handler.go:95"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "ok",
+            "type": "proc",
+            "text": [
+              "13. 204 No Content",
+              "~setup_handler.go:97"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "14. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "token"
+          },
+          {
+            "from": "token",
+            "to": "open"
+          },
+          {
+            "from": "open",
+            "to": "ui"
+          },
+          {
+            "from": "ui",
+            "to": "redir",
+            "label": "Ja"
+          },
+          {
+            "from": "ui",
+            "to": "post",
+            "label": "Nein"
+          },
+          {
+            "from": "post",
+            "to": "done"
+          },
+          {
+            "from": "done",
+            "to": "e403a",
+            "label": "Ja"
+          },
+          {
+            "from": "done",
+            "to": "rate",
+            "label": "Nein"
+          },
+          {
+            "from": "rate",
+            "to": "e429",
+            "label": "Nein"
+          },
+          {
+            "from": "rate",
+            "to": "body",
+            "label": "Ja"
+          },
+          {
+            "from": "body",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "body",
+            "to": "code",
+            "label": "Ja"
+          },
+          {
+            "from": "code",
+            "to": "wrong",
+            "label": "Nein"
+          },
+          {
+            "from": "code",
+            "to": "pw",
+            "label": "Ja"
+          },
+          {
+            "from": "pw",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "pw",
+            "to": "save",
+            "label": "Ja"
+          },
+          {
+            "from": "save",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "save",
+            "to": "once",
+            "label": "Ja"
+          },
+          {
+            "from": "once",
+            "to": "ok"
+          },
+          {
+            "from": "ok",
+            "to": "end"
+          },
+          {
+            "from": "redir",
+            "to": "end"
+          },
+          {
+            "from": "e403a",
+            "to": "end"
+          },
+          {
+            "from": "e429",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          },
+          {
+            "from": "wrong",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Start",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Prüfen",
+              "color": "ta"
+            },
+            {
+              "id": 3,
+              "title": "Anlegen",
+              "color": "ext"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Server startet ohne Admin-Passwort"
+              ]
+            },
+            {
+              "id": "token",
+              "type": "proc",
+              "text": [
+                "2. Setup-Code erzeugen (16 Byte)",
+                "~setup_handler.go:19-29",
+                "nur im Server-Log sichtbar"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "open",
+              "type": "proc",
+              "text": [
+                "3. Betreiber öffnet /setup",
+                "~setup_handler.go:33 · admin.go:36-40",
+                "/admin leitet hierher um"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "ui",
+              "type": "dec",
+              "text": [
+                "4. Passwort schon gesetzt?",
+                "~setup_handler.go:39"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "redir",
+              "type": "proc",
+              "text": [
+                "Weiterleitung /admin",
+                "~setup_handler.go:40"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "post",
+              "type": "proc",
+              "text": [
+                "5. POST /setup/api/init",
+                "~setup_handler.go:48"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "done",
+              "type": "dec",
+              "text": [
+                "6. Passwort schon gesetzt?",
+                "~setup_handler.go:54"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e403a",
+              "type": "proc",
+              "text": [
+                "!403 Setup already complete",
+                "~setup_handler.go:55"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "rate",
+              "type": "dec",
+              "text": [
+                "7. Versuche frei?",
+                "~setup_handler.go:58",
+                "Schlüssel setup|IP, Limiter wie beim Login"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e429",
+              "type": "proc",
+              "text": [
+                "!429 Too many attempts",
+                "~ratelimit.go:85"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "body",
+              "type": "dec",
+              "text": [
+                "8. Body lesbar?",
+                "~setup_handler.go:66"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~setup_handler.go:37 · :76"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "code",
+              "type": "dec",
+              "text": [
+                "9. Setup-Code stimmt?",
+                "~setup_handler.go:69-74",
+                "Vergleich in konstanter Zeit"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "wrong",
+              "type": "proc",
+              "text": [
+                "Fehlversuch zählen",
+                "!403 Wrong setup code",
+                "~setup_handler.go:70-73"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "pw",
+              "type": "dec",
+              "text": [
+                "10. Passwort nicht leer?",
+                "~setup_handler.go:75"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "save",
+              "type": "dec",
+              "text": [
+                "11. Hashen und speichern",
+                "~setup_handler.go:80-94",
+                "Name optional, Argon2id"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~setup_handler.go:86 · :92"
+              ],
+              "phase": 3,
+              "error": true
+            },
+            {
+              "id": "once",
+              "type": "proc",
+              "text": [
+                "12. Setup-Code verwerfen",
+                "~setup_handler.go:95"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "ok",
+              "type": "proc",
+              "text": [
+                "13. 204 No Content",
+                "~setup_handler.go:97"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "14. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "token"
+            },
+            {
+              "from": "token",
+              "to": "open"
+            },
+            {
+              "from": "open",
+              "to": "ui"
+            },
+            {
+              "from": "ui",
+              "to": "redir",
+              "label": "Ja"
+            },
+            {
+              "from": "ui",
+              "to": "post",
+              "label": "Nein"
+            },
+            {
+              "from": "post",
+              "to": "done"
+            },
+            {
+              "from": "done",
+              "to": "e403a",
+              "label": "Ja"
+            },
+            {
+              "from": "done",
+              "to": "rate",
+              "label": "Nein"
+            },
+            {
+              "from": "rate",
+              "to": "e429",
+              "label": "Nein"
+            },
+            {
+              "from": "rate",
+              "to": "body",
+              "label": "Ja"
+            },
+            {
+              "from": "body",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "body",
+              "to": "code",
+              "label": "Ja"
+            },
+            {
+              "from": "code",
+              "to": "wrong",
+              "label": "Nein"
+            },
+            {
+              "from": "code",
+              "to": "pw",
+              "label": "Ja"
+            },
+            {
+              "from": "pw",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "pw",
+              "to": "save",
+              "label": "Ja"
+            },
+            {
+              "from": "save",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "save",
+              "to": "once",
+              "label": "Ja"
+            },
+            {
+              "from": "once",
+              "to": "ok"
+            },
+            {
+              "from": "ok",
+              "to": "end"
+            },
+            {
+              "from": "redir",
+              "to": "end"
+            },
+            {
+              "from": "e403a",
+              "to": "end"
+            },
+            {
+              "from": "e429",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            },
+            {
+              "from": "wrong",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

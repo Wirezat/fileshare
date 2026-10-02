@@ -1,0 +1,603 @@
+{
+  "ticket": {
+    "id": "review/12a",
+    "name": "12a-share-anlegen"
+  },
+  "title": "Share anlegen (Admin-UI)",
+  "subtitle": "Pfadwähler und Formular bis zum gespeicherten Share. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Pfad wählen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Anlegen",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Admin klickt 'Neuer Share'"
+            ]
+          },
+          {
+            "id": "pick",
+            "type": "proc",
+            "text": [
+              "2. Pfad im Pfadwähler wählen",
+              "~pathpicker.js · shares.js:272",
+              "GET /admin/api/browse?path=…"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "br",
+            "type": "dec",
+            "text": [
+              "3. Pfad absolut, Ordner, lesbar?",
+              "~admin_browse.go:33-52"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "ebr",
+            "type": "proc",
+            "text": [
+              "!400, 403 oder 404",
+              "~admin_browse.go:34 · :76-88"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "form",
+            "type": "proc",
+            "text": [
+              "4. Formular ausfüllen",
+              "Subpath (Zufall möglich), Frist, Upload,",
+              "ZIP, Office, Passwort",
+              "~shares.js:224-330"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "req",
+            "type": "proc",
+            "text": [
+              "5. POST /admin/api/shares",
+              "~shares.js:308 · admin_handler.go:113"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "must",
+            "type": "dec",
+            "text": [
+              "6. Subpath und Pfad angegeben?",
+              "~admin_handler.go:121"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "off",
+            "type": "dec",
+            "text": [
+              "7. Office-Modus gültig?",
+              "~admin_handler.go:125"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~admin_handler.go:122 · :126"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "hash",
+            "type": "dec",
+            "text": [
+              "8. Passwort hashen (Argon2id)",
+              "~admin_handler.go:130-138"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "cfg",
+            "type": "dec",
+            "text": [
+              "9. data.json lesbar?",
+              "~admin_handler.go:139"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "free",
+            "type": "dec",
+            "text": [
+              "10. Subpath frei?",
+              "~admin_handler.go:143"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e409",
+            "type": "proc",
+            "text": [
+              "!409 Subpath already exists",
+              "~admin_handler.go:144"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "save",
+            "type": "dec",
+            "text": [
+              "11. Speichern",
+              "~admin_handler.go:147-153",
+              "Pfad bereinigt, Subpath ungeprüft"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~admin_handler.go:134 · :141 · :150"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "ok",
+            "type": "proc",
+            "text": [
+              "12. 201 Created",
+              "~admin_handler.go:154"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "13. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "pick"
+          },
+          {
+            "from": "pick",
+            "to": "br"
+          },
+          {
+            "from": "br",
+            "to": "ebr",
+            "label": "Nein"
+          },
+          {
+            "from": "br",
+            "to": "form",
+            "label": "Ja"
+          },
+          {
+            "from": "form",
+            "to": "req"
+          },
+          {
+            "from": "req",
+            "to": "must"
+          },
+          {
+            "from": "must",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "must",
+            "to": "off",
+            "label": "Ja"
+          },
+          {
+            "from": "off",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "off",
+            "to": "hash",
+            "label": "Ja"
+          },
+          {
+            "from": "hash",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "hash",
+            "to": "cfg",
+            "label": "Ja"
+          },
+          {
+            "from": "cfg",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "cfg",
+            "to": "free",
+            "label": "Ja"
+          },
+          {
+            "from": "free",
+            "to": "e409",
+            "label": "Nein"
+          },
+          {
+            "from": "free",
+            "to": "save",
+            "label": "Ja"
+          },
+          {
+            "from": "save",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "save",
+            "to": "ok",
+            "label": "Ja"
+          },
+          {
+            "from": "ok",
+            "to": "end"
+          },
+          {
+            "from": "ebr",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          },
+          {
+            "from": "e409",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Pfad wählen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Anlegen",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Admin klickt 'Neuer Share'"
+              ]
+            },
+            {
+              "id": "pick",
+              "type": "proc",
+              "text": [
+                "2. Pfad im Pfadwähler wählen",
+                "~pathpicker.js · shares.js:272",
+                "GET /admin/api/browse?path=…"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "br",
+              "type": "dec",
+              "text": [
+                "3. Pfad absolut, Ordner, lesbar?",
+                "~admin_browse.go:33-52"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "ebr",
+              "type": "proc",
+              "text": [
+                "!400, 403 oder 404",
+                "~admin_browse.go:34 · :76-88"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "form",
+              "type": "proc",
+              "text": [
+                "4. Formular ausfüllen",
+                "Subpath (Zufall möglich), Frist, Upload,",
+                "ZIP, Office, Passwort",
+                "~shares.js:224-330"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "req",
+              "type": "proc",
+              "text": [
+                "5. POST /admin/api/shares",
+                "~shares.js:308 · admin_handler.go:113"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "must",
+              "type": "dec",
+              "text": [
+                "6. Subpath und Pfad angegeben?",
+                "~admin_handler.go:121"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "off",
+              "type": "dec",
+              "text": [
+                "7. Office-Modus gültig?",
+                "~admin_handler.go:125"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~admin_handler.go:122 · :126"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "hash",
+              "type": "dec",
+              "text": [
+                "8. Passwort hashen (Argon2id)",
+                "~admin_handler.go:130-138"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "cfg",
+              "type": "dec",
+              "text": [
+                "9. data.json lesbar?",
+                "~admin_handler.go:139"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "free",
+              "type": "dec",
+              "text": [
+                "10. Subpath frei?",
+                "~admin_handler.go:143"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e409",
+              "type": "proc",
+              "text": [
+                "!409 Subpath already exists",
+                "~admin_handler.go:144"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "save",
+              "type": "dec",
+              "text": [
+                "11. Speichern",
+                "~admin_handler.go:147-153",
+                "Pfad bereinigt, Subpath ungeprüft"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~admin_handler.go:134 · :141 · :150"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "ok",
+              "type": "proc",
+              "text": [
+                "12. 201 Created",
+                "~admin_handler.go:154"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "13. Ende"
+              ]
+            },
+            {
+              "id": "valid",
+              "type": "dec",
+              "text": [
+                "7a. Subpath-Format und Pfad prüfen",
+                "~neu: eine gemeinsame Funktion (Admin und CLI)",
+                "kein '/', keine reservierten Namen,",
+                "Pfad existiert"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Welche Subpath-Zeichen und reservierten Namen gelten?"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "pick"
+            },
+            {
+              "from": "pick",
+              "to": "br"
+            },
+            {
+              "from": "br",
+              "to": "ebr",
+              "label": "Nein"
+            },
+            {
+              "from": "br",
+              "to": "form",
+              "label": "Ja"
+            },
+            {
+              "from": "form",
+              "to": "req"
+            },
+            {
+              "from": "req",
+              "to": "must"
+            },
+            {
+              "from": "must",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "must",
+              "to": "off",
+              "label": "Ja"
+            },
+            {
+              "from": "off",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "hash",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "hash",
+              "to": "cfg",
+              "label": "Ja"
+            },
+            {
+              "from": "cfg",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "cfg",
+              "to": "free",
+              "label": "Ja"
+            },
+            {
+              "from": "free",
+              "to": "e409",
+              "label": "Nein"
+            },
+            {
+              "from": "free",
+              "to": "save",
+              "label": "Ja"
+            },
+            {
+              "from": "save",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "save",
+              "to": "ok",
+              "label": "Ja"
+            },
+            {
+              "from": "ok",
+              "to": "end"
+            },
+            {
+              "from": "ebr",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            },
+            {
+              "from": "e409",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            },
+            {
+              "from": "off",
+              "to": "valid",
+              "label": "Ja"
+            },
+            {
+              "from": "valid",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "valid",
+              "to": "hash",
+              "label": "Ja"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

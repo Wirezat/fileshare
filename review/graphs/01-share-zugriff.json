@@ -1,0 +1,932 @@
+{
+  "ticket": {
+    "id": "review/1",
+    "name": "01-share-zugriff"
+  },
+  "title": "Share-Zugriff",
+  "subtitle": "Auflösen, Prüfen und Ausliefern einer Share-URL. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Prüfen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Ausliefern",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: GET oder HEAD /<share>/<pfad>"
+            ]
+          },
+          {
+            "id": "intake",
+            "type": "proc",
+            "text": [
+              "2. Anfrage annehmen",
+              "~main.go:71-87 · handler.go:19",
+              "Sicherheits-Header, Zugriffslog"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "special",
+            "type": "dec",
+            "text": [
+              "3. Log- oder Callback-Pfad?",
+              "~handler.go:20 · :29"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "sp",
+            "type": "proc",
+            "text": [
+              "4. Sonderpfad",
+              "→ Workflow 9 oder 6b"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "method",
+            "type": "dec",
+            "text": [
+              "5. GET oder HEAD?",
+              "~handler.go:50"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "err405",
+            "type": "proc",
+            "text": [
+              "!405 Method Not Allowed",
+              "~handler.go:50-53"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "cfg",
+            "type": "dec",
+            "text": [
+              "6. data.json lesbar?",
+              "~handler.go:56 (jede Anfrage)"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "err500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~handler.go:58-60"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "find",
+            "type": "dec",
+            "text": [
+              "7. Share bekannt?",
+              "~handler.go:63-70"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "err404",
+            "type": "proc",
+            "text": [
+              "!404 Nicht-gefunden-Seite",
+              "~handler.go:68"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "trav",
+            "type": "dec",
+            "text": [
+              "8. Pfad liegt im Share?",
+              "~handler.go:72-78",
+              "nur lexikalisch geprüft"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "err403",
+            "type": "proc",
+            "text": [
+              "!403 Forbidden",
+              "~handler.go:74-77"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "expflag",
+            "type": "dec",
+            "text": [
+              "9. Flag Expired gesetzt?",
+              "~handler.go:80"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "expired",
+            "type": "proc",
+            "text": [
+              "!410 Abgelaufen-Seite",
+              "~handler.go:80-87",
+              "Bot: Link-Vorschau"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "pw",
+            "type": "dec",
+            "text": [
+              "10. Passwort-Cookie fehlt?",
+              "~handler.go:89"
+            ],
+            "phase": 1,
+            "note": [
+              "Ausnahme: Bearer-Token des Document Servers"
+            ]
+          },
+          {
+            "id": "gate",
+            "type": "proc",
+            "text": [
+              "Gate-Seite zeigen",
+              "~handler.go:90-94",
+              "→ Workflow 2"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "stat",
+            "type": "dec",
+            "text": [
+              "11. Datei vorhanden?",
+              "~handler.go:97-107"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "err404b",
+            "type": "proc",
+            "text": [
+              "!404 oder 403 (Symlink-Schleife)",
+              "~handler.go:99-106"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "time",
+            "type": "dec",
+            "text": [
+              "12. Ablaufzeit vorbei?",
+              "~handler.go:122"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "exp2",
+            "type": "proc",
+            "text": [
+              "Expired=true speichern",
+              "!410 Abgelaufen-Seite",
+              "~handler.go:122-133"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "dispatch",
+            "type": "dec",
+            "text": [
+              "13. Was wird verlangt?",
+              "~handler.go:136-149"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "s_dir",
+            "type": "proc",
+            "text": [
+              "Ordner",
+              "→ Workflow 3"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "s_thumb",
+            "type": "proc",
+            "text": [
+              "Thumbnail (?preview=1)",
+              "→ Workflow 4"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "s_prev",
+            "type": "proc",
+            "text": [
+              "Bot: Link-Vorschau",
+              "→ Workflow 4"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "s_off",
+            "type": "proc",
+            "text": [
+              "Office-Viewer",
+              "→ Workflow 6a"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "s_text",
+            "type": "proc",
+            "text": [
+              "Textansicht (?view=text)",
+              "→ Workflow 5"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "s_file",
+            "type": "proc",
+            "text": [
+              "14. Datei ausliefern",
+              "~handler.go:154-158",
+              "CSP sandbox, außer PDF"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "15. Ende: Antwort gesendet"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "intake"
+          },
+          {
+            "from": "intake",
+            "to": "special"
+          },
+          {
+            "from": "special",
+            "to": "sp",
+            "label": "Ja"
+          },
+          {
+            "from": "special",
+            "to": "method",
+            "label": "Nein"
+          },
+          {
+            "from": "sp",
+            "to": "end"
+          },
+          {
+            "from": "method",
+            "to": "err405",
+            "label": "Nein"
+          },
+          {
+            "from": "method",
+            "to": "cfg",
+            "label": "Ja"
+          },
+          {
+            "from": "cfg",
+            "to": "err500",
+            "label": "Nein"
+          },
+          {
+            "from": "cfg",
+            "to": "find",
+            "label": "Ja"
+          },
+          {
+            "from": "find",
+            "to": "err404",
+            "label": "Nein"
+          },
+          {
+            "from": "find",
+            "to": "trav",
+            "label": "Ja"
+          },
+          {
+            "from": "trav",
+            "to": "err403",
+            "label": "Nein"
+          },
+          {
+            "from": "trav",
+            "to": "expflag",
+            "label": "Ja"
+          },
+          {
+            "from": "expflag",
+            "to": "expired",
+            "label": "Ja"
+          },
+          {
+            "from": "expflag",
+            "to": "pw",
+            "label": "Nein"
+          },
+          {
+            "from": "pw",
+            "to": "gate",
+            "label": "Ja"
+          },
+          {
+            "from": "pw",
+            "to": "stat",
+            "label": "Nein"
+          },
+          {
+            "from": "stat",
+            "to": "err404b",
+            "label": "Nein"
+          },
+          {
+            "from": "stat",
+            "to": "time",
+            "label": "Ja"
+          },
+          {
+            "from": "time",
+            "to": "exp2",
+            "label": "Ja"
+          },
+          {
+            "from": "time",
+            "to": "dispatch",
+            "label": "Nein"
+          },
+          {
+            "from": "dispatch",
+            "to": "s_dir",
+            "label": "Ordner"
+          },
+          {
+            "from": "dispatch",
+            "to": "s_thumb",
+            "label": "Thumbnail"
+          },
+          {
+            "from": "dispatch",
+            "to": "s_prev",
+            "label": "Bot"
+          },
+          {
+            "from": "dispatch",
+            "to": "s_off",
+            "label": "Office"
+          },
+          {
+            "from": "dispatch",
+            "to": "s_text",
+            "label": "Text"
+          },
+          {
+            "from": "dispatch",
+            "to": "s_file",
+            "label": "sonst"
+          },
+          {
+            "from": "err405",
+            "to": "end"
+          },
+          {
+            "from": "err500",
+            "to": "end"
+          },
+          {
+            "from": "err404",
+            "to": "end"
+          },
+          {
+            "from": "err403",
+            "to": "end"
+          },
+          {
+            "from": "expired",
+            "to": "end"
+          },
+          {
+            "from": "gate",
+            "to": "end"
+          },
+          {
+            "from": "err404b",
+            "to": "end"
+          },
+          {
+            "from": "exp2",
+            "to": "end"
+          },
+          {
+            "from": "s_dir",
+            "to": "end"
+          },
+          {
+            "from": "s_thumb",
+            "to": "end"
+          },
+          {
+            "from": "s_prev",
+            "to": "end"
+          },
+          {
+            "from": "s_off",
+            "to": "end"
+          },
+          {
+            "from": "s_text",
+            "to": "end"
+          },
+          {
+            "from": "s_file",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Prüfen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Ausliefern",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: GET oder HEAD /<share>/<pfad>"
+              ]
+            },
+            {
+              "id": "intake",
+              "type": "proc",
+              "text": [
+                "2. Anfrage annehmen",
+                "~main.go:71-87 · handler.go:19",
+                "Sicherheits-Header, Zugriffslog"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "special",
+              "type": "dec",
+              "text": [
+                "3. Log- oder Callback-Pfad?",
+                "~handler.go:20 · :29"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "sp",
+              "type": "proc",
+              "text": [
+                "4. Sonderpfad",
+                "→ Workflow 9 oder 6b"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "method",
+              "type": "dec",
+              "text": [
+                "5. GET oder HEAD?",
+                "~handler.go:50"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "err405",
+              "type": "proc",
+              "text": [
+                "!405 Method Not Allowed",
+                "~handler.go:50-53"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "cfg",
+              "type": "dec",
+              "text": [
+                "6. data.json lesbar?",
+                "~handler.go:56 (jede Anfrage)"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "err500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~handler.go:58-60"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "find",
+              "type": "dec",
+              "text": [
+                "7. Share bekannt?",
+                "~handler.go:63-70"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "err404",
+              "type": "proc",
+              "text": [
+                "!404 Nicht-gefunden-Seite",
+                "~handler.go:68"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "trav",
+              "type": "dec",
+              "text": [
+                "8. Pfad liegt im Share?",
+                "~neu: Symlinks auflösen und prüfen"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Symlinks aus dem Share hinaus: erlauben oder sperren?"
+              ]
+            },
+            {
+              "id": "err403",
+              "type": "proc",
+              "text": [
+                "!403 Forbidden",
+                "~handler.go:74-77"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "pw",
+              "type": "dec",
+              "text": [
+                "10. Passwort-Cookie fehlt?",
+                "~handler.go:89"
+              ],
+              "phase": 1,
+              "note": [
+                "Ausnahme: Bearer-Token des Document Servers"
+              ]
+            },
+            {
+              "id": "gate",
+              "type": "proc",
+              "text": [
+                "Gate-Seite zeigen",
+                "~handler.go:90-94",
+                "→ Workflow 2"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "stat",
+              "type": "dec",
+              "text": [
+                "10. Datei vorhanden?",
+                "~handler.go:97-107"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "err404b",
+              "type": "proc",
+              "text": [
+                "!404 oder 403 (Symlink-Schleife)",
+                "~handler.go:99-106"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "dispatch",
+              "type": "dec",
+              "text": [
+                "12. Absicht bestimmen",
+                "~neu: eine Funktion statt vier Prädikate"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Abfrageparameter ?dl ?preview ?view so belassen?"
+              ]
+            },
+            {
+              "id": "s_dir",
+              "type": "proc",
+              "text": [
+                "Ordner",
+                "→ Workflow 3"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "s_thumb",
+              "type": "proc",
+              "text": [
+                "Thumbnail (?preview=1)",
+                "→ Workflow 4"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "s_prev",
+              "type": "proc",
+              "text": [
+                "Bot: Link-Vorschau",
+                "→ Workflow 4"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "s_off",
+              "type": "proc",
+              "text": [
+                "Office-Viewer",
+                "→ Workflow 6a"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "s_text",
+              "type": "proc",
+              "text": [
+                "Textansicht (?view=text)",
+                "→ Workflow 5"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "s_file",
+              "type": "proc",
+              "text": [
+                "13. Datei ausliefern",
+                "~handler.go:154-158",
+                "CSP sandbox, außer PDF"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "14. Ende: Antwort gesendet"
+              ]
+            },
+            {
+              "id": "act",
+              "type": "dec",
+              "text": [
+                "9. Share aktiv?",
+                "(nicht deaktiviert UND Frist offen)",
+                "~neu: eine Funktion"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Neues Modell: siehe Workflow 8"
+              ]
+            },
+            {
+              "id": "gone",
+              "type": "proc",
+              "text": [
+                "!410 Abgelaufen-Seite",
+                "Bot: Link-Vorschau",
+                "kein Schreiben in data.json"
+              ],
+              "phase": 1,
+              "error": true
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "intake"
+            },
+            {
+              "from": "intake",
+              "to": "special"
+            },
+            {
+              "from": "special",
+              "to": "sp",
+              "label": "Ja"
+            },
+            {
+              "from": "special",
+              "to": "method",
+              "label": "Nein"
+            },
+            {
+              "from": "sp",
+              "to": "end"
+            },
+            {
+              "from": "method",
+              "to": "err405",
+              "label": "Nein"
+            },
+            {
+              "from": "method",
+              "to": "cfg",
+              "label": "Ja"
+            },
+            {
+              "from": "cfg",
+              "to": "err500",
+              "label": "Nein"
+            },
+            {
+              "from": "cfg",
+              "to": "find",
+              "label": "Ja"
+            },
+            {
+              "from": "find",
+              "to": "err404",
+              "label": "Nein"
+            },
+            {
+              "from": "find",
+              "to": "trav",
+              "label": "Ja"
+            },
+            {
+              "from": "trav",
+              "to": "err403",
+              "label": "Nein"
+            },
+            {
+              "from": "pw",
+              "to": "gate",
+              "label": "Ja"
+            },
+            {
+              "from": "pw",
+              "to": "stat",
+              "label": "Nein"
+            },
+            {
+              "from": "stat",
+              "to": "err404b",
+              "label": "Nein"
+            },
+            {
+              "from": "dispatch",
+              "to": "s_dir",
+              "label": "Ordner"
+            },
+            {
+              "from": "dispatch",
+              "to": "s_thumb",
+              "label": "Thumbnail"
+            },
+            {
+              "from": "dispatch",
+              "to": "s_prev",
+              "label": "Bot"
+            },
+            {
+              "from": "dispatch",
+              "to": "s_off",
+              "label": "Office"
+            },
+            {
+              "from": "dispatch",
+              "to": "s_text",
+              "label": "Text"
+            },
+            {
+              "from": "dispatch",
+              "to": "s_file",
+              "label": "sonst"
+            },
+            {
+              "from": "err405",
+              "to": "end"
+            },
+            {
+              "from": "err500",
+              "to": "end"
+            },
+            {
+              "from": "err404",
+              "to": "end"
+            },
+            {
+              "from": "err403",
+              "to": "end"
+            },
+            {
+              "from": "gate",
+              "to": "end"
+            },
+            {
+              "from": "err404b",
+              "to": "end"
+            },
+            {
+              "from": "s_dir",
+              "to": "end"
+            },
+            {
+              "from": "s_thumb",
+              "to": "end"
+            },
+            {
+              "from": "s_prev",
+              "to": "end"
+            },
+            {
+              "from": "s_off",
+              "to": "end"
+            },
+            {
+              "from": "s_text",
+              "to": "end"
+            },
+            {
+              "from": "s_file",
+              "to": "end"
+            },
+            {
+              "from": "trav",
+              "to": "act",
+              "label": "Ja"
+            },
+            {
+              "from": "act",
+              "to": "gone",
+              "label": "Nein"
+            },
+            {
+              "from": "act",
+              "to": "pw",
+              "label": "Ja"
+            },
+            {
+              "from": "gone",
+              "to": "end"
+            },
+            {
+              "from": "stat",
+              "to": "dispatch",
+              "label": "Ja"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,336 @@
+{
+  "ticket": {
+    "id": "review/12c",
+    "name": "12c-liste-qr-loeschen"
+  },
+  "title": "Liste, QR, Löschen (Admin-UI)",
+  "subtitle": "Shares anzeigen, QR-Code erzeugen, Share löschen. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Anzeigen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Aktion",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Admin öffnet die Shares-Seite"
+            ]
+          },
+          {
+            "id": "list",
+            "type": "proc",
+            "text": [
+              "2. GET /admin/api/shares",
+              "~admin_handler.go:106-111",
+              "komplette Share-Liste,",
+              "inkl. Passwort-Hashes"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "act",
+            "type": "dec",
+            "text": [
+              "3. Aktion?"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "qr",
+            "type": "dec",
+            "text": [
+              "4. QR: Share bekannt?",
+              "~admin_handler.go:285-300"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e404",
+            "type": "proc",
+            "text": [
+              "!404 share not found",
+              "~admin_handler.go:298"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "png",
+            "type": "proc",
+            "text": [
+              "5. QR-PNG (512 px) senden",
+              "~admin_handler.go:302-309"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "del",
+            "type": "proc",
+            "text": [
+              "4. DELETE ?subpath=",
+              "~admin_handler.go:261-275",
+              "unbekannter Subpath: trotzdem 200"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "saved",
+            "type": "proc",
+            "text": [
+              "5. Speichern, loggen",
+              "~admin_handler.go:272-275"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "none",
+            "type": "proc",
+            "text": [
+              "Nur ansehen"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "6. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "list"
+          },
+          {
+            "from": "list",
+            "to": "act"
+          },
+          {
+            "from": "act",
+            "to": "qr",
+            "label": "QR"
+          },
+          {
+            "from": "act",
+            "to": "del",
+            "label": "Löschen"
+          },
+          {
+            "from": "act",
+            "to": "none",
+            "label": "nichts"
+          },
+          {
+            "from": "qr",
+            "to": "e404",
+            "label": "Nein"
+          },
+          {
+            "from": "qr",
+            "to": "png",
+            "label": "Ja"
+          },
+          {
+            "from": "png",
+            "to": "end"
+          },
+          {
+            "from": "e404",
+            "to": "end"
+          },
+          {
+            "from": "del",
+            "to": "saved"
+          },
+          {
+            "from": "saved",
+            "to": "end"
+          },
+          {
+            "from": "none",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Anzeigen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Aktion",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Admin öffnet die Shares-Seite"
+              ]
+            },
+            {
+              "id": "list",
+              "type": "proc",
+              "text": [
+                "2. GET /admin/api/shares",
+                "~neu: ohne Passwort-Hash,",
+                "nur 'hat Passwort'"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Hash aus der API-Antwort entfernen?"
+              ]
+            },
+            {
+              "id": "act",
+              "type": "dec",
+              "text": [
+                "3. Aktion?"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "qr",
+              "type": "dec",
+              "text": [
+                "4. QR: Share bekannt?",
+                "~admin_handler.go:285-300"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e404",
+              "type": "proc",
+              "text": [
+                "!404 share not found",
+                "~admin_handler.go:298"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "png",
+              "type": "proc",
+              "text": [
+                "5. QR-PNG (512 px) senden",
+                "~admin_handler.go:302-309"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "del",
+              "type": "proc",
+              "text": [
+                "4. DELETE ?subpath=",
+                "~neu: unbekannter Subpath → 404"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "saved",
+              "type": "proc",
+              "text": [
+                "5. Speichern, loggen",
+                "~admin_handler.go:272-275"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "none",
+              "type": "proc",
+              "text": [
+                "Nur ansehen"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "6. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "list"
+            },
+            {
+              "from": "list",
+              "to": "act"
+            },
+            {
+              "from": "act",
+              "to": "qr",
+              "label": "QR"
+            },
+            {
+              "from": "act",
+              "to": "del",
+              "label": "Löschen"
+            },
+            {
+              "from": "act",
+              "to": "none",
+              "label": "nichts"
+            },
+            {
+              "from": "qr",
+              "to": "e404",
+              "label": "Nein"
+            },
+            {
+              "from": "qr",
+              "to": "png",
+              "label": "Ja"
+            },
+            {
+              "from": "png",
+              "to": "end"
+            },
+            {
+              "from": "e404",
+              "to": "end"
+            },
+            {
+              "from": "del",
+              "to": "saved"
+            },
+            {
+              "from": "saved",
+              "to": "end"
+            },
+            {
+              "from": "none",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

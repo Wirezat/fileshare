@@ -1,0 +1,515 @@
+{
+  "ticket": {
+    "id": "review/4",
+    "name": "04-vorschau"
+  },
+  "title": "Vorschau",
+  "subtitle": "Thumbnail und Link-Vorschau für Messenger. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Thumbnail",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Link-Vorschau",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Datei-Anfrage (aus Workflow 1)"
+            ]
+          },
+          {
+            "id": "isth",
+            "type": "dec",
+            "text": [
+              "2. ?preview=1 und Bildformat?",
+              "~thumbnail.go:32",
+              "jpg png gif webp"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "open",
+            "type": "dec",
+            "text": [
+              "3. Bild lesbar und dekodierbar?",
+              "~thumbnail.go:38-50"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~thumbnail.go:40 · :49"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "jpg",
+            "type": "proc",
+            "text": [
+              "4. JPEG ausliefern",
+              "~thumbnail.go:52-55 · :60-77",
+              "max. 1200 px, auf Weiß"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "isbot",
+            "type": "dec",
+            "text": [
+              "5. Bot-Anfrage ohne ?dl?",
+              "~preview.go:51-56",
+              "bekannte Crawler-Kennungen"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "tmpl",
+            "type": "dec",
+            "text": [
+              "6. Vorlage ladbar?",
+              "~preview.go:159"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e500b",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~preview.go:161"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "meta",
+            "type": "proc",
+            "text": [
+              "7. Titel und Beschreibung",
+              "~preview.go:165-172",
+              "Beschreibung auf Englisch"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "kind",
+            "type": "dec",
+            "text": [
+              "8. Medientyp?",
+              "~preview.go:174-183"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "img",
+            "type": "proc",
+            "text": [
+              "og:image = ?preview=1",
+              "~preview.go:176-179"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "vid",
+            "type": "proc",
+            "text": [
+              "og:video = ?dl=1",
+              "~preview.go:181-182"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "page",
+            "type": "proc",
+            "text": [
+              "9. Vorschau-Seite senden",
+              "~preview.go:185 · :202-208"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "other",
+            "type": "proc",
+            "text": [
+              "Weiter mit Office, Text oder Datei",
+              "→ Workflow 1"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "10. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "isth"
+          },
+          {
+            "from": "isth",
+            "to": "open",
+            "label": "Ja"
+          },
+          {
+            "from": "isth",
+            "to": "isbot",
+            "label": "Nein"
+          },
+          {
+            "from": "open",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "open",
+            "to": "jpg",
+            "label": "Ja"
+          },
+          {
+            "from": "jpg",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          },
+          {
+            "from": "isbot",
+            "to": "tmpl",
+            "label": "Ja"
+          },
+          {
+            "from": "isbot",
+            "to": "other",
+            "label": "Nein"
+          },
+          {
+            "from": "tmpl",
+            "to": "e500b",
+            "label": "Nein"
+          },
+          {
+            "from": "tmpl",
+            "to": "meta",
+            "label": "Ja"
+          },
+          {
+            "from": "meta",
+            "to": "kind"
+          },
+          {
+            "from": "kind",
+            "to": "img",
+            "label": "Bild"
+          },
+          {
+            "from": "kind",
+            "to": "vid",
+            "label": "Video"
+          },
+          {
+            "from": "kind",
+            "to": "page",
+            "label": "sonst"
+          },
+          {
+            "from": "img",
+            "to": "page"
+          },
+          {
+            "from": "vid",
+            "to": "page"
+          },
+          {
+            "from": "page",
+            "to": "end"
+          },
+          {
+            "from": "e500b",
+            "to": "end"
+          },
+          {
+            "from": "other",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Thumbnail",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Link-Vorschau",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Datei-Anfrage (aus Workflow 1)"
+              ]
+            },
+            {
+              "id": "isth",
+              "type": "dec",
+              "text": [
+                "2. ?preview=1 und Bildformat?",
+                "~thumbnail.go:32",
+                "jpg png gif webp"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "open",
+              "type": "dec",
+              "text": [
+                "3. Bild lesbar und dekodierbar?",
+                "~thumbnail.go:38-50"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Thumbnail zwischenspeichern statt jedes Mal neu rechnen?"
+              ]
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~thumbnail.go:40 · :49"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "jpg",
+              "type": "proc",
+              "text": [
+                "4. JPEG ausliefern",
+                "~thumbnail.go:52-55 · :60-77",
+                "max. 1200 px, auf Weiß"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "isbot",
+              "type": "dec",
+              "text": [
+                "5. Bot-Anfrage ohne ?dl?",
+                "~preview.go:51-56",
+                "bekannte Crawler-Kennungen"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "tmpl",
+              "type": "dec",
+              "text": [
+                "6. Vorlage ladbar?",
+                "~preview.go:159"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e500b",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~preview.go:161"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "meta",
+              "type": "proc",
+              "text": [
+                "7. Titel und Beschreibung",
+                "~preview.go:165-172",
+                "Beschreibung auf Englisch"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Beschreibung auch auf Deutsch (Accept-Language)?"
+              ]
+            },
+            {
+              "id": "kind",
+              "type": "dec",
+              "text": [
+                "8. Medientyp?",
+                "~preview.go:174-183"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "img",
+              "type": "proc",
+              "text": [
+                "og:image = ?preview=1",
+                "~preview.go:176-179"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "vid",
+              "type": "proc",
+              "text": [
+                "og:video = ?dl=1",
+                "~preview.go:181-182"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "page",
+              "type": "proc",
+              "text": [
+                "9. Vorschau-Seite senden",
+                "~preview.go:185 · :202-208"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "other",
+              "type": "proc",
+              "text": [
+                "Weiter mit Office, Text oder Datei",
+                "→ Workflow 1"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "10. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "isth"
+            },
+            {
+              "from": "isth",
+              "to": "open",
+              "label": "Ja"
+            },
+            {
+              "from": "isth",
+              "to": "isbot",
+              "label": "Nein"
+            },
+            {
+              "from": "open",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "open",
+              "to": "jpg",
+              "label": "Ja"
+            },
+            {
+              "from": "jpg",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            },
+            {
+              "from": "isbot",
+              "to": "tmpl",
+              "label": "Ja"
+            },
+            {
+              "from": "isbot",
+              "to": "other",
+              "label": "Nein"
+            },
+            {
+              "from": "tmpl",
+              "to": "e500b",
+              "label": "Nein"
+            },
+            {
+              "from": "tmpl",
+              "to": "meta",
+              "label": "Ja"
+            },
+            {
+              "from": "meta",
+              "to": "kind"
+            },
+            {
+              "from": "kind",
+              "to": "img",
+              "label": "Bild"
+            },
+            {
+              "from": "kind",
+              "to": "vid",
+              "label": "Video"
+            },
+            {
+              "from": "kind",
+              "to": "page",
+              "label": "sonst"
+            },
+            {
+              "from": "img",
+              "to": "page"
+            },
+            {
+              "from": "vid",
+              "to": "page"
+            },
+            {
+              "from": "page",
+              "to": "end"
+            },
+            {
+              "from": "e500b",
+              "to": "end"
+            },
+            {
+              "from": "other",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

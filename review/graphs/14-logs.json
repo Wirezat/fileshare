@@ -1,0 +1,295 @@
+{
+  "ticket": {
+    "id": "review/14",
+    "name": "14-logs"
+  },
+  "title": "Logs",
+  "subtitle": "Verlauf und Live-Stream im Admin-Bereich. Soll = Ist: in dieser Aufnahme kein Prozessbefund.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Verlauf",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Live",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Admin öffnet /admin/logs"
+            ]
+          },
+          {
+            "id": "hist",
+            "type": "proc",
+            "text": [
+              "2. Verlauf laden",
+              "GET /admin/api/logs?n=100",
+              "~admin_handler.go:312-322",
+              "Ring-Puffer, höchstens 500 Einträge"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "sse",
+            "type": "proc",
+            "text": [
+              "3. EventSource /admin/api/logs/stream",
+              "~logs.js:143 · admin_handler.go:324-356"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "flush",
+            "type": "dec",
+            "text": [
+              "4. Streaming möglich?",
+              "~admin_handler.go:325"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 streaming not supported",
+              "~admin_handler.go:327"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "sub",
+            "type": "proc",
+            "text": [
+              "5. Kanal abonnieren (64 Einträge)",
+              "~shared/logging.go:92-98"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "loop",
+            "type": "proc",
+            "text": [
+              "6. Neue Einträge senden",
+              "~admin_handler.go:339-355",
+              "Quellen: GoLog-Hook, Zugriffslog",
+              "~main.go:94-96 · logging.go:98-107",
+              "Voller Kanal verwirft Einträge (logging.go:67-72)"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "close",
+            "type": "proc",
+            "text": [
+              "7. Verbindung endet: abmelden",
+              "~admin_handler.go:337 · :341"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "8. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "hist"
+          },
+          {
+            "from": "hist",
+            "to": "sse"
+          },
+          {
+            "from": "sse",
+            "to": "flush"
+          },
+          {
+            "from": "flush",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "flush",
+            "to": "sub",
+            "label": "Ja"
+          },
+          {
+            "from": "sub",
+            "to": "loop"
+          },
+          {
+            "from": "loop",
+            "to": "close"
+          },
+          {
+            "from": "close",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Verlauf",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Live",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Admin öffnet /admin/logs"
+              ]
+            },
+            {
+              "id": "hist",
+              "type": "proc",
+              "text": [
+                "2. Verlauf laden",
+                "GET /admin/api/logs?n=100",
+                "~admin_handler.go:312-322",
+                "Ring-Puffer, höchstens 500 Einträge"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "sse",
+              "type": "proc",
+              "text": [
+                "3. EventSource /admin/api/logs/stream",
+                "~logs.js:143 · admin_handler.go:324-356"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "flush",
+              "type": "dec",
+              "text": [
+                "4. Streaming möglich?",
+                "~admin_handler.go:325"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 streaming not supported",
+                "~admin_handler.go:327"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "sub",
+              "type": "proc",
+              "text": [
+                "5. Kanal abonnieren (64 Einträge)",
+                "~shared/logging.go:92-98"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "loop",
+              "type": "proc",
+              "text": [
+                "6. Neue Einträge senden",
+                "~admin_handler.go:339-355",
+                "Quellen: GoLog-Hook, Zugriffslog",
+                "~main.go:94-96 · logging.go:98-107",
+                "Voller Kanal verwirft Einträge (logging.go:67-72)"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "close",
+              "type": "proc",
+              "text": [
+                "7. Verbindung endet: abmelden",
+                "~admin_handler.go:337 · :341"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "8. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "hist"
+            },
+            {
+              "from": "hist",
+              "to": "sse"
+            },
+            {
+              "from": "sse",
+              "to": "flush"
+            },
+            {
+              "from": "flush",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "flush",
+              "to": "sub",
+              "label": "Ja"
+            },
+            {
+              "from": "sub",
+              "to": "loop"
+            },
+            {
+              "from": "loop",
+              "to": "close"
+            },
+            {
+              "from": "close",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

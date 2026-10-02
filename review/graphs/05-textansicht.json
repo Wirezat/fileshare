@@ -1,0 +1,379 @@
+{
+  "ticket": {
+    "id": "review/5",
+    "name": "05-textansicht"
+  },
+  "title": "Textansicht",
+  "subtitle": "Dateiinhalt als HTML-Fragment für die Vorschau im Listing. Soll = Ist: in dieser Aufnahme kein Prozessbefund.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Prüfen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Rendern",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: GET <datei>?view=text"
+            ]
+          },
+          {
+            "id": "ext",
+            "type": "dec",
+            "text": [
+              "2. Endung erlaubt?",
+              "~textview.go:40 · :18-30",
+              "txt md log json ..."
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e404",
+            "type": "proc",
+            "text": [
+              "!404 Not Found",
+              "~textview.go:41"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "size",
+            "type": "dec",
+            "text": [
+              "3. Höchstens 1 MB?",
+              "~textview.go:44"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e413",
+            "type": "proc",
+            "text": [
+              "!413 File too large",
+              "~textview.go:45"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "read",
+            "type": "dec",
+            "text": [
+              "4. Datei lesbar?",
+              "~textview.go:48"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~textview.go:51"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "md",
+            "type": "dec",
+            "text": [
+              "5. Markdown?",
+              "~textview.go:56"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "mdr",
+            "type": "proc",
+            "text": [
+              "6. Markdown zu HTML (GFM)",
+              "~textview.go:57-66"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "pre",
+            "type": "proc",
+            "text": [
+              "6. Text escapen, in <pre>",
+              "~textview.go:68-70"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "7. Ende: HTML-Fragment gesendet"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "ext"
+          },
+          {
+            "from": "ext",
+            "to": "e404",
+            "label": "Nein"
+          },
+          {
+            "from": "ext",
+            "to": "size",
+            "label": "Ja"
+          },
+          {
+            "from": "size",
+            "to": "e413",
+            "label": "Nein"
+          },
+          {
+            "from": "size",
+            "to": "read",
+            "label": "Ja"
+          },
+          {
+            "from": "read",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "read",
+            "to": "md",
+            "label": "Ja"
+          },
+          {
+            "from": "md",
+            "to": "mdr",
+            "label": "Ja"
+          },
+          {
+            "from": "md",
+            "to": "pre",
+            "label": "Nein"
+          },
+          {
+            "from": "mdr",
+            "to": "end"
+          },
+          {
+            "from": "pre",
+            "to": "end"
+          },
+          {
+            "from": "e404",
+            "to": "end"
+          },
+          {
+            "from": "e413",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Prüfen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Rendern",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: GET <datei>?view=text"
+              ]
+            },
+            {
+              "id": "ext",
+              "type": "dec",
+              "text": [
+                "2. Endung erlaubt?",
+                "~textview.go:40 · :18-30",
+                "txt md log json ..."
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e404",
+              "type": "proc",
+              "text": [
+                "!404 Not Found",
+                "~textview.go:41"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "size",
+              "type": "dec",
+              "text": [
+                "3. Höchstens 1 MB?",
+                "~textview.go:44"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e413",
+              "type": "proc",
+              "text": [
+                "!413 File too large",
+                "~textview.go:45"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "read",
+              "type": "dec",
+              "text": [
+                "4. Datei lesbar?",
+                "~textview.go:48"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~textview.go:51"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "md",
+              "type": "dec",
+              "text": [
+                "5. Markdown?",
+                "~textview.go:56"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "mdr",
+              "type": "proc",
+              "text": [
+                "6. Markdown zu HTML (GFM)",
+                "~textview.go:57-66"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "pre",
+              "type": "proc",
+              "text": [
+                "6. Text escapen, in <pre>",
+                "~textview.go:68-70"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "7. Ende: HTML-Fragment gesendet"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "ext"
+            },
+            {
+              "from": "ext",
+              "to": "e404",
+              "label": "Nein"
+            },
+            {
+              "from": "ext",
+              "to": "size",
+              "label": "Ja"
+            },
+            {
+              "from": "size",
+              "to": "e413",
+              "label": "Nein"
+            },
+            {
+              "from": "size",
+              "to": "read",
+              "label": "Ja"
+            },
+            {
+              "from": "read",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "read",
+              "to": "md",
+              "label": "Ja"
+            },
+            {
+              "from": "md",
+              "to": "mdr",
+              "label": "Ja"
+            },
+            {
+              "from": "md",
+              "to": "pre",
+              "label": "Nein"
+            },
+            {
+              "from": "mdr",
+              "to": "end"
+            },
+            {
+              "from": "pre",
+              "to": "end"
+            },
+            {
+              "from": "e404",
+              "to": "end"
+            },
+            {
+              "from": "e413",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,640 @@
+{
+  "ticket": {
+    "id": "review/7",
+    "name": "07-chunk-upload"
+  },
+  "title": "Chunk-Upload",
+  "subtitle": "Dateien in Stücken hochladen, fortsetzen und zusammensetzen. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Init",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Stück empfangen",
+            "color": "ta"
+          },
+          {
+            "id": 3,
+            "title": "Abschluss",
+            "color": "ext"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: POST /<share>/chunk-init"
+            ]
+          },
+          {
+            "id": "target",
+            "type": "dec",
+            "text": [
+              "2. Upload erlaubt?",
+              "~handler.go:163-185 · chunk_handler.go:17",
+              "Share bekannt, AllowPost, Frist offen"
+            ],
+            "phase": 1,
+            "note": [
+              "Passwort-Cookie wird nicht geprüft"
+            ]
+          },
+          {
+            "id": "e403",
+            "type": "proc",
+            "text": [
+              "!404, 403 oder 410",
+              "~handler.go:174-183"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "form",
+            "type": "dec",
+            "text": [
+              "3. Angaben gültig?",
+              "~chunk_handler.go:22-42",
+              "uploadId, Dateiname, 1 bis 1.000.000 Stücke"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~chunk_handler.go:23-41"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "sess",
+            "type": "proc",
+            "text": [
+              "4. Session laden oder anlegen",
+              "~upload.go:87-156",
+              "RAM, dann Platte, sonst neu",
+              "Schlüssel: nur die uploadId"
+            ],
+            "phase": 1,
+            "note": [
+              "Aufräumen inaktiver Sessions: upload.go:314-361, alle 5 min"
+            ]
+          },
+          {
+            "id": "miss",
+            "type": "proc",
+            "text": [
+              "5. Fehlende Stücke melden (JSON)",
+              "~upload.go:97 · chunk_handler.go:51"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "send",
+            "type": "proc",
+            "text": [
+              "6. Browser sendet ein Stück (5 MiB)",
+              "POST /<share>/chunk",
+              "~share.js:669-695"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "read",
+            "type": "dec",
+            "text": [
+              "7. Stück lesbar?",
+              "~chunk_handler.go:60-90",
+              "MaxPostSize als Speichergrenze"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e400b",
+            "type": "proc",
+            "text": [
+              "!400 oder 500",
+              "~chunk_handler.go:63-88"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "write",
+            "type": "proc",
+            "text": [
+              "8. Stück speichern",
+              "~upload.go:195-211",
+              "/tmp/fileshare-chunks/<id>/NNNNN"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "meta",
+            "type": "proc",
+            "text": [
+              "9. Aktivität in meta.json",
+              "~upload.go:217-226"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "all",
+            "type": "dec",
+            "text": [
+              "10. Alle Stücke da?",
+              "~upload.go:221"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "part",
+            "type": "proc",
+            "text": [
+              "202 Accepted",
+              "~chunk_handler.go:102"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "asm",
+            "type": "dec",
+            "text": [
+              "11. Zusammensetzen",
+              "~upload.go:239-298",
+              "Temp-Datei, Rename,",
+              "Zeitstempel bei Namenskonflikt"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~chunk_handler.go:94"
+            ],
+            "phase": 3,
+            "error": true
+          },
+          {
+            "id": "clean",
+            "type": "proc",
+            "text": [
+              "12. Session und Stücke löschen",
+              "~upload.go:231 · :300-309"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "done",
+            "type": "proc",
+            "text": [
+              "13. 204 No Content",
+              "~chunk_handler.go:100"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "14. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "target"
+          },
+          {
+            "from": "target",
+            "to": "e403",
+            "label": "Nein"
+          },
+          {
+            "from": "target",
+            "to": "form",
+            "label": "Ja"
+          },
+          {
+            "from": "form",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "form",
+            "to": "sess",
+            "label": "Ja"
+          },
+          {
+            "from": "sess",
+            "to": "miss"
+          },
+          {
+            "from": "miss",
+            "to": "send"
+          },
+          {
+            "from": "send",
+            "to": "read"
+          },
+          {
+            "from": "read",
+            "to": "e400b",
+            "label": "Nein"
+          },
+          {
+            "from": "read",
+            "to": "write",
+            "label": "Ja"
+          },
+          {
+            "from": "write",
+            "to": "meta"
+          },
+          {
+            "from": "meta",
+            "to": "all"
+          },
+          {
+            "from": "all",
+            "to": "part",
+            "label": "Nein"
+          },
+          {
+            "from": "all",
+            "to": "asm",
+            "label": "Ja"
+          },
+          {
+            "from": "part",
+            "to": "send"
+          },
+          {
+            "from": "asm",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "asm",
+            "to": "clean",
+            "label": "Ja"
+          },
+          {
+            "from": "clean",
+            "to": "done"
+          },
+          {
+            "from": "done",
+            "to": "end"
+          },
+          {
+            "from": "e403",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          },
+          {
+            "from": "e400b",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Init",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Stück empfangen",
+              "color": "ta"
+            },
+            {
+              "id": 3,
+              "title": "Abschluss",
+              "color": "ext"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: POST /<share>/chunk-init"
+              ]
+            },
+            {
+              "id": "target",
+              "type": "dec",
+              "text": [
+                "2. Upload erlaubt?",
+                "Share, Upload, Frist UND Passwort-Cookie",
+                "~neu"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Dürfen passwortgeschützte Shares ohne Freischaltung Uploads annehmen?"
+              ]
+            },
+            {
+              "id": "e403",
+              "type": "proc",
+              "text": [
+                "!404, 403 oder 410",
+                "~handler.go:174-183"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "form",
+              "type": "dec",
+              "text": [
+                "3. Angaben gültig?",
+                "~chunk_handler.go:22-42",
+                "uploadId, Dateiname, 1 bis 1.000.000 Stücke"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~chunk_handler.go:23-41"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "sess",
+              "type": "proc",
+              "text": [
+                "4. Session laden oder anlegen",
+                "Schlüssel: Share + uploadId",
+                "Ziel der Session wird geprüft",
+                "~neu"
+              ],
+              "phase": 1,
+              "note": [
+                "Aufräumen inaktiver Sessions: upload.go:314-361, alle 5 min"
+              ]
+            },
+            {
+              "id": "miss",
+              "type": "proc",
+              "text": [
+                "5. Fehlende Stücke melden (JSON)",
+                "~upload.go:97 · chunk_handler.go:51"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "send",
+              "type": "proc",
+              "text": [
+                "6. Browser sendet ein Stück (5 MiB)",
+                "POST /<share>/chunk",
+                "~share.js:669-695"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "read",
+              "type": "dec",
+              "text": [
+                "7. Stück lesbar und Upload erlaubt?",
+                "gleiche Prüfung wie bei Init",
+                "Größe hart begrenzt",
+                "~neu"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e400b",
+              "type": "proc",
+              "text": [
+                "!400 oder 500",
+                "~chunk_handler.go:63-88"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "write",
+              "type": "proc",
+              "text": [
+                "8. Stück speichern",
+                "~upload.go:195-211",
+                "/tmp/fileshare-chunks/<id>/NNNNN"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "meta",
+              "type": "proc",
+              "text": [
+                "9. Aktivität in meta.json",
+                "~upload.go:217-226"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "all",
+              "type": "dec",
+              "text": [
+                "10. Alle Stücke da?",
+                "~upload.go:221"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "part",
+              "type": "proc",
+              "text": [
+                "202 Accepted",
+                "~chunk_handler.go:102"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "asm",
+              "type": "dec",
+              "text": [
+                "11. Zusammensetzen",
+                "~upload.go:239-298",
+                "Temp-Datei, Rename,",
+                "Zeitstempel bei Namenskonflikt"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~chunk_handler.go:94"
+              ],
+              "phase": 3,
+              "error": true
+            },
+            {
+              "id": "clean",
+              "type": "proc",
+              "text": [
+                "12. Session und Stücke löschen",
+                "~upload.go:231 · :300-309"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "done",
+              "type": "proc",
+              "text": [
+                "13. 204 No Content",
+                "~chunk_handler.go:100"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "14. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "target"
+            },
+            {
+              "from": "target",
+              "to": "e403",
+              "label": "Nein"
+            },
+            {
+              "from": "target",
+              "to": "form",
+              "label": "Ja"
+            },
+            {
+              "from": "form",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "form",
+              "to": "sess",
+              "label": "Ja"
+            },
+            {
+              "from": "sess",
+              "to": "miss"
+            },
+            {
+              "from": "miss",
+              "to": "send"
+            },
+            {
+              "from": "send",
+              "to": "read"
+            },
+            {
+              "from": "read",
+              "to": "e400b",
+              "label": "Nein"
+            },
+            {
+              "from": "read",
+              "to": "write",
+              "label": "Ja"
+            },
+            {
+              "from": "write",
+              "to": "meta"
+            },
+            {
+              "from": "meta",
+              "to": "all"
+            },
+            {
+              "from": "all",
+              "to": "part",
+              "label": "Nein"
+            },
+            {
+              "from": "all",
+              "to": "asm",
+              "label": "Ja"
+            },
+            {
+              "from": "part",
+              "to": "send"
+            },
+            {
+              "from": "asm",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "asm",
+              "to": "clean",
+              "label": "Ja"
+            },
+            {
+              "from": "clean",
+              "to": "done"
+            },
+            {
+              "from": "done",
+              "to": "end"
+            },
+            {
+              "from": "e403",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            },
+            {
+              "from": "e400b",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

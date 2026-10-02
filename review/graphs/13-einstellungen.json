@@ -1,0 +1,421 @@
+{
+  "ticket": {
+    "id": "review/13",
+    "name": "13-einstellungen"
+  },
+  "title": "Einstellungen",
+  "subtitle": "Zugang, Limits, Office-Anbindung und Aufräumen. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Wählen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Ändern",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Admin öffnet /admin/settings"
+            ]
+          },
+          {
+            "id": "pick",
+            "type": "dec",
+            "text": [
+              "2. Welche Einstellung?",
+              "~settings.js · main.go:33-38"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "acc",
+            "type": "dec",
+            "text": [
+              "3. Aktuelles Passwort stimmt?",
+              "~admin_handler.go:377 · :409",
+              "Benutzername oder Passwort ändern"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e403",
+            "type": "proc",
+            "text": [
+              "!403 Current password is incorrect",
+              "~admin_handler.go:379 · :411"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "accsave",
+            "type": "proc",
+            "text": [
+              "4. Speichern, andere Sessions beenden",
+              "~admin_handler.go:382-387 · :420-426"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "lim",
+            "type": "dec",
+            "text": [
+              "3. Wert über dem Mindestwert?",
+              "~admin.go:137 (≥ 1) · :162 (≥ 60 s)",
+              "MaxPostSize, Inaktivitäts-Timeout"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~admin.go:138 · :163"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "limsave",
+            "type": "proc",
+            "text": [
+              "4. Speichern",
+              "~admin.go:141-151 · :166-176"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "off",
+            "type": "proc",
+            "text": [
+              "3. URL normalisieren, Secret nur schreibbar",
+              "~admin_office.go:16-28 · :64-74"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "offsave",
+            "type": "proc",
+            "text": [
+              "4. Speichern, Zustand loggen",
+              "~admin_office.go:75-79 · :88-97"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "prune",
+            "type": "proc",
+            "text": [
+              "3. Abgelaufene Shares löschen",
+              "~admin_handler.go:429-448",
+              "ohne Rückfrage im Handler"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "5. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "pick"
+          },
+          {
+            "from": "pick",
+            "to": "acc",
+            "label": "Zugang"
+          },
+          {
+            "from": "pick",
+            "to": "lim",
+            "label": "Limits"
+          },
+          {
+            "from": "pick",
+            "to": "off",
+            "label": "Office"
+          },
+          {
+            "from": "pick",
+            "to": "prune",
+            "label": "Aufräumen"
+          },
+          {
+            "from": "acc",
+            "to": "e403",
+            "label": "Nein"
+          },
+          {
+            "from": "acc",
+            "to": "accsave",
+            "label": "Ja"
+          },
+          {
+            "from": "lim",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "lim",
+            "to": "limsave",
+            "label": "Ja"
+          },
+          {
+            "from": "off",
+            "to": "offsave"
+          },
+          {
+            "from": "accsave",
+            "to": "end"
+          },
+          {
+            "from": "limsave",
+            "to": "end"
+          },
+          {
+            "from": "offsave",
+            "to": "end"
+          },
+          {
+            "from": "prune",
+            "to": "end"
+          },
+          {
+            "from": "e403",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Wählen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Ändern",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Admin öffnet /admin/settings"
+              ]
+            },
+            {
+              "id": "pick",
+              "type": "dec",
+              "text": [
+                "2. Welche Einstellung?",
+                "~settings.js · main.go:33-38"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "acc",
+              "type": "dec",
+              "text": [
+                "3. Aktuelles Passwort stimmt?",
+                "~admin_handler.go:377 · :409",
+                "Benutzername oder Passwort ändern"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Rate-Limit auch für die Passwortabfrage in den Einstellungen?"
+              ]
+            },
+            {
+              "id": "e403",
+              "type": "proc",
+              "text": [
+                "!403 Current password is incorrect",
+                "~admin_handler.go:379 · :411"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "accsave",
+              "type": "proc",
+              "text": [
+                "4. Speichern, andere Sessions beenden",
+                "~admin_handler.go:382-387 · :420-426"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "lim",
+              "type": "dec",
+              "text": [
+                "3. Wert über dem Mindestwert?",
+                "~admin.go:137 (≥ 1) · :162 (≥ 60 s)",
+                "MaxPostSize, Inaktivitäts-Timeout"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~admin.go:138 · :163"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "limsave",
+              "type": "proc",
+              "text": [
+                "4. Speichern",
+                "~admin.go:141-151 · :166-176"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "off",
+              "type": "proc",
+              "text": [
+                "3. URL normalisieren, Secret nur schreibbar",
+                "~admin_office.go:16-28 · :64-74"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "offsave",
+              "type": "proc",
+              "text": [
+                "4. Speichern, Zustand loggen",
+                "~admin_office.go:75-79 · :88-97"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "prune",
+              "type": "proc",
+              "text": [
+                "3. Abgelaufene Shares löschen",
+                "~admin_handler.go:429-448",
+                "ohne Rückfrage im Handler"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Rückfrage im Server statt nur in der Oberfläche?"
+              ]
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "5. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "pick"
+            },
+            {
+              "from": "pick",
+              "to": "acc",
+              "label": "Zugang"
+            },
+            {
+              "from": "pick",
+              "to": "lim",
+              "label": "Limits"
+            },
+            {
+              "from": "pick",
+              "to": "off",
+              "label": "Office"
+            },
+            {
+              "from": "pick",
+              "to": "prune",
+              "label": "Aufräumen"
+            },
+            {
+              "from": "acc",
+              "to": "e403",
+              "label": "Nein"
+            },
+            {
+              "from": "acc",
+              "to": "accsave",
+              "label": "Ja"
+            },
+            {
+              "from": "lim",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "lim",
+              "to": "limsave",
+              "label": "Ja"
+            },
+            {
+              "from": "off",
+              "to": "offsave"
+            },
+            {
+              "from": "accsave",
+              "to": "end"
+            },
+            {
+              "from": "limsave",
+              "to": "end"
+            },
+            {
+              "from": "offsave",
+              "to": "end"
+            },
+            {
+              "from": "prune",
+              "to": "end"
+            },
+            {
+              "from": "e403",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

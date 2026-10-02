@@ -1,0 +1,374 @@
+{
+  "ticket": {
+    "id": "review/6a",
+    "name": "06a-office-viewer"
+  },
+  "title": "Office-Viewer",
+  "subtitle": "Embedded Editor über einen ONLYOFFICE-kompatiblen Document Server. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Entscheiden",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Viewer bauen",
+            "color": "ta"
+          },
+          {
+            "id": 3,
+            "title": "Document Server",
+            "color": "ext"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Datei-Anfrage (aus Workflow 1)"
+            ]
+          },
+          {
+            "id": "want",
+            "type": "dec",
+            "text": [
+              "2. Office-Viewer gewollt?",
+              "~office.go:168-174",
+              "Share-Modus an, URL und Secret gesetzt,",
+              "Dateityp bekannt, kein ?dl"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "plain",
+            "type": "proc",
+            "text": [
+              "Normale Datei",
+              "→ Workflow 1"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "tmpl",
+            "type": "dec",
+            "text": [
+              "3. Vorlage ladbar?",
+              "~office.go:208"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~office.go:211"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "key",
+            "type": "proc",
+            "text": [
+              "4. Dokumentschlüssel",
+              "~office.go:51-54",
+              "SHA-256 aus Pfad, Größe, Änderungszeit"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "cfg",
+            "type": "proc",
+            "text": [
+              "5. Editor-Konfiguration",
+              "~office.go:136-164 · :222-228",
+              "Modus view oder edit, Sprache, ?dl=1-URL"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "jwt",
+            "type": "proc",
+            "text": [
+              "6. Konfiguration signieren (HS256)",
+              "~office.go:60-70 · :160"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "page",
+            "type": "proc",
+            "text": [
+              "7. Seite mit api.js senden",
+              "~office.go:241-250"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "ds",
+            "type": "proc",
+            "text": [
+              "8. Document Server holt die Datei",
+              "per ?dl=1 mit Bearer-Token",
+              "~office.go:102-124 · handler.go:89",
+              "Token umgeht das Passwort-Gate für genau diese URL"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "9. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "want"
+          },
+          {
+            "from": "want",
+            "to": "plain",
+            "label": "Nein"
+          },
+          {
+            "from": "want",
+            "to": "tmpl",
+            "label": "Ja"
+          },
+          {
+            "from": "tmpl",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "tmpl",
+            "to": "key",
+            "label": "Ja"
+          },
+          {
+            "from": "key",
+            "to": "cfg"
+          },
+          {
+            "from": "cfg",
+            "to": "jwt"
+          },
+          {
+            "from": "jwt",
+            "to": "page"
+          },
+          {
+            "from": "page",
+            "to": "ds"
+          },
+          {
+            "from": "ds",
+            "to": "end"
+          },
+          {
+            "from": "plain",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Entscheiden",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Viewer bauen",
+              "color": "ta"
+            },
+            {
+              "id": 3,
+              "title": "Document Server",
+              "color": "ext"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Datei-Anfrage (aus Workflow 1)"
+              ]
+            },
+            {
+              "id": "want",
+              "type": "dec",
+              "text": [
+                "2. Office-Viewer gewollt?",
+                "~office.go:168-174",
+                "Share-Modus an, URL und Secret gesetzt,",
+                "Dateityp bekannt, kein ?dl"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "plain",
+              "type": "proc",
+              "text": [
+                "Normale Datei",
+                "→ Workflow 1"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "tmpl",
+              "type": "dec",
+              "text": [
+                "3. Vorlage ladbar?",
+                "~office.go:208"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~office.go:211"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "key",
+              "type": "proc",
+              "text": [
+                "4. Dokumentschlüssel",
+                "~office.go:51-54",
+                "SHA-256 aus Pfad, Größe, Änderungszeit"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "cfg",
+              "type": "proc",
+              "text": [
+                "5. Editor-Konfiguration",
+                "~office.go:136-164 · :222-228",
+                "Modus view oder edit, Sprache, ?dl=1-URL"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "jwt",
+              "type": "proc",
+              "text": [
+                "6. Konfiguration signieren (HS256)",
+                "~office.go:60-70 · :160"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Eigene JWT-Funktionen durch eine geprüfte Bibliothek ersetzen?"
+              ]
+            },
+            {
+              "id": "page",
+              "type": "proc",
+              "text": [
+                "7. Seite mit api.js senden",
+                "~office.go:241-250"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "ds",
+              "type": "proc",
+              "text": [
+                "8. Document Server holt die Datei",
+                "per ?dl=1 mit Bearer-Token",
+                "~office.go:102-124 · handler.go:89",
+                "Token umgeht das Passwort-Gate für genau diese URL"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "9. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "want"
+            },
+            {
+              "from": "want",
+              "to": "plain",
+              "label": "Nein"
+            },
+            {
+              "from": "want",
+              "to": "tmpl",
+              "label": "Ja"
+            },
+            {
+              "from": "tmpl",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "tmpl",
+              "to": "key",
+              "label": "Ja"
+            },
+            {
+              "from": "key",
+              "to": "cfg"
+            },
+            {
+              "from": "cfg",
+              "to": "jwt"
+            },
+            {
+              "from": "jwt",
+              "to": "page"
+            },
+            {
+              "from": "page",
+              "to": "ds"
+            },
+            {
+              "from": "ds",
+              "to": "end"
+            },
+            {
+              "from": "plain",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

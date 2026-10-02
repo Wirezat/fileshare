@@ -1,0 +1,721 @@
+{
+  "ticket": {
+    "id": "review/6b",
+    "name": "06b-office-callback"
+  },
+  "title": "Office-Callback",
+  "subtitle": "Speichern vom Document Server zurück in die Datei. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Prüfen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Speichern",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: POST <datei>?callback=1 vom Document Server"
+            ]
+          },
+          {
+            "id": "cfg",
+            "type": "dec",
+            "text": [
+              "2. data.json lesbar?",
+              "~office.go:293"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 {error:1}",
+              "~office.go:295"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "find",
+            "type": "dec",
+            "text": [
+              "3. Share bekannt?",
+              "~office.go:298-303"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e404",
+            "type": "proc",
+            "text": [
+              "!404 {error:1}",
+              "~office.go:301"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "trav",
+            "type": "dec",
+            "text": [
+              "4. Pfad liegt im Share?",
+              "~office.go:304-308",
+              "zweite Kopie der Pfadprüfung"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e403",
+            "type": "proc",
+            "text": [
+              "!403 {error:1}",
+              "~office.go:306"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "tok",
+            "type": "dec",
+            "text": [
+              "5. Token gültig?",
+              "~office.go:309 · :261-282",
+              "Bearer oder Body-Token, HS256"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e401",
+            "type": "proc",
+            "text": [
+              "!401 {error:1}",
+              "~office.go:311"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "exp",
+            "type": "dec",
+            "text": [
+              "6. Share abgelaufen?",
+              "~office.go:314"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e410",
+            "type": "proc",
+            "text": [
+              "!410 {error:1}",
+              "~office.go:315"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "mode",
+            "type": "dec",
+            "text": [
+              "7. Edit-Modus und Office-Datei?",
+              "~office.go:318"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e403b",
+            "type": "proc",
+            "text": [
+              "!403 {error:1}",
+              "~office.go:319"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "st",
+            "type": "dec",
+            "text": [
+              "8. Status 2 oder 6 (gespeichert)?",
+              "~office.go:323-338"
+            ],
+            "phase": 2,
+            "note": [
+              "Status 3 und 7: nur Warnung ins Log"
+            ]
+          },
+          {
+            "id": "none",
+            "type": "proc",
+            "text": [
+              "Nichts zu tun",
+              "~office.go:336-338"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "host",
+            "type": "dec",
+            "text": [
+              "9. Download-URL beim Document Server?",
+              "~office.go:325"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e403c",
+            "type": "proc",
+            "text": [
+              "!403 {error:1}",
+              "~office.go:327"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "save",
+            "type": "dec",
+            "text": [
+              "10. Datei laden und ersetzen",
+              "~office.go:330 · :344-391",
+              "Symlink auflösen, Temp-Datei, Limit, Rename"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e500b",
+            "type": "proc",
+            "text": [
+              "!500 {error:1}",
+              "~office.go:332"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "ok",
+            "type": "proc",
+            "text": [
+              "11. Antwort {error:0}",
+              "~office.go:335 · :339"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "12. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "cfg"
+          },
+          {
+            "from": "cfg",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "cfg",
+            "to": "find",
+            "label": "Ja"
+          },
+          {
+            "from": "find",
+            "to": "e404",
+            "label": "Nein"
+          },
+          {
+            "from": "find",
+            "to": "trav",
+            "label": "Ja"
+          },
+          {
+            "from": "trav",
+            "to": "e403",
+            "label": "Nein"
+          },
+          {
+            "from": "trav",
+            "to": "tok",
+            "label": "Ja"
+          },
+          {
+            "from": "tok",
+            "to": "e401",
+            "label": "Nein"
+          },
+          {
+            "from": "tok",
+            "to": "exp",
+            "label": "Ja"
+          },
+          {
+            "from": "exp",
+            "to": "e410",
+            "label": "Ja"
+          },
+          {
+            "from": "exp",
+            "to": "mode",
+            "label": "Nein"
+          },
+          {
+            "from": "mode",
+            "to": "e403b",
+            "label": "Nein"
+          },
+          {
+            "from": "mode",
+            "to": "st",
+            "label": "Ja"
+          },
+          {
+            "from": "st",
+            "to": "host",
+            "label": "Ja"
+          },
+          {
+            "from": "st",
+            "to": "none",
+            "label": "Nein"
+          },
+          {
+            "from": "host",
+            "to": "e403c",
+            "label": "Nein"
+          },
+          {
+            "from": "host",
+            "to": "save",
+            "label": "Ja"
+          },
+          {
+            "from": "save",
+            "to": "e500b",
+            "label": "Nein"
+          },
+          {
+            "from": "save",
+            "to": "ok",
+            "label": "Ja"
+          },
+          {
+            "from": "none",
+            "to": "ok"
+          },
+          {
+            "from": "ok",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          },
+          {
+            "from": "e404",
+            "to": "end"
+          },
+          {
+            "from": "e403",
+            "to": "end"
+          },
+          {
+            "from": "e401",
+            "to": "end"
+          },
+          {
+            "from": "e410",
+            "to": "end"
+          },
+          {
+            "from": "e403b",
+            "to": "end"
+          },
+          {
+            "from": "e403c",
+            "to": "end"
+          },
+          {
+            "from": "e500b",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Prüfen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Speichern",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: POST <datei>?callback=1 vom Document Server"
+              ]
+            },
+            {
+              "id": "cfg",
+              "type": "dec",
+              "text": [
+                "2. data.json lesbar?",
+                "~office.go:293"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 {error:1}",
+                "~office.go:295"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "find",
+              "type": "dec",
+              "text": [
+                "3. Share bekannt?",
+                "~office.go:298-303"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e404",
+              "type": "proc",
+              "text": [
+                "!404 {error:1}",
+                "~office.go:301"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "trav",
+              "type": "dec",
+              "text": [
+                "4. Pfad liegt im Share?",
+                "~neu: eine gemeinsame Funktion"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Pfadprüfung aus Workflow 1 wiederverwenden?"
+              ]
+            },
+            {
+              "id": "e403",
+              "type": "proc",
+              "text": [
+                "!403 {error:1}",
+                "~office.go:306"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "tok",
+              "type": "dec",
+              "text": [
+                "5. Token gültig?",
+                "~office.go:309 · :261-282",
+                "Bearer oder Body-Token, HS256"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e401",
+              "type": "proc",
+              "text": [
+                "!401 {error:1}",
+                "~office.go:311"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "exp",
+              "type": "dec",
+              "text": [
+                "6. Share abgelaufen?",
+                "~office.go:314"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e410",
+              "type": "proc",
+              "text": [
+                "!410 {error:1}",
+                "~office.go:315"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "mode",
+              "type": "dec",
+              "text": [
+                "7. Edit-Modus und Office-Datei?",
+                "~office.go:318"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e403b",
+              "type": "proc",
+              "text": [
+                "!403 {error:1}",
+                "~office.go:319"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "st",
+              "type": "dec",
+              "text": [
+                "8. Status 2 oder 6 (gespeichert)?",
+                "~office.go:323-338"
+              ],
+              "phase": 2,
+              "note": [
+                "Status 3 und 7: nur Warnung ins Log"
+              ]
+            },
+            {
+              "id": "none",
+              "type": "proc",
+              "text": [
+                "Nichts zu tun",
+                "~office.go:336-338"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "host",
+              "type": "dec",
+              "text": [
+                "9. Download-URL beim Document Server?",
+                "~office.go:325"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e403c",
+              "type": "proc",
+              "text": [
+                "!403 {error:1}",
+                "~office.go:327"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "save",
+              "type": "dec",
+              "text": [
+                "10. Datei laden und ersetzen",
+                "~office.go:330 · :344-391",
+                "Symlink auflösen, Temp-Datei, Limit, Rename"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e500b",
+              "type": "proc",
+              "text": [
+                "!500 {error:1}",
+                "~office.go:332"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "ok",
+              "type": "proc",
+              "text": [
+                "11. Antwort {error:0}",
+                "~office.go:335 · :339"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "12. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "cfg"
+            },
+            {
+              "from": "cfg",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "cfg",
+              "to": "find",
+              "label": "Ja"
+            },
+            {
+              "from": "find",
+              "to": "e404",
+              "label": "Nein"
+            },
+            {
+              "from": "find",
+              "to": "trav",
+              "label": "Ja"
+            },
+            {
+              "from": "trav",
+              "to": "e403",
+              "label": "Nein"
+            },
+            {
+              "from": "trav",
+              "to": "tok",
+              "label": "Ja"
+            },
+            {
+              "from": "tok",
+              "to": "e401",
+              "label": "Nein"
+            },
+            {
+              "from": "tok",
+              "to": "exp",
+              "label": "Ja"
+            },
+            {
+              "from": "exp",
+              "to": "e410",
+              "label": "Ja"
+            },
+            {
+              "from": "exp",
+              "to": "mode",
+              "label": "Nein"
+            },
+            {
+              "from": "mode",
+              "to": "e403b",
+              "label": "Nein"
+            },
+            {
+              "from": "mode",
+              "to": "st",
+              "label": "Ja"
+            },
+            {
+              "from": "st",
+              "to": "host",
+              "label": "Ja"
+            },
+            {
+              "from": "st",
+              "to": "none",
+              "label": "Nein"
+            },
+            {
+              "from": "host",
+              "to": "e403c",
+              "label": "Nein"
+            },
+            {
+              "from": "host",
+              "to": "save",
+              "label": "Ja"
+            },
+            {
+              "from": "save",
+              "to": "e500b",
+              "label": "Nein"
+            },
+            {
+              "from": "save",
+              "to": "ok",
+              "label": "Ja"
+            },
+            {
+              "from": "none",
+              "to": "ok"
+            },
+            {
+              "from": "ok",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            },
+            {
+              "from": "e404",
+              "to": "end"
+            },
+            {
+              "from": "e403",
+              "to": "end"
+            },
+            {
+              "from": "e401",
+              "to": "end"
+            },
+            {
+              "from": "e410",
+              "to": "end"
+            },
+            {
+              "from": "e403b",
+              "to": "end"
+            },
+            {
+              "from": "e403c",
+              "to": "end"
+            },
+            {
+              "from": "e500b",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

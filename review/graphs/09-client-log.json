@@ -1,0 +1,346 @@
+{
+  "ticket": {
+    "id": "review/9",
+    "name": "09-client-log"
+  },
+  "title": "Client-Log",
+  "subtitle": "Der Browser meldet Ereignisse an das Server-Log. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Annehmen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Loggen",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: POST /api/log vom Browser"
+            ]
+          },
+          {
+            "id": "meth",
+            "type": "dec",
+            "text": [
+              "2. Methode POST?",
+              "~handler.go:20-24"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e405",
+            "type": "proc",
+            "text": [
+              "!405 Method Not Allowed",
+              "~handler.go:22"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "body",
+            "type": "dec",
+            "text": [
+              "3. Body lesbar?",
+              "~static_handler.go:25",
+              "ohne Größenlimit"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~static_handler.go:27 · :31"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "json",
+            "type": "dec",
+            "text": [
+              "4. JSON gültig?",
+              "~static_handler.go:30"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "clean",
+            "type": "proc",
+            "text": [
+              "5. Steuerzeichen entfernen, kürzen",
+              "~logging.go:255-277",
+              "max. 4096 Zeichen"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "log",
+            "type": "proc",
+            "text": [
+              "6. Info-Eintrag mit Client-IP",
+              "~static_handler.go:34"
+            ],
+            "phase": 2,
+            "note": [
+              "Nicht im Zugriffslog: logging.go:93"
+            ]
+          },
+          {
+            "id": "ok",
+            "type": "proc",
+            "text": [
+              "7. 204 No Content",
+              "~static_handler.go:35"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "8. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "meth"
+          },
+          {
+            "from": "meth",
+            "to": "e405",
+            "label": "Nein"
+          },
+          {
+            "from": "meth",
+            "to": "body",
+            "label": "Ja"
+          },
+          {
+            "from": "body",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "body",
+            "to": "json",
+            "label": "Ja"
+          },
+          {
+            "from": "json",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "json",
+            "to": "clean",
+            "label": "Ja"
+          },
+          {
+            "from": "clean",
+            "to": "log"
+          },
+          {
+            "from": "log",
+            "to": "ok"
+          },
+          {
+            "from": "ok",
+            "to": "end"
+          },
+          {
+            "from": "e405",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Annehmen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Loggen",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: POST /api/log vom Browser"
+              ]
+            },
+            {
+              "id": "meth",
+              "type": "dec",
+              "text": [
+                "2. Methode POST?",
+                "~handler.go:20-24"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e405",
+              "type": "proc",
+              "text": [
+                "!405 Method Not Allowed",
+                "~handler.go:22"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "body",
+              "type": "dec",
+              "text": [
+                "3. Body lesbar?",
+                "~neu: Größe begrenzt (z. B. 8 KB)"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~static_handler.go:27 · :31"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "json",
+              "type": "dec",
+              "text": [
+                "4. JSON gültig?",
+                "~static_handler.go:30"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "clean",
+              "type": "proc",
+              "text": [
+                "5. Steuerzeichen entfernen, kürzen",
+                "~logging.go:255-277",
+                "max. 4096 Zeichen"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "log",
+              "type": "proc",
+              "text": [
+                "6. Info-Eintrag mit Client-IP",
+                "~static_handler.go:34"
+              ],
+              "phase": 2,
+              "note": [
+                "Nicht im Zugriffslog: logging.go:93"
+              ]
+            },
+            {
+              "id": "ok",
+              "type": "proc",
+              "text": [
+                "7. 204 No Content",
+                "~static_handler.go:35"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "8. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "meth"
+            },
+            {
+              "from": "meth",
+              "to": "e405",
+              "label": "Nein"
+            },
+            {
+              "from": "meth",
+              "to": "body",
+              "label": "Ja"
+            },
+            {
+              "from": "body",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "body",
+              "to": "json",
+              "label": "Ja"
+            },
+            {
+              "from": "json",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "json",
+              "to": "clean",
+              "label": "Ja"
+            },
+            {
+              "from": "clean",
+              "to": "log"
+            },
+            {
+              "from": "log",
+              "to": "ok"
+            },
+            {
+              "from": "ok",
+              "to": "end"
+            },
+            {
+              "from": "e405",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

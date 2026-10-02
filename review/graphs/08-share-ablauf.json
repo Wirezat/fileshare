@@ -1,0 +1,346 @@
+{
+  "ticket": {
+    "id": "review/8",
+    "name": "08-share-ablauf"
+  },
+  "title": "Share-Ablauf",
+  "subtitle": "Wie ein Share abläuft, wer das merkt und was daraus folgt. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Ablauf",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Folgen",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Share mit Ablaufzeit (Admin-UI oder CLI)"
+            ]
+          },
+          {
+            "id": "time",
+            "type": "proc",
+            "text": [
+              "2. Die Zeit vergeht"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "who",
+            "type": "dec",
+            "text": [
+              "3. Wer bemerkt es zuerst?"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "access",
+            "type": "proc",
+            "text": [
+              "Zugriff: IsExpired",
+              "Expired=true speichern",
+              "~handler.go:122-133"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "watch",
+            "type": "proc",
+            "text": [
+              "Watcher alle 5 min",
+              "Expired=true speichern, loggen",
+              "~utils.go:15-40 · main.go:123"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "flag",
+            "type": "proc",
+            "text": [
+              "4. Flag Expired = true",
+              "Bedeutung: abgelaufen ODER manuell deaktiviert",
+              "~config.go:45 · cli/main.go:159-164"
+            ],
+            "phase": 2,
+            "ask": [
+              "❓ Ein Flag, zwei Bedeutungen"
+            ]
+          },
+          {
+            "id": "ui",
+            "type": "proc",
+            "text": [
+              "5. Admin-UI zeigt 'manuell'",
+              "~shares.js:32-36",
+              "der Fall 'Datum' wird unerreichbar"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "next",
+            "type": "dec",
+            "text": [
+              "6. Was tut der Betreiber?"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "prune",
+            "type": "proc",
+            "text": [
+              "Aufräumen: Share löschen",
+              "~cli/main.go:543-576",
+              "~admin_handler.go:429-448"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "react",
+            "type": "proc",
+            "text": [
+              "Reaktivieren: Status oder Frist ändern",
+              "~shares.js:480 · cli/main.go:393-396",
+              "CLI setzt Flag zurück, Admin-API nicht",
+              "~admin_handler.go:202-205"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "idle",
+            "type": "proc",
+            "text": [
+              "Share bleibt abgelaufen"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "7. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "time"
+          },
+          {
+            "from": "time",
+            "to": "who"
+          },
+          {
+            "from": "who",
+            "to": "access",
+            "label": "Zugriff"
+          },
+          {
+            "from": "who",
+            "to": "watch",
+            "label": "Watcher"
+          },
+          {
+            "from": "access",
+            "to": "flag"
+          },
+          {
+            "from": "watch",
+            "to": "flag"
+          },
+          {
+            "from": "flag",
+            "to": "ui"
+          },
+          {
+            "from": "ui",
+            "to": "next"
+          },
+          {
+            "from": "next",
+            "to": "prune",
+            "label": "aufräumen"
+          },
+          {
+            "from": "next",
+            "to": "react",
+            "label": "reaktivieren"
+          },
+          {
+            "from": "next",
+            "to": "idle",
+            "label": "nichts"
+          },
+          {
+            "from": "prune",
+            "to": "end"
+          },
+          {
+            "from": "react",
+            "to": "end"
+          },
+          {
+            "from": "idle",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Ablauf",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Folgen",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Share mit Ablaufzeit (Admin-UI oder CLI)"
+              ]
+            },
+            {
+              "id": "time",
+              "type": "proc",
+              "text": [
+                "2. Die Zeit vergeht"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "ui",
+              "type": "proc",
+              "text": [
+                "4. Admin-UI zeigt 'deaktiviert' und 'Frist' getrennt"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "next",
+              "type": "dec",
+              "text": [
+                "5. Was tut der Betreiber?"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "prune",
+              "type": "proc",
+              "text": [
+                "Aufräumen: Share löschen",
+                "~cli/main.go:543-576",
+                "~admin_handler.go:429-448"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "react",
+              "type": "proc",
+              "text": [
+                "Reaktivieren: Frist ändern oder 'deaktiviert' umschalten",
+                "unabhängig voneinander, in CLI und Admin gleich"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "idle",
+              "type": "proc",
+              "text": [
+                "Share bleibt abgelaufen"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "6. Ende"
+              ]
+            },
+            {
+              "id": "derive",
+              "type": "proc",
+              "text": [
+                "3. Zustand beim Zugriff berechnen",
+                "aktiv = nicht deaktiviert UND Frist offen",
+                "kein Schreiben, kein Watcher",
+                "~neu: shared.Active(fd)"
+              ],
+              "phase": 1,
+              "ask": [
+                "❓ Feld 'expired' in data.json migrieren (nur noch 'disabled')?"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "time"
+            },
+            {
+              "from": "ui",
+              "to": "next"
+            },
+            {
+              "from": "next",
+              "to": "prune",
+              "label": "aufräumen"
+            },
+            {
+              "from": "next",
+              "to": "react",
+              "label": "reaktivieren"
+            },
+            {
+              "from": "next",
+              "to": "idle",
+              "label": "nichts"
+            },
+            {
+              "from": "prune",
+              "to": "end"
+            },
+            {
+              "from": "react",
+              "to": "end"
+            },
+            {
+              "from": "idle",
+              "to": "end"
+            },
+            {
+              "from": "time",
+              "to": "derive"
+            },
+            {
+              "from": "derive",
+              "to": "ui"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

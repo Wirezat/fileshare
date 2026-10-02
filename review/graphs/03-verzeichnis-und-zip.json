@@ -1,0 +1,479 @@
+{
+  "ticket": {
+    "id": "review/3",
+    "name": "03-verzeichnis-und-zip"
+  },
+  "title": "Verzeichnis und ZIP",
+  "subtitle": "Ordneransicht und ZIP-Download. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Auswahl",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "ZIP",
+            "color": "ta"
+          },
+          {
+            "id": 3,
+            "title": "Seite",
+            "color": "ext"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Anfrage auf einen Ordner (aus Workflow 1)"
+            ]
+          },
+          {
+            "id": "iszip",
+            "type": "dec",
+            "text": [
+              "2. ZIP angefordert?",
+              "~directory_handler.go:25",
+              "?download=zip"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "zipok",
+            "type": "dec",
+            "text": [
+              "3. ZIP für den Share erlaubt?",
+              "~directory_handler.go:26"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e403",
+            "type": "proc",
+            "text": [
+              "!403 Forbidden",
+              "~directory_handler.go:27"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "sel",
+            "type": "dec",
+            "text": [
+              "4. Auswahl gültig?",
+              "~directory_handler.go:30-34 · :82-92",
+              "nicht '.', absolut oder versteckt"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~directory_handler.go:32"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "zip",
+            "type": "proc",
+            "text": [
+              "5. ZIP streamen",
+              "~zip.go:99-252",
+              "kleine Dateien parallel im RAM,",
+              "große direkt von der Platte"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "zipend",
+            "type": "proc",
+            "text": [
+              "6. ZIP abschließen, loggen",
+              "~zip.go:254-259"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "tmpl",
+            "type": "dec",
+            "text": [
+              "7. Vorlage ladbar?",
+              "~directory_handler.go:39"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~directory_handler.go:41"
+            ],
+            "phase": 3,
+            "error": true
+          },
+          {
+            "id": "list",
+            "type": "proc",
+            "text": [
+              "8. Einträge lesen",
+              "~directory_handler.go:58 · :158-194",
+              "versteckte aus, Fehler ignoriert"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "crumbs",
+            "type": "proc",
+            "text": [
+              "9. Brotkrumen und Geschwister",
+              "~directory_handler.go:94-155"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "render",
+            "type": "proc",
+            "text": [
+              "10. Seite rendern",
+              "~directory_handler.go:60-77",
+              "Fehler nur ins Log"
+            ],
+            "phase": 3
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "11. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "iszip"
+          },
+          {
+            "from": "iszip",
+            "to": "zipok",
+            "label": "Ja"
+          },
+          {
+            "from": "iszip",
+            "to": "tmpl",
+            "label": "Nein"
+          },
+          {
+            "from": "zipok",
+            "to": "e403",
+            "label": "Nein"
+          },
+          {
+            "from": "zipok",
+            "to": "sel",
+            "label": "Ja"
+          },
+          {
+            "from": "sel",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "sel",
+            "to": "zip",
+            "label": "Ja"
+          },
+          {
+            "from": "zip",
+            "to": "zipend"
+          },
+          {
+            "from": "zipend",
+            "to": "end"
+          },
+          {
+            "from": "e403",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          },
+          {
+            "from": "tmpl",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "tmpl",
+            "to": "list",
+            "label": "Ja"
+          },
+          {
+            "from": "list",
+            "to": "crumbs"
+          },
+          {
+            "from": "crumbs",
+            "to": "render"
+          },
+          {
+            "from": "render",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Auswahl",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "ZIP",
+              "color": "ta"
+            },
+            {
+              "id": 3,
+              "title": "Seite",
+              "color": "ext"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Anfrage auf einen Ordner (aus Workflow 1)"
+              ]
+            },
+            {
+              "id": "iszip",
+              "type": "dec",
+              "text": [
+                "2. ZIP angefordert?",
+                "~directory_handler.go:25",
+                "?download=zip"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "zipok",
+              "type": "dec",
+              "text": [
+                "3. ZIP für den Share erlaubt?",
+                "~directory_handler.go:26"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e403",
+              "type": "proc",
+              "text": [
+                "!403 Forbidden",
+                "~directory_handler.go:27"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "sel",
+              "type": "dec",
+              "text": [
+                "4. Auswahl gültig?",
+                "~directory_handler.go:30-34 · :82-92",
+                "nicht '.', absolut oder versteckt"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~directory_handler.go:32"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "zip",
+              "type": "proc",
+              "text": [
+                "5. ZIP streamen",
+                "~zip.go:99-252",
+                "Abbruch des Clients wird beachtet"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Abbruch des Clients beenden die Arbeit sofort (Context)?"
+              ]
+            },
+            {
+              "id": "zipend",
+              "type": "proc",
+              "text": [
+                "6. ZIP abschließen, loggen",
+                "~zip.go:254-259"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "tmpl",
+              "type": "dec",
+              "text": [
+                "7. Vorlage ladbar?",
+                "~directory_handler.go:39"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~directory_handler.go:41"
+              ],
+              "phase": 3,
+              "error": true
+            },
+            {
+              "id": "list",
+              "type": "proc",
+              "text": [
+                "8. Einträge lesen",
+                "~directory_handler.go:58",
+                "Lesefehler → 500 statt leere Liste"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "crumbs",
+              "type": "proc",
+              "text": [
+                "9. Brotkrumen und Geschwister",
+                "~directory_handler.go:94-155"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "render",
+              "type": "proc",
+              "text": [
+                "10. Seite rendern",
+                "~directory_handler.go:60-77",
+                "Fehler nur ins Log"
+              ],
+              "phase": 3
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "11. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "iszip"
+            },
+            {
+              "from": "iszip",
+              "to": "zipok",
+              "label": "Ja"
+            },
+            {
+              "from": "iszip",
+              "to": "tmpl",
+              "label": "Nein"
+            },
+            {
+              "from": "zipok",
+              "to": "e403",
+              "label": "Nein"
+            },
+            {
+              "from": "zipok",
+              "to": "sel",
+              "label": "Ja"
+            },
+            {
+              "from": "sel",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "sel",
+              "to": "zip",
+              "label": "Ja"
+            },
+            {
+              "from": "zip",
+              "to": "zipend"
+            },
+            {
+              "from": "zipend",
+              "to": "end"
+            },
+            {
+              "from": "e403",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            },
+            {
+              "from": "tmpl",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "tmpl",
+              "to": "list",
+              "label": "Ja"
+            },
+            {
+              "from": "list",
+              "to": "crumbs"
+            },
+            {
+              "from": "crumbs",
+              "to": "render"
+            },
+            {
+              "from": "render",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,672 @@
+{
+  "ticket": {
+    "id": "review/2",
+    "name": "02-passwort-freischaltung"
+  },
+  "title": "Passwort-Freischaltung",
+  "subtitle": "Gate-Formular, Rate-Limit, Cookie. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Prüfen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Freischalten",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: POST /<share>/unlock"
+            ]
+          },
+          {
+            "id": "cfg",
+            "type": "dec",
+            "text": [
+              "2. data.json lesbar?",
+              "~handler.go:290"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~handler.go:291-294"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "find",
+            "type": "dec",
+            "text": [
+              "3. Share bekannt?",
+              "~handler.go:297"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e404",
+            "type": "proc",
+            "text": [
+              "!404 Nicht-gefunden-Seite",
+              "~handler.go:299"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "haspw",
+            "type": "dec",
+            "text": [
+              "4. Share hat Passwort?",
+              "~handler.go:303"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "redir0",
+            "type": "proc",
+            "text": [
+              "Weiterleitung 303 /<share>",
+              "~handler.go:305"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "rate",
+            "type": "dec",
+            "text": [
+              "5. Versuche frei?",
+              "~handler.go:309-312",
+              "Schlüssel: IP|Share"
+            ],
+            "phase": 1,
+            "note": [
+              "max. 5 Fehlversuche je 15 min (ratelimit.go:15-19)"
+            ]
+          },
+          {
+            "id": "e429",
+            "type": "proc",
+            "text": [
+              "!429 Too many attempts",
+              "~ratelimit.go:76-88"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "form",
+            "type": "dec",
+            "text": [
+              "6. Formular lesbar?",
+              "~handler.go:314"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~handler.go:315"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "chk",
+            "type": "dec",
+            "text": [
+              "7. Passwort korrekt?",
+              "~handler.go:319-329",
+              "Argon2id oder bcrypt"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "wrong",
+            "type": "proc",
+            "text": [
+              "Fehlversuch zählen",
+              "Warnung ins Log",
+              "Gate-Seite mit Fehler",
+              "~handler.go:321-328"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "ok",
+            "type": "proc",
+            "text": [
+              "8. Erfolg vermerken",
+              "~handler.go:330"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "rehash",
+            "type": "dec",
+            "text": [
+              "9. Hash veraltet (bcrypt)?",
+              "~handler.go:333"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "upg",
+            "type": "proc",
+            "text": [
+              "Neu hashen und speichern",
+              "~handler.go:334-341"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "tok",
+            "type": "proc",
+            "text": [
+              "10. Token erzeugen, 24 h merken",
+              "~handler.go:345-351",
+              "share_tokens.go:9-19"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "cookie",
+            "type": "proc",
+            "text": [
+              "11. Cookie share_pw_<share>",
+              "HttpOnly, SameSite=Strict",
+              "~share_tokens.go:39-48"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "redir",
+            "type": "proc",
+            "text": [
+              "12. Weiterleitung 303 /<share>",
+              "~handler.go:353"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "13. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "cfg"
+          },
+          {
+            "from": "cfg",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "cfg",
+            "to": "find",
+            "label": "Ja"
+          },
+          {
+            "from": "find",
+            "to": "e404",
+            "label": "Nein"
+          },
+          {
+            "from": "find",
+            "to": "haspw",
+            "label": "Ja"
+          },
+          {
+            "from": "haspw",
+            "to": "redir0",
+            "label": "Nein"
+          },
+          {
+            "from": "haspw",
+            "to": "rate",
+            "label": "Ja"
+          },
+          {
+            "from": "rate",
+            "to": "e429",
+            "label": "Nein"
+          },
+          {
+            "from": "rate",
+            "to": "form",
+            "label": "Ja"
+          },
+          {
+            "from": "form",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "form",
+            "to": "chk",
+            "label": "Ja"
+          },
+          {
+            "from": "chk",
+            "to": "wrong",
+            "label": "Nein"
+          },
+          {
+            "from": "chk",
+            "to": "ok",
+            "label": "Ja"
+          },
+          {
+            "from": "ok",
+            "to": "rehash"
+          },
+          {
+            "from": "rehash",
+            "to": "upg",
+            "label": "Ja"
+          },
+          {
+            "from": "rehash",
+            "to": "tok",
+            "label": "Nein"
+          },
+          {
+            "from": "upg",
+            "to": "tok"
+          },
+          {
+            "from": "tok",
+            "to": "cookie"
+          },
+          {
+            "from": "cookie",
+            "to": "redir"
+          },
+          {
+            "from": "redir",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          },
+          {
+            "from": "e404",
+            "to": "end"
+          },
+          {
+            "from": "redir0",
+            "to": "end"
+          },
+          {
+            "from": "e429",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          },
+          {
+            "from": "wrong",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Prüfen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Freischalten",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: POST /<share>/unlock"
+              ]
+            },
+            {
+              "id": "cfg",
+              "type": "dec",
+              "text": [
+                "2. data.json lesbar?",
+                "~handler.go:290"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~handler.go:291-294"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "find",
+              "type": "dec",
+              "text": [
+                "3. Share bekannt?",
+                "~handler.go:297"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e404",
+              "type": "proc",
+              "text": [
+                "!404 Nicht-gefunden-Seite",
+                "~handler.go:299"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "haspw",
+              "type": "dec",
+              "text": [
+                "4. Share hat Passwort?",
+                "~handler.go:303"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "redir0",
+              "type": "proc",
+              "text": [
+                "Weiterleitung 303 /<share>",
+                "~handler.go:305"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "rate",
+              "type": "dec",
+              "text": [
+                "5. Versuche frei?",
+                "~handler.go:309-312",
+                "Schlüssel: IP|Share"
+              ],
+              "phase": 1,
+              "note": [
+                "max. 5 Fehlversuche je 15 min (ratelimit.go:15-19)"
+              ],
+              "ask": [
+                "❓ Argon2-Berechnungen gleichzeitig begrenzen (je 64 MiB)?"
+              ]
+            },
+            {
+              "id": "e429",
+              "type": "proc",
+              "text": [
+                "!429 Too many attempts",
+                "~ratelimit.go:76-88"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "form",
+              "type": "dec",
+              "text": [
+                "6. Formular lesbar?",
+                "~handler.go:314"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~handler.go:315"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "chk",
+              "type": "dec",
+              "text": [
+                "7. Passwort korrekt?",
+                "~handler.go:319-329",
+                "Argon2id oder bcrypt"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "wrong",
+              "type": "proc",
+              "text": [
+                "Fehlversuch zählen",
+                "Warnung ins Log",
+                "Gate-Seite mit Fehler",
+                "~handler.go:321-328"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "ok",
+              "type": "proc",
+              "text": [
+                "8. Erfolg vermerken",
+                "~handler.go:330"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "rehash",
+              "type": "dec",
+              "text": [
+                "9. Hash veraltet (bcrypt)?",
+                "~handler.go:333"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "upg",
+              "type": "proc",
+              "text": [
+                "Neu hashen und speichern",
+                "~handler.go:334-341"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "tok",
+              "type": "proc",
+              "text": [
+                "10. Token erzeugen, 24 h merken",
+                "~handler.go:345-351",
+                "share_tokens.go:9-19"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "cookie",
+              "type": "proc",
+              "text": [
+                "11. Cookie share_pw_<share>",
+                "HttpOnly, SameSite=Strict",
+                "~share_tokens.go:39-48"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "redir",
+              "type": "proc",
+              "text": [
+                "12. Weiterleitung 303 /<share>",
+                "~handler.go:353"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "13. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "cfg"
+            },
+            {
+              "from": "cfg",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "cfg",
+              "to": "find",
+              "label": "Ja"
+            },
+            {
+              "from": "find",
+              "to": "e404",
+              "label": "Nein"
+            },
+            {
+              "from": "find",
+              "to": "haspw",
+              "label": "Ja"
+            },
+            {
+              "from": "haspw",
+              "to": "redir0",
+              "label": "Nein"
+            },
+            {
+              "from": "haspw",
+              "to": "rate",
+              "label": "Ja"
+            },
+            {
+              "from": "rate",
+              "to": "e429",
+              "label": "Nein"
+            },
+            {
+              "from": "rate",
+              "to": "form",
+              "label": "Ja"
+            },
+            {
+              "from": "form",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "form",
+              "to": "chk",
+              "label": "Ja"
+            },
+            {
+              "from": "chk",
+              "to": "wrong",
+              "label": "Nein"
+            },
+            {
+              "from": "chk",
+              "to": "ok",
+              "label": "Ja"
+            },
+            {
+              "from": "ok",
+              "to": "rehash"
+            },
+            {
+              "from": "rehash",
+              "to": "upg",
+              "label": "Ja"
+            },
+            {
+              "from": "rehash",
+              "to": "tok",
+              "label": "Nein"
+            },
+            {
+              "from": "upg",
+              "to": "tok"
+            },
+            {
+              "from": "tok",
+              "to": "cookie"
+            },
+            {
+              "from": "cookie",
+              "to": "redir"
+            },
+            {
+              "from": "redir",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            },
+            {
+              "from": "e404",
+              "to": "end"
+            },
+            {
+              "from": "redir0",
+              "to": "end"
+            },
+            {
+              "from": "e429",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            },
+            {
+              "from": "wrong",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

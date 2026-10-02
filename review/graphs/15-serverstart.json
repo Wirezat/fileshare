@@ -1,0 +1,399 @@
+{
+  "ticket": {
+    "id": "review/15",
+    "name": "15-serverstart"
+  },
+  "title": "Serverstart und Hintergrundaufgaben",
+  "subtitle": "Vom Prozessstart bis zum laufenden Server. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Vorbereiten",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Laufen",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: fileshare-backend wird gestartet"
+            ]
+          },
+          {
+            "id": "hook",
+            "type": "proc",
+            "text": [
+              "2. Log-Hook für die Admin-Ansicht",
+              "~main.go:94-96"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "file",
+            "type": "dec",
+            "text": [
+              "3. Logdatei anlegbar?",
+              "~main.go:98"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e1",
+            "type": "proc",
+            "text": [
+              "!Abbruch, Exit 1",
+              "~main.go:99-100"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "hist",
+            "type": "proc",
+            "text": [
+              "4. Zugriffslog öffnen, Verlauf laden",
+              "~main.go:102-108"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "cfg",
+            "type": "dec",
+            "text": [
+              "5. data.json lesbar?",
+              "~main.go:110"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e1b",
+            "type": "proc",
+            "text": [
+              "!Abbruch, Exit 1",
+              "~main.go:112-113"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "setup",
+            "type": "proc",
+            "text": [
+              "6. Setup-Code, falls kein Admin-Passwort",
+              "~main.go:116 → Workflow 10"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "bg",
+            "type": "proc",
+            "text": [
+              "7. Hintergrundaufgaben starten",
+              "~main.go:118-123",
+              "Chunk-Reaper, Share-Tokens, Admin-Tokens,",
+              "Limiter, Ablauf-Watcher (je 5 oder 15 min)"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "srv",
+            "type": "dec",
+            "text": [
+              "8. ListenAndServe auf :Port",
+              "~main.go:84-90",
+              "ohne Timeouts"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "e1c",
+            "type": "proc",
+            "text": [
+              "!Abbruch, Exit 1",
+              "~main.go:88-89"
+            ],
+            "phase": 2,
+            "error": true
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "9. Ende: Server läuft"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "hook"
+          },
+          {
+            "from": "hook",
+            "to": "file"
+          },
+          {
+            "from": "file",
+            "to": "e1",
+            "label": "Nein"
+          },
+          {
+            "from": "file",
+            "to": "hist",
+            "label": "Ja"
+          },
+          {
+            "from": "hist",
+            "to": "cfg"
+          },
+          {
+            "from": "cfg",
+            "to": "e1b",
+            "label": "Nein"
+          },
+          {
+            "from": "cfg",
+            "to": "setup",
+            "label": "Ja"
+          },
+          {
+            "from": "setup",
+            "to": "bg"
+          },
+          {
+            "from": "bg",
+            "to": "srv"
+          },
+          {
+            "from": "srv",
+            "to": "e1c",
+            "label": "Nein"
+          },
+          {
+            "from": "srv",
+            "to": "end",
+            "label": "Ja"
+          },
+          {
+            "from": "e1",
+            "to": "end"
+          },
+          {
+            "from": "e1b",
+            "to": "end"
+          },
+          {
+            "from": "e1c",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Vorbereiten",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Laufen",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: fileshare-backend wird gestartet"
+              ]
+            },
+            {
+              "id": "hook",
+              "type": "proc",
+              "text": [
+                "2. Log-Hook für die Admin-Ansicht",
+                "~main.go:94-96"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "file",
+              "type": "dec",
+              "text": [
+                "3. Logdatei anlegbar?",
+                "~main.go:98"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e1",
+              "type": "proc",
+              "text": [
+                "!Abbruch, Exit 1",
+                "~main.go:99-100"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "hist",
+              "type": "proc",
+              "text": [
+                "4. Zugriffslog öffnen, Verlauf laden",
+                "~main.go:102-108"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "cfg",
+              "type": "dec",
+              "text": [
+                "5. data.json lesbar?",
+                "~main.go:110"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e1b",
+              "type": "proc",
+              "text": [
+                "!Abbruch, Exit 1",
+                "~main.go:112-113"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "setup",
+              "type": "proc",
+              "text": [
+                "6. Setup-Code, falls kein Admin-Passwort",
+                "~main.go:116 → Workflow 10"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "bg",
+              "type": "proc",
+              "text": [
+                "7. Hintergrundaufgaben starten",
+                "~neu: ein Planer statt fünf Einzelstarts",
+                "Ablauf-Watcher entfällt (Workflow 8)"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "srv",
+              "type": "dec",
+              "text": [
+                "8. Server mit Timeouts starten",
+                "~neu: ReadHeader-, Read-, Idle-Timeout",
+                "geordnetes Herunterfahren"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Welche Timeouts vertragen große Uploads und ZIP-Downloads?"
+              ]
+            },
+            {
+              "id": "e1c",
+              "type": "proc",
+              "text": [
+                "!Abbruch, Exit 1",
+                "~main.go:88-89"
+              ],
+              "phase": 2,
+              "error": true
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "9. Ende: Server läuft"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "hook"
+            },
+            {
+              "from": "hook",
+              "to": "file"
+            },
+            {
+              "from": "file",
+              "to": "e1",
+              "label": "Nein"
+            },
+            {
+              "from": "file",
+              "to": "hist",
+              "label": "Ja"
+            },
+            {
+              "from": "hist",
+              "to": "cfg"
+            },
+            {
+              "from": "cfg",
+              "to": "e1b",
+              "label": "Nein"
+            },
+            {
+              "from": "cfg",
+              "to": "setup",
+              "label": "Ja"
+            },
+            {
+              "from": "setup",
+              "to": "bg"
+            },
+            {
+              "from": "bg",
+              "to": "srv"
+            },
+            {
+              "from": "srv",
+              "to": "e1c",
+              "label": "Nein"
+            },
+            {
+              "from": "srv",
+              "to": "end",
+              "label": "Ja"
+            },
+            {
+              "from": "e1",
+              "to": "end"
+            },
+            {
+              "from": "e1b",
+              "to": "end"
+            },
+            {
+              "from": "e1c",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

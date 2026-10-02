@@ -1,0 +1,501 @@
+{
+  "ticket": {
+    "id": "review/12b",
+    "name": "12b-share-aendern"
+  },
+  "title": "Share ändern (Admin-UI)",
+  "subtitle": "Teiländerung eines Shares per PATCH. Soll zeigt den vorgeschlagenen Prozess.",
+  "versions": [
+    {
+      "id": "v1",
+      "name": "Ist-Aufnahme 2026-10-02",
+      "status": "current",
+      "ist": {
+        "phases": [
+          {
+            "id": 1,
+            "title": "Prüfen",
+            "color": "imp"
+          },
+          {
+            "id": 2,
+            "title": "Ändern",
+            "color": "ta"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "start",
+            "type": "term",
+            "text": [
+              "1. Start: Admin ändert eine Zelle oder den Status"
+            ]
+          },
+          {
+            "id": "call",
+            "type": "proc",
+            "text": [
+              "2. PATCH /admin/api/shares?subpath=",
+              "~shares.js:200-214 · :470-482",
+              "Upload, ZIP, Office, Status, Frist, Pfad, Passwort"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "sub",
+            "type": "dec",
+            "text": [
+              "3. subpath angegeben?",
+              "~admin_handler.go:157"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "body",
+            "type": "dec",
+            "text": [
+              "4. Body lesbar?",
+              "~admin_handler.go:172"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e400",
+            "type": "proc",
+            "text": [
+              "!400 Bad Request",
+              "~admin_handler.go:47 · :38 · :194 · :219 · :249"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "cfg",
+            "type": "dec",
+            "text": [
+              "5. data.json lesbar?",
+              "~admin_handler.go:176"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e500",
+            "type": "proc",
+            "text": [
+              "!500 Internal Server Error",
+              "~admin_handler.go:20 · :240 · :30"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "find",
+            "type": "dec",
+            "text": [
+              "6. Share bekannt?",
+              "~admin_handler.go:181"
+            ],
+            "phase": 1
+          },
+          {
+            "id": "e404",
+            "type": "proc",
+            "text": [
+              "!404 share not found",
+              "~admin_handler.go:183"
+            ],
+            "phase": 1,
+            "error": true
+          },
+          {
+            "id": "fields",
+            "type": "dec",
+            "text": [
+              "7. Felder gültig?",
+              "~admin_handler.go:192-246",
+              "Pfad nicht leer, Office-Wert, Passwort hashen"
+            ],
+            "phase": 2,
+            "ask": [
+              "❓ Frist ändern setzt 'expired' nicht zurück, die CLI schon (cli/main.go:393-396)"
+            ]
+          },
+          {
+            "id": "any",
+            "type": "dec",
+            "text": [
+              "8. Mindestens eine Änderung?",
+              "~admin_handler.go:248"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "save",
+            "type": "dec",
+            "text": [
+              "9. Speichern, Änderungen loggen",
+              "~admin_handler.go:253-259"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "ok",
+            "type": "proc",
+            "text": [
+              "10. 200 OK",
+              "~admin_handler.go:259"
+            ],
+            "phase": 2
+          },
+          {
+            "id": "end",
+            "type": "term",
+            "text": [
+              "11. Ende"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "start",
+            "to": "call"
+          },
+          {
+            "from": "call",
+            "to": "sub"
+          },
+          {
+            "from": "sub",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "sub",
+            "to": "body",
+            "label": "Ja"
+          },
+          {
+            "from": "body",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "body",
+            "to": "cfg",
+            "label": "Ja"
+          },
+          {
+            "from": "cfg",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "cfg",
+            "to": "find",
+            "label": "Ja"
+          },
+          {
+            "from": "find",
+            "to": "e404",
+            "label": "Nein"
+          },
+          {
+            "from": "find",
+            "to": "fields",
+            "label": "Ja"
+          },
+          {
+            "from": "fields",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "fields",
+            "to": "any",
+            "label": "Ja"
+          },
+          {
+            "from": "any",
+            "to": "e400",
+            "label": "Nein"
+          },
+          {
+            "from": "any",
+            "to": "save",
+            "label": "Ja"
+          },
+          {
+            "from": "save",
+            "to": "e500",
+            "label": "Nein"
+          },
+          {
+            "from": "save",
+            "to": "ok",
+            "label": "Ja"
+          },
+          {
+            "from": "ok",
+            "to": "end"
+          },
+          {
+            "from": "e400",
+            "to": "end"
+          },
+          {
+            "from": "e500",
+            "to": "end"
+          },
+          {
+            "from": "e404",
+            "to": "end"
+          }
+        ]
+      },
+      "soll": {
+        "vereinfacht": {
+          "phases": [
+            {
+              "id": 1,
+              "title": "Prüfen",
+              "color": "imp"
+            },
+            {
+              "id": 2,
+              "title": "Ändern",
+              "color": "ta"
+            }
+          ],
+          "nodes": [
+            {
+              "id": "start",
+              "type": "term",
+              "text": [
+                "1. Start: Admin ändert eine Zelle oder den Status"
+              ]
+            },
+            {
+              "id": "call",
+              "type": "proc",
+              "text": [
+                "2. PATCH /admin/api/shares?subpath=",
+                "~shares.js:200-214 · :470-482",
+                "Upload, ZIP, Office, Status, Frist, Pfad, Passwort"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "sub",
+              "type": "dec",
+              "text": [
+                "3. subpath angegeben?",
+                "~admin_handler.go:157"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "body",
+              "type": "dec",
+              "text": [
+                "4. Body lesbar?",
+                "~admin_handler.go:172"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e400",
+              "type": "proc",
+              "text": [
+                "!400 Bad Request",
+                "~admin_handler.go:47 · :38 · :194 · :219 · :249"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "cfg",
+              "type": "dec",
+              "text": [
+                "5. data.json lesbar?",
+                "~admin_handler.go:176"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e500",
+              "type": "proc",
+              "text": [
+                "!500 Internal Server Error",
+                "~admin_handler.go:20 · :240 · :30"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "find",
+              "type": "dec",
+              "text": [
+                "6. Share bekannt?",
+                "~admin_handler.go:181"
+              ],
+              "phase": 1
+            },
+            {
+              "id": "e404",
+              "type": "proc",
+              "text": [
+                "!404 share not found",
+                "~admin_handler.go:183"
+              ],
+              "phase": 1,
+              "error": true
+            },
+            {
+              "id": "fields",
+              "type": "dec",
+              "text": [
+                "7. Felder gültig?",
+                "~neu: gleiche Regeln wie CLI",
+                "eine gemeinsame Funktion für Anlegen und Ändern"
+              ],
+              "phase": 2,
+              "ask": [
+                "❓ Frist ändern setzt 'expired' nicht zurück, die CLI schon (cli/main.go:393-396)"
+              ]
+            },
+            {
+              "id": "any",
+              "type": "dec",
+              "text": [
+                "8. Mindestens eine Änderung?",
+                "~admin_handler.go:248"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "save",
+              "type": "dec",
+              "text": [
+                "9. Speichern, Änderungen loggen",
+                "~admin_handler.go:253-259"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "ok",
+              "type": "proc",
+              "text": [
+                "10. 200 OK",
+                "~admin_handler.go:259"
+              ],
+              "phase": 2
+            },
+            {
+              "id": "end",
+              "type": "term",
+              "text": [
+                "11. Ende"
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "from": "start",
+              "to": "call"
+            },
+            {
+              "from": "call",
+              "to": "sub"
+            },
+            {
+              "from": "sub",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "sub",
+              "to": "body",
+              "label": "Ja"
+            },
+            {
+              "from": "body",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "body",
+              "to": "cfg",
+              "label": "Ja"
+            },
+            {
+              "from": "cfg",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "cfg",
+              "to": "find",
+              "label": "Ja"
+            },
+            {
+              "from": "find",
+              "to": "e404",
+              "label": "Nein"
+            },
+            {
+              "from": "find",
+              "to": "fields",
+              "label": "Ja"
+            },
+            {
+              "from": "fields",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "fields",
+              "to": "any",
+              "label": "Ja"
+            },
+            {
+              "from": "any",
+              "to": "e400",
+              "label": "Nein"
+            },
+            {
+              "from": "any",
+              "to": "save",
+              "label": "Ja"
+            },
+            {
+              "from": "save",
+              "to": "e500",
+              "label": "Nein"
+            },
+            {
+              "from": "save",
+              "to": "ok",
+              "label": "Ja"
+            },
+            {
+              "from": "ok",
+              "to": "end"
+            },
+            {
+              "from": "e400",
+              "to": "end"
+            },
+            {
+              "from": "e500",
+              "to": "end"
+            },
+            {
+              "from": "e404",
+              "to": "end"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
