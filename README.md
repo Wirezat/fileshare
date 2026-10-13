@@ -1,6 +1,6 @@
 # fileshare
 
-A self-hosted file sharing server written in Go. Serve files and folders over HTTP with optional password protection, upload support, use limits, and expiration — managed through a web-based admin interface or a command-line tool.
+A self-hosted file sharing server written in Go. Serve files and folders over HTTP with optional password protection, upload support, use limits, and expiration — managed through a web-based admin interface.
 This tool was developed because I often wanted to send files to friends, only for my messengers to block them due to file size, since they were on my NAS anyway, so why not give them the direct link to a file or folder?
 Because there were no proper tools that were able to do this in a simple way without being massively overcomplicated, having user instances, etc., etc.
 ---
@@ -16,7 +16,6 @@ Because there were no proper tools that were able to do this in a simple way wit
 - **Link previews** — pasting a share link into a messenger shows a proper preview instead of a bare URL
 - **Live log viewer** — stream server logs in real time from the admin UI
 - **Dark mode** — persisted per browser
-- **CLI tool** — full share management from the command line for scripting and remote access
 
 ---
 
@@ -31,7 +30,7 @@ sudo bash scripts/fileshare-installer.sh              # menu: install / update /
 bash scripts/fileshare-installer.sh --remote user@host # same, but on another machine over ssh
 ```
 
-Install builds both binaries, deploys to `/opt/fileshare`, sets up the systemd unit and prints the setup code you need next. Update rebuilds and redeploys without touching `data.json`. Uninstall offers to keep a copy of `data.json` before removing everything.
+Install builds the server, deploys to `/opt/fileshare`, sets up the systemd unit and prints the setup code you need next. Update rebuilds and redeploys without touching `data.json`. Uninstall offers to keep a copy of `data.json` before removing everything.
 
 The web UI lives in a submodule ([wirezatUI](https://github.com/Wirezat/wirezatui)), so clone with it:
 
@@ -128,63 +127,6 @@ Pasting a share link into a messenger (Telegram, Discord, WhatsApp, Slack, Signa
 
 ---
 
-## CLI
+## Forgotten admin password
 
-The CLI tool provides full share management for use in scripts or over SSH. It reads and writes `data.json` directly, and a running server picks up its changes on the very next request — no cache to reload, no restart needed.
-
-Note: This was the original interface for the program, so I wanted to keep it as a legacy option. Since I've made the WebUI,
-its updates are entirely Vibe Coded, but it should work without problems. I guess. I haven't put the most of work into it
-
-```
-fileshare <command> [options]
-```
-
-### Commands
-
-| Command | Description |
-|---|---|
-| `list` | Show all shares with status, expiration, upload flag, and password indicator. |
-| `add` | Create a new share. |
-| `delete` | Delete a share. |
-| `edit` | Edit an existing share (path, subpath, expiration, upload, zip, office, active state, password). |
-| `enable` | Re-enable a disabled share. |
-| `disable` | Disable a share without deleting it. |
-| `prune` | Delete all expired shares permanently. |
-| `setpassword` | Update the admin password. Prompts for the current password if one is set. |
-| `setusername` | Update the admin username. Prompts for the current password if one is set. |
-| `help <command>` | Show detailed help for any command. |
-
-### Quick reference
-
-```sh
-# List all shares
-fileshare list
-fileshare list --json
-
-# Add a share
-fileshare add -f /srv/files/report.pdf -s report -e 7d
-fileshare add -f /srv/uploads -upload           # random subpath, uploads enabled
-fileshare add -f /srv/secret.zip -pw hunter2   # password-protected
-fileshare add -f /srv/docs -office view -zip=false   # office viewer on, no ZIP button
-
-# Edit a share
-fileshare edit -s report -e 30d
-fileshare edit -s report -pw newpassword
-fileshare edit -s report -clear-password
-fileshare edit -s report -active=false         # disable without deleting
-fileshare edit -s docs -office edit            # off / view / edit
-
-# Enable / disable
-fileshare disable -s report
-fileshare enable  -s report
-
-# Delete
-fileshare delete -s report
-
-# Clean up expired shares
-fileshare prune -y
-
-# Update admin credentials
-fileshare setpassword
-fileshare setusername -u newname
-```
+Stop the service, set `"admin_password": ""` in `/opt/fileshare/data.json` and start it again. The server then generates a new setup code and `/setup` works as on a fresh install (see [First-time setup](#2-first-time-setup)). Shares are not touched.

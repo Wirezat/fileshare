@@ -20,11 +20,10 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 INSTALL_DIR="/opt/fileshare"
 SERVICE_NAME="fileshare.service"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
-CLI_LINK="/usr/local/bin/fileshare"
+LEGACY_CLI_LINK="/usr/local/bin/fileshare"
 CHUNK_TMP="/tmp/fileshare-chunks"
 
 BACKEND_BIN="$REPO_ROOT/fileshare-backend"
-CLI_BIN="$REPO_ROOT/fileshare-interface"
 UI_MARKER="$REPO_ROOT/assets/web/ui/index.css"
 
 OWNER="${SUDO_USER:-$USER}"
@@ -74,9 +73,9 @@ find_go() {
 }
 
 cleanup_bins() {
-    if [ -f "$BACKEND_BIN" ] || [ -f "$CLI_BIN" ]; then
+    if [ -f "$BACKEND_BIN" ]; then
         log "Cleaning up binaries from $REPO_ROOT..."
-        rm -f "$BACKEND_BIN" "$CLI_BIN"
+        rm -f "$BACKEND_BIN"
     fi
 }
 
@@ -91,21 +90,19 @@ ensure_ui() {
 }
 
 build() {
-    if [ -d "$REPO_ROOT/cmd/server" ] && [ -d "$REPO_ROOT/cmd/cli" ]; then
+    if [ -d "$REPO_ROOT/cmd/server" ]; then
         local GO
         GO="$(find_go)" || error "Source found but Go is not installed (looked in /usr/local/go/bin and PATH)."
         cd "$REPO_ROOT"
         log "Resolving Go modules..."
         "$GO" mod tidy
         log "Building fileshare-backend..."
-        "$GO" build -o fileshare-backend   ./cmd/server/
-        log "Building fileshare-interface..."
-        "$GO" build -o fileshare-interface ./cmd/cli/
+        "$GO" build -o fileshare-backend ./cmd/server/
         log "Build complete."
-    elif [ -f "$BACKEND_BIN" ] && [ -f "$CLI_BIN" ]; then
-        info "No source found – using pre-built binaries."
+    elif [ -f "$BACKEND_BIN" ]; then
+        info "No source found – using pre-built binary."
     else
-        error "Neither source code nor pre-built binaries found in $REPO_ROOT."
+        error "Neither source code nor a pre-built binary found in $REPO_ROOT."
     fi
 }
 
@@ -143,19 +140,19 @@ EOF
 }
 
 deploy_files() {
-    log "Deploying binaries and assets to $INSTALL_DIR..."
+    log "Deploying binary and assets to $INSTALL_DIR..."
     cp "$BACKEND_BIN" "$INSTALL_DIR/fileshare-backend"
-    cp "$CLI_BIN"     "$INSTALL_DIR/fileshare-interface"
-    chmod 755 "$INSTALL_DIR/fileshare-backend" "$INSTALL_DIR/fileshare-interface"
+    chmod 755 "$INSTALL_DIR/fileshare-backend"
     rm -rf "$INSTALL_DIR/web"
     cp -r  "$REPO_ROOT/assets/web" "$INSTALL_DIR/web"
     restorecon -Rv "$INSTALL_DIR" 2>/dev/null || true
 }
 
-link_cli() {
-    [ -L "$CLI_LINK" ] && rm "$CLI_LINK"
-    ln -s "$INSTALL_DIR/fileshare-interface" "$CLI_LINK"
-    info "$CLI_LINK → $INSTALL_DIR/fileshare-interface"
+remove_legacy_cli() {
+    if [ -e "$LEGACY_CLI_LINK" ] || [ -L "$LEGACY_CLI_LINK" ] || [ -f "$INSTALL_DIR/fileshare-interface" ]; then
+        log "Removing the discontinued CLI..."
+        rm -f "$LEGACY_CLI_LINK" "$INSTALL_DIR/fileshare-interface"
+    fi
 }
 
 config_port() {
@@ -202,8 +199,7 @@ do_install() {
     write_service
     systemctl enable --now "$SERVICE_NAME"
 
-    log "Creating CLI symlink..."
-    link_cli
+    remove_legacy_cli
 
     cleanup_bins
     echo ""
@@ -226,7 +222,7 @@ do_update() {
 
     log "Refreshing systemd service..."
     write_service
-    link_cli
+    remove_legacy_cli
 
     log "Restarting service..."
     systemctl start "$SERVICE_NAME"
@@ -263,8 +259,7 @@ do_uninstall() {
     rm -f "$SERVICE_FILE"
     systemctl daemon-reload
 
-    log "Removing CLI symlink..."
-    rm -f "$CLI_LINK"
+    rm -f "$LEGACY_CLI_LINK"
 
     log "Removing $INSTALL_DIR and upload temp dir..."
     rm -rf "$INSTALL_DIR" "$CHUNK_TMP"

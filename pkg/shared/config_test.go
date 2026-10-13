@@ -15,7 +15,6 @@ func TestLoadConfigAlwaysReadsFromDisk(t *testing.T) {
 		t.Fatalf("test setup broken: unexpected files %+v", cfg.Files)
 	}
 
-	// Simulate a second process (the CLI) writing the file directly.
 	external := &Config{AdminUsername: "admin", Files: map[string]FileData{"docs": {Path: "/tmp"}}}
 	if err := SaveConfigTo(defaultConfigPath, external); err != nil {
 		t.Fatalf("external save: %v", err)

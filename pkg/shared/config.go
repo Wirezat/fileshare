@@ -61,9 +61,7 @@ type Config struct {
 	Files                  map[string]FileData `json:"files"`
 }
 
-// LoadConfig loads the config from the default path. It always reads from
-// disk, so changes another process makes (the CLI) are visible on the very
-// next call — no cache to go stale, nothing to invalidate.
+// LoadConfig loads the config from the default path, fresh from disk on every call.
 func LoadConfig() (*Config, error) {
 	return LoadConfigFrom(defaultConfigPath)
 }
