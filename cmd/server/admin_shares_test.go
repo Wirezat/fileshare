@@ -15,30 +15,16 @@ import (
 
 func withShare(t *testing.T, sub string, fd shared.FileData) {
 	t.Helper()
-	cfg := &shared.Config{
-		AdminUsername: "admin",
-		AdminPassword: testAdminHash,
-		Files:         map[string]shared.FileData{},
-	}
+	cfg := baseConfig()
 	if sub != "" {
 		cfg.Files[sub] = fd
 	}
-	if err := shared.SaveConfig(cfg); err != nil {
-		t.Fatalf("save test config: %v", err)
-	}
-	t.Cleanup(func() {
-		shared.SaveConfig(&shared.Config{AdminUsername: "admin", AdminPassword: testAdminHash, Files: map[string]shared.FileData{}})
-		os.Remove("data.json")
-	})
+	seedConfig(t, cfg)
 }
 
 func shareOf(t *testing.T, sub string) shared.FileData {
 	t.Helper()
-	cfg, err := shared.LoadConfig()
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	fd, ok := cfg.Files[sub]
+	fd, ok := storedConfig(t).Files[sub]
 	if !ok {
 		t.Fatalf("share %q missing", sub)
 	}
@@ -84,7 +70,7 @@ func TestShareCreateRejectsUnknownOffice(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
-	cfg, _ := shared.LoadConfig()
+	cfg := storedConfig(t)
 	if _, exists := cfg.Files["docs"]; exists {
 		t.Error("rejected share was stored anyway")
 	}

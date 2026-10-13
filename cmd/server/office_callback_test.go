@@ -180,21 +180,13 @@ func withSingleFileShare(t *testing.T, officeURL string) string {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "vertrag.docx")
 	os.WriteFile(file, []byte(docBytes), 0o600)
-	cfg := &shared.Config{
-		AdminUsername: "admin", AdminPassword: testAdminHash,
-		OfficeURL: officeURL, OfficeSecret: testSecret,
-		Files: map[string]shared.FileData{"vertrag": {Path: file, Office: shared.OfficeEdit}},
-	}
-	if err := shared.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
+	cfg := baseConfig()
+	cfg.OfficeURL, cfg.OfficeSecret = officeURL, testSecret
+	cfg.Files["vertrag"] = shared.FileData{Path: file, Office: shared.OfficeEdit}
+	seedConfig(t, cfg)
 	prev := officeHtmlPath
 	officeHtmlPath = "../../assets/web/html/office.html"
-	t.Cleanup(func() {
-		officeHtmlPath = prev
-		shared.SaveConfig(&shared.Config{AdminUsername: "admin", AdminPassword: testAdminHash, Files: map[string]shared.FileData{}})
-		os.Remove("data.json")
-	})
+	t.Cleanup(func() { officeHtmlPath = prev })
 	return file
 }
 

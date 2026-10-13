@@ -16,7 +16,7 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-const chunkTempBase = "/tmp/fileshare-chunks"
+var chunkTempBase = "/tmp/fileshare-chunks"
 
 // maxTotalChunks caps the client-supplied chunk count a session may declare.
 const maxTotalChunks = 1_000_000
@@ -51,10 +51,6 @@ var bufPool = sync.Pool{
 }
 
 // sessionMeta is persisted as meta.json inside each chunk directory.
-// It allows resume across server restarts.
-// NOTE: Received[] is intentionally NOT persisted here anymore.
-// The filesystem (presence of chunk files) is the source of truth.
-// meta.json only stores the invariant session metadata.
 type sessionMeta struct {
 	UploadID     string    `json:"uploadId"`
 	Filename     string    `json:"filename"`
@@ -103,9 +99,6 @@ func (s *LocalStorage) InitChunk(uploadID, filename string, totalChunks int, des
 
 // loadOrCreateSession checks for an existing upload session in RAM or on disk,
 // or creates a new one if not found.
-// When resuming from disk, it scans actual chunk files to rebuild received state —
-// not meta.json — so a crash between writing the chunk and updating meta.json
-// never causes a chunk to be re-sent unnecessarily.
 func (s *LocalStorage) loadOrCreateSession(uploadID, filename string, totalChunks int, destDir string) (*chunkSession, error) {
 	// 1. RAM hit
 	if sess, ok := sessions[uploadID]; ok {
@@ -124,8 +117,6 @@ func (s *LocalStorage) loadOrCreateSession(uploadID, filename string, totalChunk
 			return nil, fmt.Errorf("corrupt meta.json for %q: %w", uploadID, err)
 		}
 
-		// Scan disk for chunk files — because the server could crash before updating meta.json after a chunk upload.
-		// A chunk is considered received if and only if its file exists on disk.
 		received, err := scanReceivedChunks(dir, meta.TotalChunks)
 		if err != nil {
 			return nil, fmt.Errorf("scanning chunks for %q: %w", uploadID, err)
@@ -155,8 +146,7 @@ func (s *LocalStorage) loadOrCreateSession(uploadID, filename string, totalChunk
 	return sess, nil
 }
 
-// scanReceivedChunks returns the set of chunk indices whose files actually
-// exist on disk. It does NOT rely on meta.json's Received[] field.
+// scanReceivedChunks returns the set of chunk indices whose files exist on disk.
 func scanReceivedChunks(dir string, totalChunks int) (map[int]struct{}, error) {
 	received := make(map[int]struct{}, totalChunks)
 	for i := range totalChunks {
@@ -210,10 +200,6 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 		return false, fmt.Errorf("closing chunk %d: %w", index, err)
 	}
 
-	// Chunk is now safely on disk. Update in-RAM state and persist LastActivity.
-	// meta.json no longer tracks Received[] — chunk files are the source of truth.
-	// A failure to write meta.json here is non-fatal: the chunk file exists on disk
-	// and will be discovered by scanReceivedChunks on next resume.
 	sess.mu.Lock()
 	sess.received[index] = struct{}{}
 	sess.meta.LastActivity = time.Now()
@@ -308,9 +294,8 @@ func cleanupSession(uploadID string) {
 	os.RemoveAll(dir)
 }
 
-// StartReaper periodically removes sessions that have been inactive longer than
-// the configured chunk inactivity timeout. It scans disk instead of the RAM
-// map so it also catches sessions left behind by a server restart.
+// StartReaper periodically removes on-disk sessions that have been inactive longer than
+// the configured chunk inactivity timeout.
 func (s *LocalStorage) StartReaper() {
 	runEvery(5*time.Minute, func() {
 		config, err := shared.LoadConfig()
@@ -361,8 +346,6 @@ func (s *LocalStorage) reapEntry(id string, now time.Time, timeout time.Duration
 }
 
 // writeMeta atomically writes meta to dir/meta.json via a temp file + rename.
-// meta.json stores only invariant session data (no Received[] list).
-// The received set is derived from actual chunk files on disk — see scanReceivedChunks.
 func writeMeta(dir string, meta sessionMeta) error {
 	path := filepath.Join(dir, "meta.json")
 	tmp := path + ".tmp"

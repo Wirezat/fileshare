@@ -3,20 +3,14 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 )
 
-// withConfig writes a ./data.json with a password set, so shared.LoadConfig
-// sees a server that is past setup.
+// withConfig seeds a server that is past setup.
 func withConfig(t *testing.T) {
 	t.Helper()
-	const cfg = `{"admin_username":"admin","admin_password":"$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHQ$aGFzaA","files":{}}`
-	if err := os.WriteFile("data.json", []byte(cfg), 0o600); err != nil {
-		t.Fatalf("write test config: %v", err)
-	}
-	t.Cleanup(func() { os.Remove("data.json") })
+	seedConfig(t, baseConfig())
 }
 
 func okHandler(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }

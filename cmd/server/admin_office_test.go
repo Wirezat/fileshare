@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -13,27 +12,12 @@ import (
 
 const testAdminHash = "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHQ$aGFzaA"
 
-// withOfficeConfig installs a config through SaveConfig so both the file and
-// the in-process cache hold it, then restores the baseline other tests expect.
 func withOfficeConfig(t *testing.T, officeURL, officeSecret string) {
 	t.Helper()
-	baseline := func() *shared.Config {
-		return &shared.Config{
-			AdminUsername: "admin",
-			AdminPassword: testAdminHash,
-			Files:         map[string]shared.FileData{},
-		}
-	}
-	cfg := baseline()
+	cfg := baseConfig()
 	cfg.OfficeURL = officeURL
 	cfg.OfficeSecret = officeSecret
-	if err := shared.SaveConfig(cfg); err != nil {
-		t.Fatalf("save test config: %v", err)
-	}
-	t.Cleanup(func() {
-		shared.SaveConfig(baseline())
-		os.Remove("data.json")
-	})
+	seedConfig(t, cfg)
 }
 
 func patchOffice(t *testing.T, body string) *httptest.ResponseRecorder {
@@ -46,11 +30,7 @@ func patchOffice(t *testing.T, body string) *httptest.ResponseRecorder {
 
 func loadOffice(t *testing.T) *shared.Config {
 	t.Helper()
-	cfg, err := shared.LoadConfig()
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	return cfg
+	return storedConfig(t)
 }
 
 func TestOfficeSettingsGetNeverReturnsTheSecret(t *testing.T) {

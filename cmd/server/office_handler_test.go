@@ -21,14 +21,10 @@ func withOfficeShare(t *testing.T, fd shared.FileData, officeURL, secret string)
 	os.WriteFile(filepath.Join(dir, "notiz.txt"), []byte("plain"), 0o600)
 	fd.Path = dir
 
-	cfg := &shared.Config{
-		AdminUsername: "admin", AdminPassword: testAdminHash,
-		OfficeURL: officeURL, OfficeSecret: secret,
-		Files: map[string]shared.FileData{"docs": fd},
-	}
-	if err := shared.SaveConfig(cfg); err != nil {
-		t.Fatal(err)
-	}
+	cfg := baseConfig()
+	cfg.OfficeURL, cfg.OfficeSecret = officeURL, secret
+	cfg.Files["docs"] = fd
+	seedConfig(t, cfg)
 	prevOffice, prevPreview := officeHtmlPath, previewHtmlPath
 	prevShare, prevGate := shareHtmlPath, gateHtmlPath
 	prevNotFound, prevExpired := notFoundHtmlPath, expiredHtmlPath
@@ -42,8 +38,6 @@ func withOfficeShare(t *testing.T, fd shared.FileData, officeURL, secret string)
 		officeHtmlPath, previewHtmlPath = prevOffice, prevPreview
 		shareHtmlPath, gateHtmlPath = prevShare, prevGate
 		notFoundHtmlPath, expiredHtmlPath = prevNotFound, prevExpired
-		shared.SaveConfig(&shared.Config{AdminUsername: "admin", AdminPassword: testAdminHash, Files: map[string]shared.FileData{}})
-		os.Remove("data.json")
 	})
 	return dir
 }
