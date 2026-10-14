@@ -13,8 +13,8 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/password"
-	"github.com/Wirezat/fileshare/pkg/shared"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
@@ -303,9 +303,9 @@ func handleAdminLogs(w http.ResponseWriter, r *http.Request) {
 	if parsed, err := strconv.Atoi(r.URL.Query().Get("n")); err == nil && parsed > 0 {
 		n = parsed
 	}
-	entries := shared.Logger.Recent(n)
+	entries := logStore.Recent(n)
 	if entries == nil {
-		entries = []shared.LogEntry{}
+		entries = []logstore.Entry{}
 	}
 	jsonResponse(w, entries)
 }
@@ -322,8 +322,8 @@ func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	ch := shared.Logger.Subscribe()
-	defer shared.Logger.Unsubscribe(ch)
+	ch := logStore.Subscribe()
+	defer logStore.Unsubscribe(ch)
 
 	for {
 		select {

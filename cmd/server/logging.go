@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/logstore"
 )
+
+var logStore = logstore.New()
 
 const (
 	maxBodyBytes = 1 << 20 // 1 MB
@@ -42,13 +44,13 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 		rl := buildRequestLog(r)
 		if data, err := rl.toJSON(); err == nil {
-			entry := shared.LogEntry{
+			entry := logstore.Entry{
 				Level:   "INFO",
 				Time:    time.Now().Format(time.RFC3339),
 				Message: fmt.Sprintf("%s %s", rl.Method, rl.URL),
 				Request: data,
 			}
-			shared.Logger.Add(entry)
+			logStore.Add(entry)
 			persistRequestLog(entry)
 		} else {
 			GoLog.Warnf("loggingMiddleware: failed to serialize request: %v", err)
@@ -79,7 +81,7 @@ func openRequestLog() {
 	requestLogMu.Unlock()
 }
 
-func persistRequestLog(entry shared.LogEntry) {
+func persistRequestLog(entry logstore.Entry) {
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return

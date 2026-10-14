@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/upload"
-	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 const (
@@ -105,7 +105,7 @@ func chunkTimeout() time.Duration {
 
 func main() {
 	GoLog.OnRecord = func(r GoLog.Record) {
-		shared.Logger.Add(shared.LogEntry{Level: r.Level, Time: r.Time, Message: r.Message})
+		logStore.Add(logstore.Entry{Level: r.Level, Time: r.Time, Message: r.Message})
 	}
 
 	if err := GoLog.ToFile(); err != nil {
@@ -115,7 +115,7 @@ func main() {
 	openRequestLog()
 
 	if path := GoLog.LogPath(); path != "" {
-		if err := shared.Logger.Load(path); err != nil {
+		if err := logStore.Load(path); err != nil {
 			GoLog.Errorf("failed to load log history: %v", err)
 		}
 	}
