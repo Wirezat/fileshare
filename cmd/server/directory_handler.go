@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -172,7 +173,6 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 		isDir := entry.IsDir()
 		var size int64
 		if entry.Type()&fs.ModeSymlink != 0 {
-			// Stat follows the link, so both fields describe the target.
 			if info, err := os.Stat(fullPath); err == nil {
 				isDir = info.IsDir()
 				size = info.Size()
@@ -181,7 +181,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 			size = info.Size()
 		}
 		if isDir {
-			size = 0 // a directory's own inode size means nothing to a listing
+			size = 0
 		}
 
 		infos = append(infos, shared.FileInfo{
@@ -198,7 +198,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 func loadTemplate() (*template.Template, error) {
 	dirTemplateOnce.Do(func() {
 		dirTemplate, dirTemplateErr = template.New("directory").
-			Funcs(template.FuncMap{"opensInline": opensInline, "isText": isText}).
+			Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": isText}).
 			ParseFiles(shareHtmlPath)
 		if dirTemplateErr != nil {
 			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)

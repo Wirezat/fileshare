@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/ttl"
 )
@@ -82,7 +83,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		return nil, false
 	}
 
-	if fileData.Password != "" && !hasPasswordCookie(r, subpath) && !dsTokenAllows(r, cfg.OfficeSecret()) {
+	if fileData.Password != "" && !hasPasswordCookie(r, subpath) && !office.TokenAllows(r.Header.Get("Authorization"), r.URL.RequestURI(), cfg.OfficeSecret()) {
 		serveGatePage(w, gateData{
 			Subpath:    subpath,
 			FormAction: "/" + subpath + "/unlock",
@@ -142,7 +143,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 
 // serveShareFile hands out the shared file inside a CSP sandbox.
 func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
-	if officeExt(diskPath) != "pdf" {
+	if office.Ext(diskPath) != "pdf" {
 		w.Header().Set("Content-Security-Policy", "sandbox")
 	}
 	http.ServeFile(w, r, diskPath)

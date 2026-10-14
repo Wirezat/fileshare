@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/office"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
@@ -24,7 +25,7 @@ var thumbnailFormats = map[string]bool{
 
 // canThumbnail reports whether name is a format servePreviewImage can decode.
 func canThumbnail(name string) bool {
-	return thumbnailFormats[officeExt(name)]
+	return thumbnailFormats[office.Ext(name)]
 }
 
 // wantsPreviewImage reports whether this request is for a thumbnailed image.

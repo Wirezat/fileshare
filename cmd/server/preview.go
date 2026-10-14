@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -44,7 +45,7 @@ var mediaKinds = map[string]string{
 
 // mediaKind reports whether name is an image, a video, or neither.
 func mediaKind(name string) string {
-	return mediaKinds[officeExt(name)]
+	return mediaKinds[office.Ext(name)]
 }
 
 // previewWanted reports whether this request should get a link-preview page
@@ -83,7 +84,7 @@ func appendExpiry(desc string, exp int64) string {
 
 // fileDescription builds the og:description for a single shared file.
 func fileDescription(fd config.FileData, name string, size int64) string {
-	kind := strings.ToUpper(officeExt(name))
+	kind := strings.ToUpper(office.Ext(name))
 	if kind == "" {
 		kind = "FILE"
 	}

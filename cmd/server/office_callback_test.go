@@ -8,9 +8,26 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/office"
 )
+
+const testSecret = "06e7f94b2b06ce5c7fc22730c5639b6eb1cab0a36725a9648e6396546ae2fdca"
+
+func dsBearer(t *testing.T, secret, url string, exp int64) string {
+	t.Helper()
+	tok, err := office.SignJWT(secret, map[string]any{
+		"payload": map[string]any{"url": url},
+		"iat":     time.Now().Unix(),
+		"exp":     exp,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "Bearer " + tok
+}
 
 // fakeDS stands in for the document server: it hands out one saved document
 // and records every callback response it gets back.
@@ -33,7 +50,7 @@ func callback(t *testing.T, target string, body map[string]any, secret string) *
 	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(string(raw)))
 	req.Header.Set("Content-Type", "application/json")
 	if secret != "" {
-		tok, _ := signJWT(secret, map[string]any{"payload": body})
+		tok, _ := office.SignJWT(secret, map[string]any{"payload": body})
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	rec := httptest.NewRecorder()
