@@ -146,4 +146,7 @@ func TestThumbnailKeepsSmallImages(t *testing.T) {
 	if c := color.RGBAModel.Convert(got.At(5, 5)).(color.RGBA); c != (color.RGBA{200, 40, 40, 255}) {
 		t.Errorf("pixel = %v", c)
 	}
+	if c := color.RGBAModel.Convert(got.At(0, 0)).(color.RGBA); c != (color.RGBA{255, 255, 255, 255}) {
+		t.Errorf("transparent pixel became %v, want white", c)
+	}
 }
