@@ -2,6 +2,7 @@ package upload
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -172,5 +173,36 @@ func TestInitSweepsIdleSessionsOncePerInterval(t *testing.T) {
 	}
 	if _, err := os.Stat(idle); !os.IsNotExist(err) {
 		t.Error("idle session survived the sweep in Init")
+	}
+}
+
+func TestSweepNeverRemovesASessionInitIsCreating(t *testing.T) {
+	s, dest := newStorage(t)
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				s.sweep(time.Now())
+			}
+		}
+	}()
+	ids := make([]string, 300)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("race-%05d", i)
+		if _, err := s.Init(ids[i], "a.txt", 1, dest); err != nil {
+			t.Fatalf("Init: %v", err)
+		}
+	}
+	close(stop)
+	<-done
+	for _, uid := range ids {
+		if _, err := os.Stat(filepath.Join(s.tempBase, uid, "meta.json")); err != nil {
+			t.Fatalf("session %s registered but its directory was swept", uid)
+		}
 	}
 }

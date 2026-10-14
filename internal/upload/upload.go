@@ -315,22 +315,24 @@ func (s *Storage) sweepEntry(id string, now time.Time, timeout time.Duration) {
 	if err != nil {
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	data, err := os.ReadFile(filepath.Join(dir, "meta.json"))
 	if err != nil {
+		delete(s.sessions, id)
 		os.RemoveAll(dir)
 		return
 	}
 	var meta sessionMeta
 	if err := json.Unmarshal(data, &meta); err != nil {
+		delete(s.sessions, id)
 		os.RemoveAll(dir)
 		return
 	}
 	if now.Sub(meta.LastActivity) <= timeout {
 		return
 	}
-	s.mu.Lock()
 	delete(s.sessions, id)
-	s.mu.Unlock()
 	os.RemoveAll(dir)
 	GoLog.Infof("chunk upload: removed inactive session %q (%s)", id, meta.Filename)
 }
