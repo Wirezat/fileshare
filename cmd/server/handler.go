@@ -304,7 +304,7 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 	}
 	unlockLimiter.Success(limitKey)
 
-	// Upgrade an outdated hash while the plaintext is available.
+	// Upgrade an outdated hash.
 	if password.NeedsRehash(fd.Password) {
 		if rehashed, err := password.Hash(pw); err == nil {
 			err := cfgStore.Update(func(c *config.Config) error {

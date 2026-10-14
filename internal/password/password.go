@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Argon2id parameters, above the OWASP floor of m=19 MiB, t=2, p=1.
+// Argon2id parameters.
 const (
 	argonTime    uint32 = 2
 	argonMemory  uint32 = 64 * 1024

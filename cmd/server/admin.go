@@ -84,7 +84,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		loginLimiter.Success(ip)
 
-		// Upgrade an outdated hash while the plaintext is available.
+		// Upgrade an outdated hash.
 		if password.NeedsRehash(cfg.AdminPassword()) {
 			if rehashed, err := password.Hash(creds.Password); err == nil {
 				err := cfgStore.Update(func(c *config.Config) error {
