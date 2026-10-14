@@ -67,7 +67,6 @@ func buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /setup", handleSetupUI)
 	mux.HandleFunc("POST /setup/api/init", handleSetupInit)
 
-	// Chunk upload endpoints — handlers parse multipart themselves.
 	mux.HandleFunc("POST /{subpath}/chunk-init", handleChunkInit)
 	mux.HandleFunc("POST /{subpath}/chunk", handleChunkReceive)
 
@@ -124,8 +123,6 @@ func main() {
 
 	storage = NewLocalStorage()
 	storage.StartReaper()
-	startTokenReaper()
-	startAdminTokenReaper()
 	startLimiterReaper()
 	startServer(cfgStore.Current().Port())
 }

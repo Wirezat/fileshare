@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/store"
+	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
 var testConfigPath string
@@ -73,7 +74,7 @@ func newServer(t *testing.T) http.Handler {
 	t.Chdir(dir)
 
 	loginLimiter, unlockLimiter = newLimiter(), newLimiter()
-	adminSessions, shareTokens = newTTLStore[struct{}](), newTTLStore[string]()
+	adminSessions, shareTokens = ttl.New[struct{}](), ttl.New[string]()
 	setupToken = ""
 	prevChunks := chunkTempBase
 	chunkTempBase = filepath.Join(dir, "chunks")
@@ -85,7 +86,7 @@ func newServer(t *testing.T) http.Handler {
 // adminCookie returns a valid admin session cookie.
 func adminCookie(t *testing.T) *http.Cookie {
 	t.Helper()
-	token, err := generateAdminToken()
+	token, err := ttl.Token()
 	if err != nil {
 		t.Fatal(err)
 	}

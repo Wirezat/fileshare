@@ -8,6 +8,7 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
+	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
 // wantsLoginPage reports whether the request is a browser navigation rather than a fetch() call.
@@ -98,7 +99,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		token, err := generateAdminToken()
+		token, err := ttl.Token()
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return

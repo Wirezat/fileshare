@@ -3,35 +3,33 @@ package main
 import (
 	"net/http"
 	"time"
+
+	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
 const (
-	adminSessionCookie     = "admin_session"
-	adminTokenTTL          = 7 * 24 * time.Hour // only map cleanup, not actual session TTL since we don't update expiry on use
-	adminTokenReapInterval = 15 * time.Minute
+	adminSessionCookie = "admin_session"
+	adminTokenTTL      = 7 * 24 * time.Hour
 )
 
-var adminSessions = newTTLStore[struct{}]()
-
-func generateAdminToken() (string, error) { return generateToken() }
+var adminSessions = ttl.New[struct{}]()
 
 func storeAdminToken(token string) {
-	adminSessions.set(token, struct{}{}, adminTokenTTL)
+	adminSessions.Set(token, struct{}{}, adminTokenTTL)
 }
 
 func validateAdminToken(token string) bool {
-	_, ok := adminSessions.get(token)
+	_, ok := adminSessions.Get(token)
 	return ok
 }
 
 func deleteAdminToken(token string) {
-	adminSessions.delete(token)
+	adminSessions.Delete(token)
 }
 
-// deleteAdminTokensExcept drops every session but the one given and reports
-// how many it removed.
+// deleteAdminTokensExcept drops every session but keep and returns how many it removed.
 func deleteAdminTokensExcept(keep string) int {
-	return adminSessions.deleteExcept(keep)
+	return adminSessions.DeleteExcept(keep)
 }
 
 // currentAdminToken returns the session token carried by this request, if any.
@@ -73,8 +71,4 @@ func clearAdminCookie(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 	})
-}
-
-func startAdminTokenReaper() {
-	adminSessions.startReaper(adminTokenReapInterval)
 }

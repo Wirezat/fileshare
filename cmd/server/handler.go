@@ -13,6 +13,7 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
+	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
 // handleRequest is the main entry point for public share routes.
@@ -321,7 +322,7 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	token, err := generateShareToken()
+	token, err := ttl.Token()
 	if err != nil {
 		GoLog.Errorf("handleUnlock: generate token: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

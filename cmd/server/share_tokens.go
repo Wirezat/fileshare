@@ -3,29 +3,21 @@ package main
 import (
 	"net/http"
 	"time"
+
+	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
-const (
-	shareTokenTTL  = 24 * time.Hour
-	shareTokenReap = 5 * time.Minute
-)
+const shareTokenTTL = 24 * time.Hour
 
-var shareTokens = newTTLStore[string]() // value: subpath the token grants access to
-
-func generateShareToken() (string, error) { return generateToken() }
+var shareTokens = ttl.New[string]()
 
 func storeShareToken(token, subpath string) {
-	shareTokens.set(token, subpath, shareTokenTTL)
+	shareTokens.Set(token, subpath, shareTokenTTL)
 }
 
-// validateShareToken checks if the provided token is valid for the given subpath and not expired.
 func validateShareToken(token, subpath string) bool {
-	sp, ok := shareTokens.get(token)
+	sp, ok := shareTokens.Get(token)
 	return ok && sp == subpath
-}
-
-func startTokenReaper() {
-	shareTokens.startReaper(shareTokenReap)
 }
 
 func hasPasswordCookie(r *http.Request, subpath string) bool {

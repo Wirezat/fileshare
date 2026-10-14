@@ -367,3 +367,13 @@ func missingChunks(received map[int]struct{}, total int) []int {
 func sanitizeFilename(name string) string {
 	return filepath.Base(name)
 }
+
+func runEvery(interval time.Duration, fn func()) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for range ticker.C {
+			fn()
+		}
+	}()
+}
