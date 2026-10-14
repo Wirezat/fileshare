@@ -8,14 +8,18 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/store"
+	"github.com/Wirezat/fileshare/internal/upload"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-const configPath = "./data.json"
+const (
+	configPath    = "./data.json"
+	chunkTempBase = "/tmp/fileshare-chunks"
+)
 
 var startTime = time.Now()
 var (
-	storage  *LocalStorage
+	storage  *upload.Storage
 	cfgStore *store.FileStore
 )
 
@@ -95,6 +99,10 @@ func startServer(port int) {
 	}
 }
 
+func chunkTimeout() time.Duration {
+	return time.Duration(cfgStore.Current().ChunkInactivityTimeout()) * time.Second
+}
+
 func main() {
 	GoLog.OnRecord = func(r GoLog.Record) {
 		shared.Logger.Add(shared.LogEntry{Level: r.Level, Time: r.Time, Message: r.Message})
@@ -121,7 +129,7 @@ func main() {
 
 	initSetupToken(cfgStore.Current())
 
-	storage = NewLocalStorage()
-	storage.StartReaper()
+	storage = upload.New(chunkTempBase, chunkTimeout)
+	storage.Sweep()
 	startServer(cfgStore.Current().Port())
 }

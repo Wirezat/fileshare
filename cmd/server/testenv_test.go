@@ -13,6 +13,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/ratelimit"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/ttl"
+	"github.com/Wirezat/fileshare/internal/upload"
 )
 
 var testConfigPath string
@@ -60,8 +61,7 @@ func storedConfig(t *testing.T) *config.Config {
 	return &cfg
 }
 
-// newServer returns the full production handler, running in a fresh working
-// directory whose ./web points at assets/web, with all in-memory state reset.
+// newServer returns the full production handler in a fresh working directory with all in-memory state reset.
 func newServer(t *testing.T) http.Handler {
 	t.Helper()
 	assets, err := filepath.Abs("../../assets/web")
@@ -77,10 +77,7 @@ func newServer(t *testing.T) http.Handler {
 	loginLimiter, unlockLimiter = ratelimit.New(), ratelimit.New()
 	adminSessions, shareTokens = ttl.New[struct{}](), ttl.New[string]()
 	setupToken = ""
-	prevChunks := chunkTempBase
-	chunkTempBase = filepath.Join(dir, "chunks")
-	t.Cleanup(func() { chunkTempBase = prevChunks })
-	storage = NewLocalStorage()
+	storage = upload.New(filepath.Join(dir, "chunks"), chunkTimeout)
 	return securityHeaders(buildMux())
 }
 

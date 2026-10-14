@@ -1,4 +1,4 @@
-package main
+package upload
 
 import (
 	"encoding/json"
@@ -15,32 +15,17 @@ import (
 	"github.com/Wirezat/GoLog"
 )
 
-var chunkTempBase = "/tmp/fileshare-chunks"
+// MaxTotalChunks caps the client-supplied chunk count a session may declare.
+const MaxTotalChunks = 1_000_000
 
-// maxTotalChunks caps the client-supplied chunk count a session may declare.
-const maxTotalChunks = 1_000_000
+const sweepInterval = 5 * time.Minute
 
-// uploadIDPattern allowlists the characters a client-supplied upload ID may
-// contain; the ID names a directory under chunkTempBase.
-var uploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
-var errBadUploadID = errors.New("upload: invalid uploadId")
+var ErrBadID = errors.New("upload: invalid uploadId")
 
-// validUploadID reports whether an ID may be used to build a path.
-func validUploadID(id string) bool { return uploadIDPattern.MatchString(id) }
-
-// sessionDir maps an upload ID to its temp directory, refusing anything that
-// could escape chunkTempBase.
-func sessionDir(uploadID string) (string, error) {
-	if !validUploadID(uploadID) {
-		return "", errBadUploadID
-	}
-	dir := filepath.Join(chunkTempBase, uploadID)
-	if dir != chunkTempBase && !strings.HasPrefix(dir, chunkTempBase+"/") {
-		return "", errBadUploadID
-	}
-	return dir, nil
-}
+// ValidID reports whether a client-supplied upload ID may name a session directory.
+func ValidID(id string) bool { return idPattern.MatchString(id) }
 
 var bufPool = sync.Pool{
 	New: func() any {
@@ -49,7 +34,6 @@ var bufPool = sync.Pool{
 	},
 }
 
-// sessionMeta is persisted as meta.json inside each chunk directory.
 type sessionMeta struct {
 	UploadID     string    `json:"uploadId"`
 	Filename     string    `json:"filename"`
@@ -64,26 +48,42 @@ type chunkSession struct {
 	received map[int]struct{}
 }
 
-// LocalStorage saves assembled uploads to the local filesystem.
-type LocalStorage struct{}
-
-var (
-	sessionsMu sync.RWMutex
-	sessions   = map[string]*chunkSession{}
-)
-
-func NewLocalStorage() *LocalStorage {
-	return &LocalStorage{}
+// Storage keeps chunked upload sessions under a temp directory and assembles finished files in their destination.
+type Storage struct {
+	tempBase string
+	timeout  func() time.Duration
+	mu       sync.RWMutex
+	sessions map[string]*chunkSession
+	swept    time.Time
 }
 
-// InitChunk registers or resumes an upload session.
-// uploadID is provided by the client (deterministic hash of filename+size+lastModified).
-// Returns the list of chunk indices still missing so the client can skip already-uploaded chunks.
-func (s *LocalStorage) InitChunk(uploadID, filename string, totalChunks int, destDir string) ([]int, error) {
-	sessionsMu.Lock()
-	defer sessionsMu.Unlock()
+// New returns a Storage with chunks under tempBase; timeout returns how long an idle session survives.
+func New(tempBase string, timeout func() time.Duration) *Storage {
+	return &Storage{
+		tempBase: filepath.Clean(tempBase),
+		timeout:  timeout,
+		sessions: map[string]*chunkSession{},
+	}
+}
 
-	sess, err := s.loadOrCreateSession(uploadID, filename, totalChunks, destDir)
+func (s *Storage) dir(uploadID string) (string, error) {
+	if !ValidID(uploadID) {
+		return "", ErrBadID
+	}
+	dir := filepath.Join(s.tempBase, uploadID)
+	if !strings.HasPrefix(dir, s.tempBase+string(filepath.Separator)) {
+		return "", ErrBadID
+	}
+	return dir, nil
+}
+
+// Init registers or resumes a session and returns the chunk indices still missing.
+func (s *Storage) Init(uploadID, filename string, totalChunks int, destDir string) ([]int, error) {
+	s.sweepIfDue(time.Now())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess, err := s.loadOrCreate(uploadID, filename, totalChunks, destDir)
 	if err != nil {
 		return nil, err
 	}
@@ -96,37 +96,30 @@ func (s *LocalStorage) InitChunk(uploadID, filename string, totalChunks int, des
 	return missing, nil
 }
 
-// loadOrCreateSession checks for an existing upload session in RAM or on disk,
-// or creates a new one if not found.
-func (s *LocalStorage) loadOrCreateSession(uploadID, filename string, totalChunks int, destDir string) (*chunkSession, error) {
-	// 1. RAM hit
-	if sess, ok := sessions[uploadID]; ok {
+func (s *Storage) loadOrCreate(uploadID, filename string, totalChunks int, destDir string) (*chunkSession, error) {
+	if sess, ok := s.sessions[uploadID]; ok {
 		return sess, nil
 	}
 
-	dir, err := sessionDir(uploadID)
+	dir, err := s.dir(uploadID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. Disk hit — meta.json exists, rebuild received from actual chunk files
 	if data, err := os.ReadFile(filepath.Join(dir, "meta.json")); err == nil {
 		var meta sessionMeta
 		if err := json.Unmarshal(data, &meta); err != nil {
 			return nil, fmt.Errorf("corrupt meta.json for %q: %w", uploadID, err)
 		}
-
 		received, err := scanReceivedChunks(dir, meta.TotalChunks)
 		if err != nil {
 			return nil, fmt.Errorf("scanning chunks for %q: %w", uploadID, err)
 		}
-
 		sess := &chunkSession{meta: meta, received: received}
-		sessions[uploadID] = sess
+		s.sessions[uploadID] = sess
 		return sess, nil
 	}
 
-	// 3. New session
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("creating temp dir for %q: %w", uploadID, err)
 	}
@@ -141,28 +134,25 @@ func (s *LocalStorage) loadOrCreateSession(uploadID, filename string, totalChunk
 		return nil, err
 	}
 	sess := &chunkSession{meta: meta, received: make(map[int]struct{})}
-	sessions[uploadID] = sess
+	s.sessions[uploadID] = sess
 	return sess, nil
 }
 
-// scanReceivedChunks returns the set of chunk indices whose files exist on disk.
 func scanReceivedChunks(dir string, totalChunks int) (map[int]struct{}, error) {
 	received := make(map[int]struct{}, totalChunks)
 	for i := range totalChunks {
-		chunkPath := filepath.Join(dir, fmt.Sprintf("%05d", i))
-		if _, err := os.Stat(chunkPath); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, fmt.Sprintf("%05d", i))); err == nil {
 			received[i] = struct{}{}
 		}
 	}
 	return received, nil
 }
 
-// ReceiveChunk stores a single chunk and updates meta.json (LastActivity only).
-// Returns done=true when all chunks have arrived and the file has been assembled.
-func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bool, error) {
-	sessionsMu.RLock()
-	sess, ok := sessions[uploadID]
-	sessionsMu.RUnlock()
+// Receive stores one chunk and returns true once every chunk has arrived and the file is assembled.
+func (s *Storage) Receive(uploadID string, index int, r io.Reader) (bool, error) {
+	s.mu.RLock()
+	sess, ok := s.sessions[uploadID]
+	s.mu.RUnlock()
 	if !ok {
 		return false, fmt.Errorf("unknown upload session %q", uploadID)
 	}
@@ -172,12 +162,13 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 
 	sess.mu.Lock()
 	_, alreadyReceived := sess.received[index]
+	complete := len(sess.received) == sess.meta.TotalChunks
 	sess.mu.Unlock()
 	if alreadyReceived {
-		return len(sess.received) == sess.meta.TotalChunks, nil
+		return complete, nil
 	}
 
-	dir, err := sessionDir(uploadID)
+	dir, err := s.dir(uploadID)
 	if err != nil {
 		return false, err
 	}
@@ -210,21 +201,17 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 		GoLog.Warnf("chunk upload: failed to persist meta for %q: %v (non-fatal)", uploadID, err)
 	}
 	if done {
-		if err := assemble(&metaSnap, uploadID); err != nil {
+		if err := assemble(&metaSnap, dir); err != nil {
 			return false, err
 		}
-		cleanupSession(uploadID)
+		s.cleanup(uploadID)
 		GoLog.Infof("chunk upload complete: %q → %q", metaSnap.Filename, metaSnap.DestDir)
 	}
 	return done, nil
 }
 
-// assemble writes all chunks into the destination file atomically via a .tmp file.
-func assemble(meta *sessionMeta, uploadID string) error {
-	dir, err := sessionDir(uploadID)
-	if err != nil {
-		return err
-	}
+// assemble writes all chunks in dir into the destination file atomically via a .tmp file.
+func assemble(meta *sessionMeta, dir string) error {
 	dest := resolveDestPath(meta.DestDir, meta.Filename)
 	tmp := dest + ".tmp"
 
@@ -245,8 +232,7 @@ func assemble(meta *sessionMeta, uploadID string) error {
 	defer bufPool.Put(buf)
 
 	for i := range meta.TotalChunks {
-		chunkPath := filepath.Join(dir, fmt.Sprintf("%05d", i))
-		in, err := os.Open(chunkPath)
+		in, err := os.Open(filepath.Join(dir, fmt.Sprintf("%05d", i)))
 		if err != nil {
 			failed = true
 			return fmt.Errorf("missing chunk %d: %w", i, err)
@@ -270,7 +256,7 @@ func assemble(meta *sessionMeta, uploadID string) error {
 	return nil
 }
 
-// resolveDestPath returns dest/filename, appending a nanosecond suffix on collision.
+// resolveDestPath returns dir/filename, appending a nanosecond suffix on collision.
 func resolveDestPath(dir, filename string) string {
 	dest := filepath.Join(dir, filename)
 	if _, err := os.Stat(dest); err != nil {
@@ -281,39 +267,51 @@ func resolveDestPath(dir, filename string) string {
 	return filepath.Join(dir, fmt.Sprintf("%s_%d%s", stem, time.Now().UnixNano(), ext))
 }
 
-func cleanupSession(uploadID string) {
-	sessionsMu.Lock()
-	delete(sessions, uploadID)
-	sessionsMu.Unlock()
-	dir, err := sessionDir(uploadID)
+func (s *Storage) cleanup(uploadID string) {
+	s.mu.Lock()
+	delete(s.sessions, uploadID)
+	s.mu.Unlock()
+	if dir, err := s.dir(uploadID); err == nil {
+		os.RemoveAll(dir)
+	}
+}
+
+// Sweep removes sessions idle longer than the timeout and directories without meta.json.
+func (s *Storage) Sweep() {
+	now := time.Now()
+	s.mu.Lock()
+	s.swept = now
+	s.mu.Unlock()
+	s.sweep(now)
+}
+
+func (s *Storage) sweepIfDue(now time.Time) {
+	s.mu.Lock()
+	due := now.Sub(s.swept) > sweepInterval
+	if due {
+		s.swept = now
+	}
+	s.mu.Unlock()
+	if due {
+		s.sweep(now)
+	}
+}
+
+func (s *Storage) sweep(now time.Time) {
+	entries, err := os.ReadDir(s.tempBase)
 	if err != nil {
 		return
 	}
-	os.RemoveAll(dir)
+	timeout := s.timeout()
+	for _, e := range entries {
+		if e.IsDir() {
+			s.sweepEntry(e.Name(), now, timeout)
+		}
+	}
 }
 
-// StartReaper periodically removes on-disk sessions idle longer than the chunk inactivity timeout.
-func (s *LocalStorage) StartReaper() {
-	runEvery(5*time.Minute, func() {
-		timeout := time.Duration(cfgStore.Current().ChunkInactivityTimeout()) * time.Second
-
-		entries, err := os.ReadDir(chunkTempBase)
-		if err != nil {
-			return
-		}
-
-		now := time.Now()
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			s.reapEntry(e.Name(), now, timeout)
-		}
-	})
-}
-
-func (s *LocalStorage) reapEntry(id string, now time.Time, timeout time.Duration) {
-	dir, err := sessionDir(id)
+func (s *Storage) sweepEntry(id string, now time.Time, timeout time.Duration) {
+	dir, err := s.dir(id)
 	if err != nil {
 		return
 	}
@@ -330,14 +328,14 @@ func (s *LocalStorage) reapEntry(id string, now time.Time, timeout time.Duration
 	if now.Sub(meta.LastActivity) <= timeout {
 		return
 	}
-	sessionsMu.Lock()
-	delete(sessions, id)
-	sessionsMu.Unlock()
+	s.mu.Lock()
+	delete(s.sessions, id)
+	s.mu.Unlock()
 	os.RemoveAll(dir)
-	GoLog.Infof("chunk upload: reaped inactive session %q (%s)", id, meta.Filename)
+	GoLog.Infof("chunk upload: removed inactive session %q (%s)", id, meta.Filename)
 }
 
-// writeMeta atomically writes meta to dir/meta.json via a temp file + rename.
+// writeMeta atomically writes meta to dir/meta.json via a temp file and rename.
 func writeMeta(dir string, meta sessionMeta) error {
 	path := filepath.Join(dir, "meta.json")
 	tmp := path + ".tmp"
@@ -366,14 +364,4 @@ func missingChunks(received map[int]struct{}, total int) []int {
 
 func sanitizeFilename(name string) string {
 	return filepath.Base(name)
-}
-
-func runEvery(interval time.Duration, fn func()) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for range ticker.C {
-			fn()
-		}
-	}()
 }
