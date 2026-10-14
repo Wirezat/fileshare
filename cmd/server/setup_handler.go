@@ -46,7 +46,7 @@ func handleSetupInit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Setup already complete", http.StatusForbidden)
 		return
 	}
-	if !loginLimiter.allow(w, "setup|"+clientIP(r), "setup") {
+	if !allow(loginLimiter, w, "setup|"+clientIP(r), "setup") {
 		return
 	}
 	var req struct {
@@ -58,7 +58,7 @@ func handleSetupInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if setupToken == "" || subtle.ConstantTimeCompare([]byte(req.SetupToken), []byte(setupToken)) != 1 {
-		loginLimiter.recordFailure("setup|" + clientIP(r))
+		loginLimiter.Failure("setup|" + clientIP(r))
 		GoLog.Warnf("setup: rejected init with wrong setup code from %s", clientIP(r))
 		http.Error(w, "Wrong setup code — it is printed in the server log", http.StatusForbidden)
 		return

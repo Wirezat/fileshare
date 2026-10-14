@@ -54,7 +54,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		ip := clientIP(r)
-		if !loginLimiter.allow(w, ip, "admin login") {
+		if !allow(loginLimiter, w, ip, "admin login") {
 			return
 		}
 
@@ -77,12 +77,12 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		passwordOK := password.Check(creds.Password, cfg.AdminPassword())
 
 		if !usernameOK || !passwordOK {
-			loginLimiter.recordFailure(ip)
+			loginLimiter.Failure(ip)
 			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", ip)
 			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
 			return
 		}
-		loginLimiter.recordSuccess(ip)
+		loginLimiter.Success(ip)
 
 		// Upgrade an outdated hash while the plaintext is available.
 		if password.NeedsRehash(cfg.AdminPassword()) {

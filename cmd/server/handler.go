@@ -282,7 +282,7 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limitKey := clientIP(r) + "|" + subpath
-	if !unlockLimiter.allow(w, limitKey, "share unlock") {
+	if !allow(unlockLimiter, w, limitKey, "share unlock") {
 		return
 	}
 
@@ -293,7 +293,7 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 
 	pw := r.FormValue("password")
 	if !password.Check(pw, fd.Password) {
-		unlockLimiter.recordFailure(limitKey)
+		unlockLimiter.Failure(limitKey)
 		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, clientIP(r))
 		serveGatePage(w, gateData{
 			Subpath:          subpath,
@@ -302,7 +302,7 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	unlockLimiter.recordSuccess(limitKey)
+	unlockLimiter.Success(limitKey)
 
 	// Upgrade an outdated hash while the plaintext is available.
 	if password.NeedsRehash(fd.Password) {

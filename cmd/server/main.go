@@ -123,6 +123,5 @@ func main() {
 
 	storage = NewLocalStorage()
 	storage.StartReaper()
-	startLimiterReaper()
 	startServer(cfgStore.Current().Port())
 }

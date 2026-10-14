@@ -13,6 +13,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
+	"github.com/Wirezat/fileshare/internal/ratelimit"
 )
 
 // shareDir creates a folder with a.txt, sub/b.txt and a secret file next to it.
@@ -176,7 +177,7 @@ func TestUnlockWithAWrongPassword(t *testing.T) {
 func TestUnlockIsRateLimitedAfterFiveFailures(t *testing.T) {
 	h := passwordShare(t)
 
-	for i := 0; i < maxFailures; i++ {
+	for i := 0; i < ratelimit.MaxFailures; i++ {
 		unlock(h, "nope")
 	}
 	if res := unlock(h, "pw"); res.code != http.StatusTooManyRequests {

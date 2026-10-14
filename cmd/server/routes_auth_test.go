@@ -7,6 +7,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
+	"github.com/Wirezat/fileshare/internal/ratelimit"
 )
 
 func configWithAdmin(t *testing.T, pw string) *config.Config {
@@ -79,7 +80,7 @@ func TestLoginIsRateLimitedAfterFiveFailures(t *testing.T) {
 	h := newServer(t)
 	seedConfig(t, configWithAdmin(t, "secret"))
 
-	for i := 0; i < maxFailures; i++ {
+	for i := 0; i < ratelimit.MaxFailures; i++ {
 		login(h, "admin", "wrong")
 	}
 	res := login(h, "admin", "secret")
@@ -158,7 +159,7 @@ func TestSetupIsRateLimited(t *testing.T) {
 	seedConfig(t, cfg)
 	initSetupToken(cfgStore.Current())
 
-	for i := 0; i < maxFailures; i++ {
+	for i := 0; i < ratelimit.MaxFailures; i++ {
 		setupInit(h, "wrong", "pw")
 	}
 	if got := setupInit(h, setupToken, "pw"); got != http.StatusTooManyRequests {

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/ratelimit"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/ttl"
 )
@@ -73,7 +74,7 @@ func newServer(t *testing.T) http.Handler {
 	}
 	t.Chdir(dir)
 
-	loginLimiter, unlockLimiter = newLimiter(), newLimiter()
+	loginLimiter, unlockLimiter = ratelimit.New(), ratelimit.New()
 	adminSessions, shareTokens = ttl.New[struct{}](), ttl.New[string]()
 	setupToken = ""
 	prevChunks := chunkTempBase
