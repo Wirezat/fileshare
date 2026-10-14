@@ -13,6 +13,7 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/office"
+	"github.com/Wirezat/fileshare/internal/share"
 )
 
 var officeHtmlPath = "./web/html/office.html"
@@ -119,8 +120,8 @@ func handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
 		dsReply(w, http.StatusNotFound, 1)
 		return
 	}
-	diskPath := filepath.Join(fd.Path, strings.TrimPrefix(r.URL.Path, "/"+subpath))
-	if diskPath != fd.Path && !strings.HasPrefix(diskPath, fd.Path+"/") {
+	diskPath, inside := share.Join(fd.Path, strings.TrimPrefix(r.URL.Path, "/"+subpath))
+	if !inside {
 		dsReply(w, http.StatusForbidden, 1)
 		return
 	}

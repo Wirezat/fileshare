@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/ratelimit"
+	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/ttl"
 	"github.com/Wirezat/fileshare/internal/upload"
@@ -44,6 +45,7 @@ func seedConfig(t *testing.T, cfg *config.Config) {
 	if cfgStore, err = store.Open(testConfigPath); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
+	shares = share.New(cfgStore)
 }
 
 // storedConfig returns the config as it was last written to disk.
@@ -75,7 +77,7 @@ func newServer(t *testing.T) http.Handler {
 	t.Chdir(dir)
 
 	loginLimiter, unlockLimiter = ratelimit.New(), ratelimit.New()
-	adminSessions, shareTokens = ttl.New[struct{}](), ttl.New[string]()
+	adminSessions = ttl.New[struct{}]()
 	setupToken = ""
 	storage = upload.New(filepath.Join(dir, "chunks"), chunkTimeout)
 	return securityHeaders(buildMux())

@@ -272,3 +272,13 @@ func TestStaticAssets(t *testing.T) {
 		}
 	}
 }
+
+func TestDateExpiredPasswordShareIs410NotTheGate(t *testing.T) {
+	hash, _ := password.Hash("pw")
+	h := publicServer(t, map[string]config.FileData{
+		"priv": {Path: shareDir(t), Password: hash, Expiration: time.Now().Add(-time.Hour).Unix()},
+	})
+	if rec := send(h, http.MethodGet, "/priv", nil, asNavigation); rec.Code != http.StatusGone {
+		t.Errorf("status = %d, want 410 before any password prompt", rec.Code)
+	}
+}

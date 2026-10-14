@@ -8,6 +8,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/logstore"
+	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/upload"
 )
@@ -21,6 +22,7 @@ var startTime = time.Now()
 var (
 	storage  *upload.Storage
 	cfgStore *store.FileStore
+	shares   *share.Service
 )
 
 // chain applies middleware in order: first wraps outermost, last wraps innermost.
@@ -126,6 +128,7 @@ func main() {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
+	shares = share.New(cfgStore)
 
 	initSetupToken(cfgStore.Current())
 

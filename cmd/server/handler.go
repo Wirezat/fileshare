@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -15,7 +14,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/password"
-	"github.com/Wirezat/fileshare/internal/ttl"
+	"github.com/Wirezat/fileshare/internal/share"
 )
 
 // handleRequest is the main entry point for public share routes.
@@ -56,41 +55,36 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		return nil, false
 	}
 
-	cfg := cfgStore.Current()
-
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
-	relativePath := strings.TrimPrefix(r.URL.Path, "/"+subpath)
-
-	fileData, exists := cfg.Share(subpath)
-	if !exists {
+	res, err := shares.Resolve(subpath, strings.TrimPrefix(r.URL.Path, "/"+subpath), share.Access{
+		Token:      shareCookie(r, subpath),
+		AuthHeader: r.Header.Get("Authorization"),
+		RequestURI: r.URL.RequestURI(),
+	})
+	switch err {
+	case nil:
+	case share.ErrNotFound:
 		serveNotFoundPage(w)
 		return nil, false
-	}
-
-	diskPath := filepath.Join(fileData.Path, relativePath)
-
-	if diskPath != fileData.Path && !strings.HasPrefix(diskPath, fileData.Path+"/") {
-		GoLog.Warnf("path traversal attempt: %s", diskPath)
+	case share.ErrOutside:
+		GoLog.Warnf("path traversal attempt: %s", res.DiskPath)
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return nil, false
-	}
-
-	if fileData.Expired {
+	case share.ErrExpired:
 		if media.IsPreviewBot(r.UserAgent()) {
 			serveExpiredPreview(w, r, subpath)
 		} else {
 			serveExpiredPage(w, subpath)
 		}
 		return nil, false
-	}
-
-	if fileData.Password != "" && !hasPasswordCookie(r, subpath) && !office.TokenAllows(r.Header.Get("Authorization"), r.URL.RequestURI(), cfg.OfficeSecret()) {
+	case share.ErrLocked:
 		serveGatePage(w, gateData{
 			Subpath:    subpath,
 			FormAction: "/" + subpath + "/unlock",
 		})
 		return nil, false
 	}
+	diskPath := res.DiskPath
 
 	fileInfo, err := os.Stat(diskPath)
 	if err != nil {
@@ -105,27 +99,16 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}
 
 	return &requestContext{
-		config:   cfg,
-		fileData: fileData,
+		config:   res.Config,
+		fileData: res.Share,
 		subpath:  subpath,
 		diskPath: diskPath,
 		fileInfo: fileInfo,
 	}, true
 }
 
-// handleGet serves a file or directory, enforcing expiration.
+// handleGet serves a file or directory.
 func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
-	fd := ctx.fileData
-
-	if config.IsExpired(fd) {
-		if media.IsPreviewBot(r.UserAgent()) {
-			serveExpiredPreview(w, r, ctx.subpath)
-		} else {
-			serveExpiredPage(w, ctx.subpath)
-		}
-		return
-	}
-
 	switch {
 	case ctx.fileInfo.IsDir():
 		serveDirectory(w, r, ctx)
@@ -150,24 +133,21 @@ func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
 	http.ServeFile(w, r, diskPath)
 }
 
-// resolveUploadTarget loads the FileData for the subpath in the request URL
-// and verifies that uploads are permitted.
+// resolveUploadTarget returns the share in the request URL if it accepts uploads, or writes the HTTP error.
 func resolveUploadTarget(w http.ResponseWriter, r *http.Request) (config.FileData, bool) {
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
-	fd, exists := cfgStore.Current().Share(subpath)
-	if !exists {
+	fd, err := shares.UploadTarget(subpath)
+	switch err {
+	case nil:
+		return fd, true
+	case share.ErrNotFound:
 		http.NotFound(w, r)
-		return config.FileData{}, false
-	}
-	if !fd.AllowPost {
+	case share.ErrUploadsOff:
 		http.Error(w, "Forbidden", http.StatusForbidden)
-		return config.FileData{}, false
-	}
-	if config.IsExpired(fd) {
+	case share.ErrExpired:
 		http.Error(w, "File share expired", http.StatusGone)
-		return config.FileData{}, false
 	}
-	return fd, true
+	return config.FileData{}, false
 }
 
 var (
@@ -324,13 +304,12 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	token, err := ttl.Token()
+	token, err := shares.Grant(subpath)
 	if err != nil {
 		GoLog.Errorf("handleUnlock: generate token: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	storeShareToken(token, subpath)
 	setPasswordCookie(w, r, subpath, token)
 	http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
 }
