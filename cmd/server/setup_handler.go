@@ -8,7 +8,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/password"
 )
 
 // setupToken gates the one-shot setup endpoint; it is only ever printed to the
@@ -67,7 +67,7 @@ func handleSetupInit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
 		return
 	}
-	hashed, err := shared.HashPassword(req.NewPassword)
+	hashed, err := password.Hash(req.NewPassword)
 	if err != nil {
 		GoLog.Errorf("setup: failed to hash password: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

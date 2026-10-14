@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/password"
 )
 
-func configWithAdmin(t *testing.T, password string) *config.Config {
+func configWithAdmin(t *testing.T, pw string) *config.Config {
 	t.Helper()
-	hash, err := shared.HashPassword(password)
+	hash, err := password.Hash(pw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestSetupFlow(t *testing.T) {
 	if got := setupInit(h, code, "pw"); got != http.StatusNoContent {
 		t.Fatalf("right code: %d, want 204", got)
 	}
-	if stored := storedConfig(t); stored.AdminUsername != "boss" || !shared.CheckPassword("pw", stored.AdminPassword) {
+	if stored := storedConfig(t); stored.AdminUsername != "boss" || !password.Check("pw", stored.AdminPassword) {
 		t.Errorf("credentials not stored: user %q", stored.AdminUsername)
 	}
 	if got := setupInit(h, code, "again"); got != http.StatusForbidden {

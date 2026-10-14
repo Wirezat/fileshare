@@ -1,4 +1,4 @@
-package shared
+package password
 
 import (
 	"crypto/rand"
@@ -15,21 +15,21 @@ import (
 // Argon2id parameters, above the OWASP floor of m=19 MiB, t=2, p=1.
 const (
 	argonTime    uint32 = 2
-	argonMemory  uint32 = 64 * 1024 // KiB
+	argonMemory  uint32 = 64 * 1024
 	argonThreads uint8  = 4
 	argonKeyLen  uint32 = 32
 	argonSaltLen        = 16
 )
 
-var errInvalidHash = errors.New("crypto: unrecognised password hash")
+var errInvalidHash = errors.New("password: unrecognised hash")
 
-// HashPassword hashes a plaintext password with Argon2id.
-func HashPassword(password string) (string, error) {
+// Hash returns an Argon2id hash of pw in PHC string format.
+func Hash(pw string) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
-		return "", fmt.Errorf("crypto: generating salt: %w", err)
+		return "", fmt.Errorf("password: generating salt: %w", err)
 	}
-	hash := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	hash := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt),
@@ -37,28 +37,27 @@ func HashPassword(password string) (string, error) {
 	), nil
 }
 
-// CheckPassword reports whether password matches hash; accepts Argon2id and
-// legacy bcrypt hashes.
-func CheckPassword(password, hash string) bool {
+// Check reports whether pw matches hash; hash may be Argon2id or legacy bcrypt.
+func Check(pw, hash string) bool {
 	if strings.HasPrefix(hash, "$argon2id$") {
-		return checkArgon2(password, hash) == nil
+		return checkArgon2(pw, hash) == nil
 	}
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
 }
 
-// NeedsRehash reports whether a hash was written by an outdated scheme.
+// NeedsRehash reports whether a non-empty hash was written by an outdated scheme.
 func NeedsRehash(hash string) bool {
 	return hash != "" && !strings.HasPrefix(hash, "$argon2id$")
 }
 
-func checkArgon2(password, encoded string) error {
+func checkArgon2(pw, encoded string) error {
 	params, salt, want, err := decodeArgon2(encoded)
 	if err != nil {
 		return err
 	}
-	got := argon2.IDKey([]byte(password), salt, params.time, params.memory, params.threads, uint32(len(want)))
+	got := argon2.IDKey([]byte(pw), salt, params.time, params.memory, params.threads, uint32(len(want)))
 	if subtle.ConstantTimeCompare(got, want) != 1 {
-		return errors.New("crypto: password does not match")
+		return errors.New("password: does not match")
 	}
 	return nil
 }

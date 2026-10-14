@@ -13,6 +13,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/pkg/shared"
 	qrcode "github.com/skip2/go-qrcode"
 )
@@ -125,7 +126,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.FileData.Password != "" {
-			hashed, err := shared.HashPassword(req.FileData.Password)
+			hashed, err := password.Hash(req.FileData.Password)
 			if err != nil {
 				GoLog.Errorf("failed to hash share password: %v", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -223,7 +224,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 				track("password", "<removed>")
 				entry.Password = ""
 			} else {
-				hashed, err := shared.HashPassword(*patch.Password)
+				hashed, err := password.Hash(*patch.Password)
 				if err != nil {
 					GoLog.Errorf("failed to hash share password: %v", err)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -358,7 +359,7 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username cannot be empty", http.StatusBadRequest)
 		return
 	}
-	if !shared.CheckPassword(req.CurrentPassword, cfgStore.Current().AdminPassword()) {
+	if !password.Check(req.CurrentPassword, cfgStore.Current().AdminPassword()) {
 		GoLog.Warnf("admin username change rejected: wrong current password")
 		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
@@ -388,12 +389,12 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
 		return
 	}
-	if !shared.CheckPassword(req.CurrentPassword, cfgStore.Current().AdminPassword()) {
+	if !password.Check(req.CurrentPassword, cfgStore.Current().AdminPassword()) {
 		GoLog.Warnf("admin password change rejected: wrong current password")
 		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
 	}
-	hashed, err := shared.HashPassword(req.NewPassword)
+	hashed, err := password.Hash(req.NewPassword)
 	if err != nil {
 		GoLog.Errorf("failed to hash new password: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

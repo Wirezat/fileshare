@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/password"
 )
 
 const docBytes = "PK\x03\x04 pretend this is a docx"
@@ -127,7 +127,7 @@ func TestFileServedDirectlyWhenViewerDoesNotApply(t *testing.T) {
 }
 
 func TestPasswordShareOpensForTheDocumentServer(t *testing.T) {
-	hash, _ := shared.HashPassword("geheim")
+	hash, _ := password.Hash("geheim")
 	withOfficeShare(t, config.FileData{Office: config.OfficeView, Password: hash}, "https://office.example.com", testSecret)
 	exp := time.Now().Add(5 * time.Minute).Unix()
 

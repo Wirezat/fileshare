@@ -12,7 +12,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/password"
 )
 
 // handleRequest is the main entry point for public share routes.
@@ -290,8 +290,8 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	password := r.FormValue("password")
-	if !shared.CheckPassword(password, fd.Password) {
+	pw := r.FormValue("password")
+	if !password.Check(pw, fd.Password) {
 		unlockLimiter.recordFailure(limitKey)
 		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, clientIP(r))
 		serveGatePage(w, gateData{
@@ -304,8 +304,8 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 	unlockLimiter.recordSuccess(limitKey)
 
 	// Upgrade an outdated hash while the plaintext is available.
-	if shared.NeedsRehash(fd.Password) {
-		if rehashed, err := shared.HashPassword(password); err == nil {
+	if password.NeedsRehash(fd.Password) {
+		if rehashed, err := password.Hash(pw); err == nil {
 			err := cfgStore.Update(func(c *config.Config) error {
 				if cur, ok := c.Files[subpath]; ok && cur.Password == fd.Password {
 					cur.Password = rehashed

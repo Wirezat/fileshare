@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/password"
 )
 
 // shareDir creates a folder with a.txt, sub/b.txt and a secret file next to it.
@@ -113,7 +113,7 @@ func TestPublicMethodsOtherThanGetAndHead(t *testing.T) {
 
 func passwordShare(t *testing.T) http.Handler {
 	t.Helper()
-	hash, err := shared.HashPassword("pw")
+	hash, err := password.Hash("pw")
 	if err != nil {
 		t.Fatal(err)
 	}

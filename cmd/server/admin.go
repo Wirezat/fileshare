@@ -7,7 +7,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/password"
 )
 
 // wantsLoginPage reports whether the request is a browser navigation rather than a fetch() call.
@@ -73,7 +73,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		usernameOK := cfg.AdminUsername() == "" || creds.Username == cfg.AdminUsername()
-		passwordOK := shared.CheckPassword(creds.Password, cfg.AdminPassword())
+		passwordOK := password.Check(creds.Password, cfg.AdminPassword())
 
 		if !usernameOK || !passwordOK {
 			loginLimiter.recordFailure(ip)
@@ -84,8 +84,8 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		loginLimiter.recordSuccess(ip)
 
 		// Upgrade an outdated hash while the plaintext is available.
-		if shared.NeedsRehash(cfg.AdminPassword()) {
-			if rehashed, err := shared.HashPassword(creds.Password); err == nil {
+		if password.NeedsRehash(cfg.AdminPassword()) {
+			if rehashed, err := password.Hash(creds.Password); err == nil {
 				err := cfgStore.Update(func(c *config.Config) error {
 					c.AdminPassword = rehashed
 					return nil

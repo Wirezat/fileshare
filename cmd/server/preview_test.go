@@ -14,6 +14,7 @@ import (
 	"golang.org/x/image/draw"
 
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -270,7 +271,7 @@ func TestPreviewDoesNotApplyToFolders(t *testing.T) {
 }
 
 func TestGatePageDescriptionDoesNotLeakTheShare(t *testing.T) {
-	hash, _ := shared.HashPassword("geheim")
+	hash, _ := password.Hash("geheim")
 	withOfficeShare(t, config.FileData{Password: hash}, "", "")
 
 	rec := get(t, "/docs/notiz.txt")
