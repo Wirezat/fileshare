@@ -85,7 +85,7 @@ func TestResolveLockedUntilTokenOrDocumentServer(t *testing.T) {
 		t.Fatalf("no token: err = %v, want ErrLocked", err)
 	}
 
-	token, err := s.Grant("priv")
+	token, err := s.grant("priv")
 	if err != nil {
 		t.Fatal(err)
 	}

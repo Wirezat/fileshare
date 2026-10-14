@@ -13,7 +13,6 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
-	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/share"
 )
 
@@ -250,66 +249,32 @@ func serveExpiredPage(w http.ResponseWriter, subpath string) {
 // issues a token cookie on success, and redirects to the share.
 func handleUnlock(w http.ResponseWriter, r *http.Request) {
 	subpath := r.PathValue("subpath")
-
-	fd, exists := cfgStore.Current().Share(subpath)
-	if !exists {
-		serveNotFoundPage(w)
-		return
-	}
-
-	if fd.Password == "" {
-		// Share has no password — redirect directly.
-		http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
-		return
-	}
-
-	limitKey := clientIP(r) + "|" + subpath
-	if !allow(unlockLimiter, w, limitKey, "share unlock") {
-		return
-	}
-
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	pw := r.FormValue("password")
-	if !password.Check(pw, fd.Password) {
-		unlockLimiter.Failure(limitKey)
+	token, err := shares.Unlock(subpath, r.FormValue("password"), clientIP(r))
+	var limited share.RateLimitedError
+	switch {
+	case err == nil:
+		setPasswordCookie(w, r, subpath, token)
+		http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
+	case errors.Is(err, share.ErrNotFound):
+		serveNotFoundPage(w)
+	case errors.Is(err, share.ErrNoPassword):
+		http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
+	case errors.As(err, &limited):
+		tooManyAttempts(w, limited.RetryAfter, clientIP(r)+"|"+subpath, "share unlock")
+	case errors.Is(err, share.ErrWrongPassword):
 		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, clientIP(r))
 		serveGatePage(w, gateData{
 			Subpath:          subpath,
 			FormAction:       "/" + subpath + "/unlock",
 			WrongCredentials: true,
 		})
-		return
-	}
-	unlockLimiter.Success(limitKey)
-
-	// Upgrade an outdated hash.
-	if password.NeedsRehash(fd.Password) {
-		if rehashed, err := password.Hash(pw); err == nil {
-			err := cfgStore.Update(func(c *config.Config) error {
-				if cur, ok := c.Files[subpath]; ok && cur.Password == fd.Password {
-					cur.Password = rehashed
-					c.Files[subpath] = cur
-				}
-				return nil
-			})
-			if err != nil {
-				GoLog.Errorf("handleUnlock: failed to store upgraded hash: %v", err)
-			} else {
-				GoLog.Infof("share password hash upgraded to argon2id: /%s", subpath)
-			}
-		}
-	}
-
-	token, err := shares.Grant(subpath)
-	if err != nil {
-		GoLog.Errorf("handleUnlock: generate token: %v", err)
+	default:
+		GoLog.Errorf("handleUnlock: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
 	}
-	setPasswordCookie(w, r, subpath, token)
-	http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
 }

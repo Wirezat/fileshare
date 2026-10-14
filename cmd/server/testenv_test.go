@@ -76,7 +76,7 @@ func newServer(t *testing.T) http.Handler {
 	}
 	t.Chdir(dir)
 
-	loginLimiter, unlockLimiter = ratelimit.New(), ratelimit.New()
+	loginLimiter = ratelimit.New()
 	adminSessions = ttl.New[struct{}]()
 	setupToken = ""
 	storage = upload.New(filepath.Join(dir, "chunks"), chunkTimeout)
