@@ -9,107 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"golang.org/x/image/draw"
 
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/password"
-	"github.com/Wirezat/fileshare/pkg/shared"
 )
-
-func TestIsPreviewBot(t *testing.T) {
-	cases := map[string]bool{
-		"WhatsApp/2.24.1.1":             true,
-		"facebookexternalhit/1.1":       true,
-		"TelegramBot (like TwitterBot)": true,
-		"Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)": true,
-		"Slackbot-LinkExpanding 1.0":                                        true,
-		"Twitterbot/1.0":                                                    true,
-		"LinkedInBot/1.0":                                                   true,
-		"Mozilla/5.0 (compatible; Mastodon/4.0.0)":                          true,
-		"Iframely/1.3.1":                                                    true,
-		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0":            false,
-		"": false,
-	}
-	for ua, want := range cases {
-		req, _ := http.NewRequest(http.MethodGet, "/docs/x", nil)
-		req.Header.Set("User-Agent", ua)
-		if got := isPreviewBot(req); got != want {
-			t.Errorf("isPreviewBot(%q) = %v, want %v", ua, got, want)
-		}
-	}
-}
-
-func TestMediaKind(t *testing.T) {
-	cases := map[string]string{
-		"photo.jpg": "image", "photo.PNG": "image", "anim.gif": "image", "pic.webp": "image",
-		"clip.mp4": "video", "clip.MOV": "video", "clip.webm": "video",
-		"song.mp3": "", "doc.pdf": "", "notiz.txt": "", "no-ext": "",
-	}
-	for name, want := range cases {
-		if got := mediaKind(name); got != want {
-			t.Errorf("mediaKind(%q) = %q, want %q", name, got, want)
-		}
-	}
-}
-
-func TestFormatBytes(t *testing.T) {
-	cases := map[int64]string{
-		0:             "0 B",
-		1023:          "1023 B",
-		1024:          "1.0 KB",
-		1536:          "1.5 KB",
-		1 << 20:       "1.0 MB",
-		3 * (1 << 30): "3.0 GB",
-		5 * (1 << 40): "5.0 TB",
-	}
-	for n, want := range cases {
-		if got := formatBytes(n); got != want {
-			t.Errorf("formatBytes(%d) = %q, want %q", n, got, want)
-		}
-	}
-}
-
-func TestFileDescription(t *testing.T) {
-	desc := fileDescription(config.FileData{}, "report.pdf", 2048)
-	if desc != "PDF · 2.0 KB" {
-		t.Errorf("fileDescription = %q", desc)
-	}
-
-	exp := time.Now().Add(48 * time.Hour).Unix()
-	desc = fileDescription(config.FileData{Expiration: exp}, "report.pdf", 2048)
-	if !strings.HasSuffix(desc, "· expires in 1 days") && !strings.HasSuffix(desc, "· expires in 2 days") {
-		t.Errorf("fileDescription with expiry = %q", desc)
-	}
-
-	desc = fileDescription(config.FileData{}, "no-extension", 100)
-	if !strings.HasPrefix(desc, "FILE ·") {
-		t.Errorf("fileDescription for extensionless file = %q", desc)
-	}
-}
-
-func TestDirDescription(t *testing.T) {
-	empty := dirDescription(nil, 0)
-	if empty != "Empty folder" {
-		t.Errorf("dirDescription(empty) = %q", empty)
-	}
-
-	files := []shared.FileInfo{
-		{Name: "a.txt", Size: 1024},
-		{Name: "b.txt", Size: 1024},
-		{Name: "sub", IsDir: true},
-	}
-	desc := dirDescription(files, 0)
-	if desc != "2 files, 1 folder · 2.0 KB" {
-		t.Errorf("dirDescription = %q", desc)
-	}
-
-	single := dirDescription([]shared.FileInfo{{Name: "a.txt", Size: 1}}, 0)
-	if single != "1 file, 0 folders · 1 B" {
-		t.Errorf("dirDescription(one file) = %q", single)
-	}
-}
 
 func TestPreviewPageForPlainFile(t *testing.T) {
 	withOfficeShare(t, config.FileData{}, "", "")
@@ -192,11 +98,11 @@ func TestPreviewImageThumbnail(t *testing.T) {
 	if format != "jpeg" {
 		t.Errorf("format = %q, want jpeg", format)
 	}
-	if cfg.Width > thumbnailMaxEdge || cfg.Height > thumbnailMaxEdge {
-		t.Errorf("thumbnail is %dx%d, want capped at %d", cfg.Width, cfg.Height, thumbnailMaxEdge)
+	if cfg.Width > media.ThumbnailMaxEdge || cfg.Height > media.ThumbnailMaxEdge {
+		t.Errorf("thumbnail is %dx%d, want capped at %d", cfg.Width, cfg.Height, media.ThumbnailMaxEdge)
 	}
-	if cfg.Width != thumbnailMaxEdge {
-		t.Errorf("thumbnail width = %d, want the long edge scaled to %d", cfg.Width, thumbnailMaxEdge)
+	if cfg.Width != media.ThumbnailMaxEdge {
+		t.Errorf("thumbnail width = %d, want the long edge scaled to %d", cfg.Width, media.ThumbnailMaxEdge)
 	}
 
 	rec = get(t, "/docs/small.png?preview=1", "User-Agent", "facebookexternalhit/1.1")

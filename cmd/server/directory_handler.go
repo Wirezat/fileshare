@@ -11,8 +11,8 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
-	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 var (
@@ -68,7 +68,7 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		Files:        files,
 		ParentDir:    parentDir,
 		HasParentDir: ctx.diskPath != fd.Path,
-		Description:  dirDescription(files, fd.Expiration),
+		Description:  media.DirDescription(files, fd.Expiration),
 		Expiration:   fd.Expiration,
 		AllowPost:    fd.AllowPost,
 		AllowZip:     !fd.NoZip,
@@ -157,13 +157,13 @@ func subdirLinks(dirPath, baseHref, current string) []CrumbLink {
 }
 
 // getFileInfos returns FileInfo entries for a directory, skipping hidden files.
-func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
+func getFileInfos(dirPath, basePath string) ([]media.FileInfo, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
 	}
 
-	infos := make([]shared.FileInfo, 0, len(entries))
+	infos := make([]media.FileInfo, 0, len(entries))
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
@@ -184,7 +184,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 			size = 0
 		}
 
-		infos = append(infos, shared.FileInfo{
+		infos = append(infos, media.FileInfo{
 			Name:  entry.Name(),
 			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), entry.Name()),
 			IsDir: isDir,
@@ -198,7 +198,7 @@ func getFileInfos(dirPath, basePath string) ([]shared.FileInfo, error) {
 func loadTemplate() (*template.Template, error) {
 	dirTemplateOnce.Do(func() {
 		dirTemplate, dirTemplateErr = template.New("directory").
-			Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": isText}).
+			Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": media.IsText}).
 			ParseFiles(shareHtmlPath)
 		if dirTemplateErr != nil {
 			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)

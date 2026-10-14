@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/media"
 )
 
 var (
@@ -46,7 +46,7 @@ type PageData struct {
 	DirPath      string
 	DirName      string
 	Crumbs       []Crumb
-	Files        []shared.FileInfo
+	Files        []media.FileInfo
 	ParentDir    string
 	HasParentDir bool
 	Description  string

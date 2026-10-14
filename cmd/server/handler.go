@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/ttl"
@@ -75,7 +76,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}
 
 	if fileData.Expired {
-		if isPreviewBot(r) {
+		if media.IsPreviewBot(r.UserAgent()) {
 			serveExpiredPreview(w, r, subpath)
 		} else {
 			serveExpiredPage(w, subpath)
@@ -117,7 +118,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	fd := ctx.fileData
 
 	if config.IsExpired(fd) {
-		if isPreviewBot(r) {
+		if media.IsPreviewBot(r.UserAgent()) {
 			serveExpiredPreview(w, r, ctx.subpath)
 		} else {
 			serveExpiredPage(w, ctx.subpath)

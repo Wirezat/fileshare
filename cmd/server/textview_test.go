@@ -102,14 +102,3 @@ func TestWithoutViewParamTheFileIsServedAsIs(t *testing.T) {
 		t.Errorf("body = %q, want the raw file", body)
 	}
 }
-
-func TestIsTextKnowsTheExtensions(t *testing.T) {
-	for name, want := range map[string]bool{
-		"a.txt": true, "a.md": true, "a.go": true, "a.json": true, "a.YML": true,
-		"a.zip": false, "a.pdf": false, "a.docx": false, "noext": false, "a.png": false,
-	} {
-		if got := isText(name); got != want {
-			t.Errorf("isText(%q) = %v, want %v", name, got, want)
-		}
-	}
-}
