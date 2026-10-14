@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 // handleChunkInit registers or resumes a chunked upload session.
@@ -52,19 +51,11 @@ func handleChunkInit(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"uploadId": uploadID, "missingChunks": missing})
 }
 
-// handleChunkReceive stores a single chunk. Returns 202 while more chunks
-// are expected; 204 when the file has been fully assembled.
+// handleChunkReceive stores one chunk: 202 while more are expected, 204 once the file is assembled.
 // POST /{subpath}/chunk
 // Multipart: uploadId, chunkIndex, chunk (file)
 func handleChunkReceive(w http.ResponseWriter, r *http.Request) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		GoLog.Errorf("handleChunkReceive: load config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	if err := r.ParseMultipartForm(int64(config.MaxPostSize)); err != nil {
+	if err := r.ParseMultipartForm(int64(cfgStore.Current().MaxPostSize())); err != nil {
 		GoLog.Errorf("handleChunkReceive: parse multipart: %v", err)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return

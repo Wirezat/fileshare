@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 var chunkTempBase = "/tmp/fileshare-chunks"
@@ -220,8 +219,7 @@ func (s *LocalStorage) ReceiveChunk(uploadID string, index int, r io.Reader) (bo
 	return done, nil
 }
 
-// assemble writes all chunks sequentially into the destination file.
-// Uses a .tmp file + os.Rename for an atomic result.
+// assemble writes all chunks into the destination file atomically via a .tmp file.
 func assemble(meta *sessionMeta, uploadID string) error {
 	dir, err := sessionDir(uploadID)
 	if err != nil {
@@ -294,16 +292,10 @@ func cleanupSession(uploadID string) {
 	os.RemoveAll(dir)
 }
 
-// StartReaper periodically removes on-disk sessions that have been inactive longer than
-// the configured chunk inactivity timeout.
+// StartReaper periodically removes on-disk sessions idle longer than the chunk inactivity timeout.
 func (s *LocalStorage) StartReaper() {
 	runEvery(5*time.Minute, func() {
-		config, err := shared.LoadConfig()
-		if err != nil {
-			GoLog.Errorf("chunk reaper: failed to load config: %v", err)
-			return
-		}
-		timeout := time.Duration(config.ChunkInactivityTimeout) * time.Second
+		timeout := time.Duration(cfgStore.Current().ChunkInactivityTimeout()) * time.Second
 
 		entries, err := os.ReadDir(chunkTempBase)
 		if err != nil {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
 const testAdminHash = "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHQ$aGFzaA"
@@ -28,7 +28,7 @@ func patchOffice(t *testing.T, body string) *httptest.ResponseRecorder {
 	return rec
 }
 
-func loadOffice(t *testing.T) *shared.Config {
+func loadOffice(t *testing.T) *config.Config {
 	t.Helper()
 	return storedConfig(t)
 }

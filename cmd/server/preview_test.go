@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/image/draw"
 
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -70,18 +71,18 @@ func TestFormatBytes(t *testing.T) {
 }
 
 func TestFileDescription(t *testing.T) {
-	desc := fileDescription(shared.FileData{}, "report.pdf", 2048)
+	desc := fileDescription(config.FileData{}, "report.pdf", 2048)
 	if desc != "PDF · 2.0 KB" {
 		t.Errorf("fileDescription = %q", desc)
 	}
 
 	exp := time.Now().Add(48 * time.Hour).Unix()
-	desc = fileDescription(shared.FileData{Expiration: exp}, "report.pdf", 2048)
+	desc = fileDescription(config.FileData{Expiration: exp}, "report.pdf", 2048)
 	if !strings.HasSuffix(desc, "· expires in 1 days") && !strings.HasSuffix(desc, "· expires in 2 days") {
 		t.Errorf("fileDescription with expiry = %q", desc)
 	}
 
-	desc = fileDescription(shared.FileData{}, "no-extension", 100)
+	desc = fileDescription(config.FileData{}, "no-extension", 100)
 	if !strings.HasPrefix(desc, "FILE ·") {
 		t.Errorf("fileDescription for extensionless file = %q", desc)
 	}
@@ -110,7 +111,7 @@ func TestDirDescription(t *testing.T) {
 }
 
 func TestPreviewPageForPlainFile(t *testing.T) {
-	withOfficeShare(t, shared.FileData{}, "", "")
+	withOfficeShare(t, config.FileData{}, "", "")
 
 	rec := get(t, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
 	body := rec.Body.String()
@@ -153,7 +154,7 @@ func writeTestPNG(t *testing.T, path string, w, h int) {
 }
 
 func TestPreviewPageForImage(t *testing.T) {
-	dir := withOfficeShare(t, shared.FileData{}, "", "")
+	dir := withOfficeShare(t, config.FileData{}, "", "")
 	writeTestPNG(t, filepath.Join(dir, "photo.jpg"), 40, 30)
 
 	rec := get(t, "/docs/photo.jpg", "User-Agent", "facebookexternalhit/1.1")
@@ -172,7 +173,7 @@ func TestPreviewPageForImage(t *testing.T) {
 }
 
 func TestPreviewImageThumbnail(t *testing.T) {
-	dir := withOfficeShare(t, shared.FileData{}, "", "")
+	dir := withOfficeShare(t, config.FileData{}, "", "")
 	writeTestPNG(t, filepath.Join(dir, "big.png"), 3000, 200)
 	writeTestPNG(t, filepath.Join(dir, "small.png"), 40, 30)
 
@@ -208,7 +209,7 @@ func TestPreviewImageThumbnail(t *testing.T) {
 }
 
 func TestPreviewSkipsOgImageForUnthumbnailableFormats(t *testing.T) {
-	dir := withOfficeShare(t, shared.FileData{}, "", "")
+	dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "photo.avif"), []byte("not a real avif but irrelevant here"), 0o600)
 
 	rec := get(t, "/docs/photo.avif", "User-Agent", "facebookexternalhit/1.1")
@@ -222,7 +223,7 @@ func TestPreviewSkipsOgImageForUnthumbnailableFormats(t *testing.T) {
 }
 
 func TestPreviewPageForVideo(t *testing.T) {
-	dir := withOfficeShare(t, shared.FileData{}, "", "")
+	dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("fake-mp4-bytes"), 0o600)
 
 	rec := get(t, "/docs/clip.mp4", "User-Agent", "Discordbot/2.0")
@@ -239,7 +240,7 @@ func TestPreviewPageForVideo(t *testing.T) {
 }
 
 func TestPreviewDoesNotApplyToDl1OrRealBrowsers(t *testing.T) {
-	withOfficeShare(t, shared.FileData{}, "", "")
+	withOfficeShare(t, config.FileData{}, "", "")
 
 	rec := get(t, "/docs/notiz.txt?dl=1", "User-Agent", "TelegramBot (like TwitterBot)")
 	if rec.Body.String() != "plain" {
@@ -253,7 +254,7 @@ func TestPreviewDoesNotApplyToDl1OrRealBrowsers(t *testing.T) {
 }
 
 func TestPreviewDoesNotApplyToFolders(t *testing.T) {
-	withOfficeShare(t, shared.FileData{}, "", "")
+	withOfficeShare(t, config.FileData{}, "", "")
 
 	rec := get(t, "/docs", "User-Agent", "TelegramBot (like TwitterBot)")
 	body := rec.Body.String()
@@ -270,7 +271,7 @@ func TestPreviewDoesNotApplyToFolders(t *testing.T) {
 
 func TestGatePageDescriptionDoesNotLeakTheShare(t *testing.T) {
 	hash, _ := shared.HashPassword("geheim")
-	withOfficeShare(t, shared.FileData{Password: hash}, "", "")
+	withOfficeShare(t, config.FileData{Password: hash}, "", "")
 
 	rec := get(t, "/docs/notiz.txt")
 	body := rec.Body.String()
@@ -283,7 +284,7 @@ func TestGatePageDescriptionDoesNotLeakTheShare(t *testing.T) {
 }
 
 func TestExpiredSharePreview(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Expired: true}, "", "")
+	withOfficeShare(t, config.FileData{Expired: true}, "", "")
 
 	rec := get(t, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
 	if rec.Code != http.StatusGone {

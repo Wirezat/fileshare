@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-func configWithAdmin(t *testing.T, password string) *shared.Config {
+func configWithAdmin(t *testing.T, password string) *config.Config {
 	t.Helper()
 	hash, err := shared.HashPassword(password)
 	if err != nil {
@@ -124,7 +125,7 @@ func TestSetupFlow(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
 	seedConfig(t, cfg)
-	initSetupToken(cfg)
+	initSetupToken(cfgStore.Current())
 	code := setupToken
 
 	if rec := send(h, http.MethodGet, "/setup", nil); rec.Code != http.StatusOK {
@@ -155,7 +156,7 @@ func TestSetupIsRateLimited(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
 	seedConfig(t, cfg)
-	initSetupToken(cfg)
+	initSetupToken(cfgStore.Current())
 
 	for i := 0; i < maxFailures; i++ {
 		setupInit(h, "wrong", "pw")

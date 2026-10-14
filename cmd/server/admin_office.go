@@ -7,12 +7,10 @@ import (
 	"strings"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
-// normalizeOfficeURL validates a document server base URL and strips the
-// trailing slash, query and fragment. An empty string is allowed and turns the
-// integration off.
+// normalizeOfficeURL validates a document server base URL and strips trailing slash, query and fragment; "" turns the integration off.
 func normalizeOfficeURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -32,20 +30,15 @@ func normalizeOfficeURL(raw string) (string, error) {
 //	GET   /admin/api/settings/office → {"office_url":"…","secret_set":true}
 //	PATCH /admin/api/settings/office   Body: {"office_url":"…","office_secret":"…"}
 //
-// The secret is write-only: GET reports only whether one is stored. On PATCH an
-// omitted field keeps its stored value and an empty string deletes it, so the
-// UI can save a URL change without ever holding the secret.
+// The secret is write-only. On PATCH an omitted field keeps its value and "" deletes it.
 func handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case http.MethodGet:
-		config, ok := configOrErr(w)
-		if !ok {
-			return
-		}
+		cfg := cfgStore.Current()
 		jsonResponse(w, map[string]any{
-			"office_url": config.OfficeURL,
-			"secret_set": config.OfficeSecret != "",
+			"office_url": cfg.OfficeURL(),
+			"secret_set": cfg.OfficeSecret() != "",
 		})
 
 	case http.MethodPatch:
@@ -56,27 +49,29 @@ func handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
 		if !decodeOrErr(w, r, &req) {
 			return
 		}
-		config, ok := configOrErr(w)
-		if !ok {
-			return
-		}
-
+		var normalized string
 		if req.OfficeURL != nil {
-			normalized, err := normalizeOfficeURL(*req.OfficeURL)
-			if err != nil {
+			var err error
+			if normalized, err = normalizeOfficeURL(*req.OfficeURL); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			config.OfficeURL = normalized
 		}
-		if req.OfficeSecret != nil {
-			config.OfficeSecret = strings.TrimSpace(*req.OfficeSecret)
-		}
-		if !saveOrErr(w, config) {
+		var saved config.Config
+		if !updateOrErr(w, func(c *config.Config) error {
+			if req.OfficeURL != nil {
+				c.OfficeURL = normalized
+			}
+			if req.OfficeSecret != nil {
+				c.OfficeSecret = strings.TrimSpace(*req.OfficeSecret)
+			}
+			saved = *c
+			return nil
+		}) {
 			return
 		}
 
-		logOfficeChange(config)
+		logOfficeChange(&saved)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
@@ -85,7 +80,7 @@ func handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
 }
 
 // logOfficeChange records the new state without ever writing the secret itself.
-func logOfficeChange(config *shared.Config) {
+func logOfficeChange(config *config.Config) {
 	switch {
 	case config.OfficeURL == "":
 		GoLog.Infof("office integration disabled: no document server URL")

@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -10,27 +12,32 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
-func configOrErr(w http.ResponseWriter) (*shared.Config, bool) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		GoLog.Errorf("failed to load config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return nil, false
-	}
-	return config, true
+type httpError struct {
+	code int
+	msg  string
 }
 
-func saveOrErr(w http.ResponseWriter, config *shared.Config) bool {
-	if err := shared.SaveConfig(config); err != nil {
-		GoLog.Errorf("failed to save config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+func (e httpError) Error() string { return e.msg }
+
+// updateOrErr applies fn through the config store; on failure it writes the HTTP error and returns false.
+func updateOrErr(w http.ResponseWriter, fn func(*config.Config) error) bool {
+	err := cfgStore.Update(fn)
+	if err == nil {
+		return true
+	}
+	var he httpError
+	if errors.As(err, &he) {
+		http.Error(w, he.msg, he.code)
 		return false
 	}
-	return true
+	GoLog.Errorf("failed to update config: %v", err)
+	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	return false
 }
 
 func decodeOrErr(w http.ResponseWriter, r *http.Request, v any) bool {
@@ -63,8 +70,7 @@ func jsonResponse(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// The three admin pages are static shells; their modules under
-// /admin/static/js/ render the body.
+// The three admin pages are static shells rendered by their modules under /admin/static/js/.
 func handleAdminUI(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminHtmlPath) }
 func handleAdminLogsPage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, adminLogsHtmlPath)
@@ -81,12 +87,8 @@ func handleAdminMe(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodGet) {
 		return
 	}
-	config, ok := configOrErr(w)
-	if !ok {
-		return
-	}
 	jsonResponse(w, map[string]any{
-		"username": config.AdminUsername,
+		"username": cfgStore.Current().AdminUsername(),
 		"is_admin": true,
 	})
 }
@@ -104,16 +106,12 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case http.MethodGet:
-		config, ok := configOrErr(w)
-		if !ok {
-			return
-		}
-		jsonResponse(w, config.Files)
+		jsonResponse(w, maps.Collect(cfgStore.Current().Shares()))
 
 	case http.MethodPost:
 		var req struct {
 			Subpath string `json:"subpath"`
-			shared.FileData
+			config.FileData
 		}
 		if !decodeOrErr(w, r, &req) {
 			return
@@ -122,11 +120,10 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "subpath and path are required", http.StatusBadRequest)
 			return
 		}
-		if !shared.ValidOffice(req.Office) {
+		if !config.ValidOffice(req.Office) {
 			http.Error(w, "office must be empty, view or edit", http.StatusBadRequest)
 			return
 		}
-		// Hash the share password before storing, if one was provided.
 		if req.FileData.Password != "" {
 			hashed, err := shared.HashPassword(req.FileData.Password)
 			if err != nil {
@@ -136,18 +133,15 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			}
 			req.FileData.Password = hashed
 		}
-		config, ok := configOrErr(w)
-		if !ok {
-			return
-		}
-		if _, exists := config.Files[req.Subpath]; exists {
-			http.Error(w, "Subpath already exists", http.StatusConflict)
-			return
-		}
 		req.Path = filepath.Clean(req.Path)
 		req.FileData.UploadTime = time.Now().Unix()
-		config.Files[req.Subpath] = req.FileData
-		if !saveOrErr(w, config) {
+		if !updateOrErr(w, func(c *config.Config) error {
+			if _, exists := c.Files[req.Subpath]; exists {
+				return httpError{http.StatusConflict, "Subpath already exists"}
+			}
+			c.Files[req.Subpath] = req.FileData
+			return nil
+		}) {
 			return
 		}
 		GoLog.Infof("share created: %s → %s", req.Subpath, req.Path)
@@ -173,12 +167,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		config, ok := configOrErr(w)
-		if !ok {
-			return
-		}
-
-		entry, exists := config.Files[subpath]
+		entry, exists := cfgStore.Current().Share(subpath)
 		if !exists {
 			http.Error(w, "share not found", http.StatusNotFound)
 			return
@@ -215,7 +204,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if patch.Office != nil {
-			if !shared.ValidOffice(*patch.Office) {
+			if !config.ValidOffice(*patch.Office) {
 				http.Error(w, "office must be empty, view or edit", http.StatusBadRequest)
 				return
 			}
@@ -250,9 +239,13 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		config.Files[subpath] = entry
-
-		if !saveOrErr(w, config) {
+		if !updateOrErr(w, func(c *config.Config) error {
+			if _, exists := c.Files[subpath]; !exists {
+				return httpError{http.StatusNotFound, "share not found"}
+			}
+			c.Files[subpath] = entry
+			return nil
+		}) {
 			return
 		}
 
@@ -263,13 +256,12 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		config, ok := configOrErr(w)
-		if !ok {
-			return
-		}
-		entry := config.Files[subpath]
-		delete(config.Files, subpath)
-		if !saveOrErr(w, config) {
+		var entry config.FileData
+		if !updateOrErr(w, func(c *config.Config) error {
+			entry = c.Files[subpath]
+			delete(c.Files, subpath)
+			return nil
+		}) {
 			return
 		}
 		GoLog.Infof("share deleted: %s (was → %s)", subpath, entry.Path)
@@ -290,11 +282,7 @@ func handleAdminShareQR(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	config, ok := configOrErr(w)
-	if !ok {
-		return
-	}
-	if _, exists := config.Files[subpath]; !exists {
+	if _, exists := cfgStore.Current().Share(subpath); !exists {
 		http.Error(w, "share not found", http.StatusNotFound)
 		return
 	}
@@ -370,17 +358,15 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username cannot be empty", http.StatusBadRequest)
 		return
 	}
-	config, ok := configOrErr(w)
-	if !ok {
-		return
-	}
-	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
+	if !shared.CheckPassword(req.CurrentPassword, cfgStore.Current().AdminPassword()) {
 		GoLog.Warnf("admin username change rejected: wrong current password")
 		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
 	}
-	config.AdminUsername = req.NewUsername
-	if !saveOrErr(w, config) {
+	if !updateOrErr(w, func(c *config.Config) error {
+		c.AdminUsername = req.NewUsername
+		return nil
+	}) {
 		return
 	}
 	dropped := deleteAdminTokensExcept(currentAdminToken(r))
@@ -402,11 +388,7 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
 		return
 	}
-	config, ok := configOrErr(w)
-	if !ok {
-		return
-	}
-	if !shared.CheckPassword(req.CurrentPassword, config.AdminPassword) {
+	if !shared.CheckPassword(req.CurrentPassword, cfgStore.Current().AdminPassword()) {
 		GoLog.Warnf("admin password change rejected: wrong current password")
 		http.Error(w, "Current password is incorrect", http.StatusForbidden)
 		return
@@ -417,8 +399,10 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	config.AdminPassword = hashed
-	if !saveOrErr(w, config) {
+	if !updateOrErr(w, func(c *config.Config) error {
+		c.AdminPassword = hashed
+		return nil
+	}) {
 		return
 	}
 	// Revoke every other session opened with the old password.
@@ -430,18 +414,16 @@ func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodPost) {
 		return
 	}
-	config, ok := configOrErr(w)
-	if !ok {
-		return
-	}
 	pruned := 0
-	for subpath, fd := range config.Files {
-		if shared.IsExpired(fd) {
-			delete(config.Files, subpath)
-			pruned++
+	if !updateOrErr(w, func(c *config.Config) error {
+		for subpath, fd := range c.Files {
+			if config.IsExpired(fd) {
+				delete(c.Files, subpath)
+				pruned++
+			}
 		}
-	}
-	if !saveOrErr(w, config) {
+		return nil
+	}) {
 		return
 	}
 	GoLog.Infof("pruned %d expired share(s)", pruned)

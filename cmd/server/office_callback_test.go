@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
 // fakeDS stands in for the document server: it hands out one saved document
@@ -54,7 +54,7 @@ func dsError(t *testing.T, rec *httptest.ResponseRecorder) int {
 
 func TestCallbackSavesTheDocument(t *testing.T) {
 	ds := fakeDS(t, "PK new version")
-	dir := withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, ds.URL, testSecret)
+	dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 	os.Chmod(filepath.Join(dir, "bericht.docx"), 0o644)
 
 	rec := callback(t, "/docs/bericht.docx?callback=1",
@@ -78,7 +78,7 @@ func TestCallbackSavesTheDocument(t *testing.T) {
 
 func TestCallbackForceSaveAlsoWrites(t *testing.T) {
 	ds := fakeDS(t, "forced")
-	dir := withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, ds.URL, testSecret)
+	dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 
 	rec := callback(t, "/docs/bericht.docx?callback=1",
 		map[string]any{"key": "k", "status": 6, "url": ds.URL + "/cache/x"}, testSecret)
@@ -93,7 +93,7 @@ func TestCallbackForceSaveAlsoWrites(t *testing.T) {
 func TestCallbackStatusWithoutSaveLeavesFileAlone(t *testing.T) {
 	ds := fakeDS(t, "should never land")
 	for _, status := range []int{1, 3, 4, 7} {
-		dir := withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, ds.URL, testSecret)
+		dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 		rec := callback(t, "/docs/bericht.docx?callback=1",
 			map[string]any{"key": "k", "status": status, "url": ds.URL + "/cache/x"}, testSecret)
 		if dsError(t, rec) != 0 {
@@ -110,21 +110,21 @@ func TestCallbackRefusals(t *testing.T) {
 	other := fakeDS(t, "ssrf")
 	cases := []struct {
 		name   string
-		fd     shared.FileData
+		fd     config.FileData
 		target string
 		url    string
 		secret string
 		want   int
 	}{
-		{"view share", shared.FileData{Office: shared.OfficeView}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
-		{"office off", shared.FileData{}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
-		{"unsigned", shared.FileData{Office: shared.OfficeEdit}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", "", http.StatusUnauthorized},
-		{"wrong secret", shared.FileData{Office: shared.OfficeEdit}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", "nope", http.StatusUnauthorized},
-		{"url on another host", shared.FileData{Office: shared.OfficeEdit}, "/docs/bericht.docx?callback=1", other.URL + "/cache/x", testSecret, http.StatusForbidden},
-		{"path traversal", shared.FileData{Office: shared.OfficeEdit}, "/docs/../data.json?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
-		{"expired share", shared.FileData{Office: shared.OfficeEdit, Expired: true}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusGone},
-		{"not an office file", shared.FileData{Office: shared.OfficeEdit}, "/docs/notiz.txt?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
-		{"unknown share", shared.FileData{Office: shared.OfficeEdit}, "/nope/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusNotFound},
+		{"view share", config.FileData{Office: config.OfficeView}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
+		{"office off", config.FileData{}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
+		{"unsigned", config.FileData{Office: config.OfficeEdit}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", "", http.StatusUnauthorized},
+		{"wrong secret", config.FileData{Office: config.OfficeEdit}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", "nope", http.StatusUnauthorized},
+		{"url on another host", config.FileData{Office: config.OfficeEdit}, "/docs/bericht.docx?callback=1", other.URL + "/cache/x", testSecret, http.StatusForbidden},
+		{"path traversal", config.FileData{Office: config.OfficeEdit}, "/docs/../data.json?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
+		{"expired share", config.FileData{Office: config.OfficeEdit, Expired: true}, "/docs/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusGone},
+		{"not an office file", config.FileData{Office: config.OfficeEdit}, "/docs/notiz.txt?callback=1", ds.URL + "/cache/x", testSecret, http.StatusForbidden},
+		{"unknown share", config.FileData{Office: config.OfficeEdit}, "/nope/bericht.docx?callback=1", ds.URL + "/cache/x", testSecret, http.StatusNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -144,7 +144,7 @@ func TestCallbackRefusals(t *testing.T) {
 }
 
 func TestCallbackWithoutTheFlagIsANormalPost(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, "https://office.example.com", testSecret)
+	withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
 	req := httptest.NewRequest(http.MethodPost, "/docs/bericht.docx", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
 	handleRequest(rec, req)
@@ -154,7 +154,7 @@ func TestCallbackWithoutTheFlagIsANormalPost(t *testing.T) {
 }
 
 func TestEditShareGetsAnEditableConfigWithCallback(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, "https://office.example.com", testSecret)
+	withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
 
 	body := get(t, "/docs/bericht.docx").Body.String()
 	for _, want := range []string{
@@ -169,7 +169,7 @@ func TestEditShareGetsAnEditableConfigWithCallback(t *testing.T) {
 }
 
 func TestViewShareGetsNoCallback(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeView}, "https://office.example.com", testSecret)
+	withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
 	if body := get(t, "/docs/bericht.docx").Body.String(); strings.Contains(body, "callbackUrl") {
 		t.Error("view config carries a callbackUrl")
 	}
@@ -182,7 +182,7 @@ func withSingleFileShare(t *testing.T, officeURL string) string {
 	os.WriteFile(file, []byte(docBytes), 0o600)
 	cfg := baseConfig()
 	cfg.OfficeURL, cfg.OfficeSecret = officeURL, testSecret
-	cfg.Files["vertrag"] = shared.FileData{Path: file, Office: shared.OfficeEdit}
+	cfg.Files["vertrag"] = config.FileData{Path: file, Office: config.OfficeEdit}
 	seedConfig(t, cfg)
 	prev := officeHtmlPath
 	officeHtmlPath = "../../assets/web/html/office.html"
@@ -219,7 +219,7 @@ func TestSingleFileShareRoundTrip(t *testing.T) {
 
 func TestCallbackRefusesToWriteADirectory(t *testing.T) {
 	ds := fakeDS(t, "x")
-	dir := withOfficeShare(t, shared.FileData{Office: shared.OfficeEdit}, ds.URL, testSecret)
+	dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 	os.Mkdir(filepath.Join(dir, "ordner.docx"), 0o755)
 
 	rec := callback(t, "/docs/ordner.docx?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)

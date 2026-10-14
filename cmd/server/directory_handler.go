@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -70,7 +71,7 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		Expiration:   fd.Expiration,
 		AllowPost:    fd.AllowPost,
 		AllowZip:     !fd.NoZip,
-		Office:       fd.Office != shared.OfficeOff && ctx.config.OfficeURL != "" && ctx.config.OfficeSecret != "",
+		Office:       fd.Office != config.OfficeOff && ctx.config.OfficeReady(),
 		IsEmpty:      len(files) == 0,
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)

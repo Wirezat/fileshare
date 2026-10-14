@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
-func withShare(t *testing.T, sub string, fd shared.FileData) {
+func withShare(t *testing.T, sub string, fd config.FileData) {
 	t.Helper()
 	cfg := baseConfig()
 	if sub != "" {
@@ -22,7 +22,7 @@ func withShare(t *testing.T, sub string, fd shared.FileData) {
 	seedConfig(t, cfg)
 }
 
-func shareOf(t *testing.T, sub string) shared.FileData {
+func shareOf(t *testing.T, sub string) config.FileData {
 	t.Helper()
 	fd, ok := storedConfig(t).Files[sub]
 	if !ok {
@@ -48,7 +48,7 @@ func patchShare(t *testing.T, sub, body string) *httptest.ResponseRecorder {
 }
 
 func TestShareCreateStoresZipAndOffice(t *testing.T) {
-	withShare(t, "", shared.FileData{})
+	withShare(t, "", config.FileData{})
 
 	rec := postShare(t, `{"subpath":"docs","path":"/tmp","no_zip":true,"office":"view"}`)
 	if rec.Code != http.StatusCreated {
@@ -58,13 +58,13 @@ func TestShareCreateStoresZipAndOffice(t *testing.T) {
 	if !fd.NoZip {
 		t.Error("NoZip = false, want true")
 	}
-	if fd.Office != shared.OfficeView {
+	if fd.Office != config.OfficeView {
 		t.Errorf("Office = %q, want view", fd.Office)
 	}
 }
 
 func TestShareCreateRejectsUnknownOffice(t *testing.T) {
-	withShare(t, "", shared.FileData{})
+	withShare(t, "", config.FileData{})
 
 	rec := postShare(t, `{"subpath":"docs","path":"/tmp","office":"print"}`)
 	if rec.Code != http.StatusBadRequest {
@@ -90,7 +90,7 @@ func TestSharePatchOffice(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			withShare(t, "docs", shared.FileData{Path: "/tmp", Office: shared.OfficeView})
+			withShare(t, "docs", config.FileData{Path: "/tmp", Office: config.OfficeView})
 
 			rec := patchShare(t, "docs", tc.body)
 			if rec.Code != tc.code {
@@ -104,7 +104,7 @@ func TestSharePatchOffice(t *testing.T) {
 }
 
 func TestSharePatchNoZip(t *testing.T) {
-	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+	withShare(t, "docs", config.FileData{Path: "/tmp"})
 
 	if rec := patchShare(t, "docs", `{"no_zip":true}`); rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -122,20 +122,20 @@ func TestSharePatchNoZip(t *testing.T) {
 }
 
 func TestOldShareWithoutNoZipStillAllowsZip(t *testing.T) {
-	var fd shared.FileData
+	var fd config.FileData
 	if err := json.Unmarshal([]byte(`{"path":"/tmp","uses":-1}`), &fd); err != nil {
 		t.Fatal(err)
 	}
 	if fd.NoZip {
 		t.Error("NoZip = true for a share without the field, want false")
 	}
-	if fd.Office != shared.OfficeOff {
+	if fd.Office != config.OfficeOff {
 		t.Errorf("Office = %q for a share without the field, want off", fd.Office)
 	}
 }
 
 func TestNoZipIsOmittedWhenFalse(t *testing.T) {
-	b, _ := json.Marshal(shared.FileData{Path: "/tmp"})
+	b, _ := json.Marshal(config.FileData{Path: "/tmp"})
 	if strings.Contains(string(b), "no_zip") {
 		t.Errorf("no_zip serialised for a default share: %s", b)
 	}
@@ -145,7 +145,7 @@ func TestNoZipIsOmittedWhenFalse(t *testing.T) {
 }
 
 func TestShareQRReturnsAPNG(t *testing.T) {
-	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+	withShare(t, "docs", config.FileData{Path: "/tmp"})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr?subpath=docs", nil)
 	rec := httptest.NewRecorder()
@@ -167,7 +167,7 @@ func TestShareQRReturnsAPNG(t *testing.T) {
 }
 
 func TestShareQRMissingShareIs404(t *testing.T) {
-	withShare(t, "", shared.FileData{})
+	withShare(t, "", config.FileData{})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr?subpath=nope", nil)
 	rec := httptest.NewRecorder()
@@ -179,7 +179,7 @@ func TestShareQRMissingShareIs404(t *testing.T) {
 }
 
 func TestShareQRRequiresSubpath(t *testing.T) {
-	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+	withShare(t, "docs", config.FileData{Path: "/tmp"})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr", nil)
 	rec := httptest.NewRecorder()
@@ -195,7 +195,7 @@ func TestZipDownloadDeniedWhenNoZip(t *testing.T) {
 	ctx := &requestContext{
 		subpath:  "docs",
 		diskPath: dir,
-		fileData: shared.FileData{Path: dir, NoZip: true},
+		fileData: config.FileData{Path: dir, NoZip: true},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip", nil)
 	rec := httptest.NewRecorder()
@@ -213,7 +213,7 @@ func TestZipDownloadDeniedWhenNoZip(t *testing.T) {
 func TestShareCreateCleansTrailingSlash(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "notiz.txt"), []byte("plain"), 0o600)
-	withShare(t, "", shared.FileData{})
+	withShare(t, "", config.FileData{})
 
 	rec := postShare(t, `{"subpath":"docs","path":"`+dir+`/"}`)
 	if rec.Code != http.StatusCreated {
@@ -229,7 +229,7 @@ func TestShareCreateCleansTrailingSlash(t *testing.T) {
 
 func TestSharePatchCleansTrailingSlash(t *testing.T) {
 	dir := t.TempDir()
-	withShare(t, "docs", shared.FileData{Path: "/tmp"})
+	withShare(t, "docs", config.FileData{Path: "/tmp"})
 
 	rec := patchShare(t, "docs", `{"path":"`+dir+`//"}`)
 	if rec.Code/100 != 2 {

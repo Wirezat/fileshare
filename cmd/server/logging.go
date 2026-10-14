@@ -1,13 +1,10 @@
-// logging.go
 package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,75 +16,23 @@ import (
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-type contextKey string
-
 const (
-	maxBodyBytes            = 1 << 20 // 1 MB
-	multipartKey contextKey = "multipart"
-	logmaxLen               = 4096
+	maxBodyBytes = 1 << 20 // 1 MB
+	logmaxLen    = 4096
 )
 
-// parsedMultipart holds the result of a single multipart parse,
-// shared between middleware, logger, and handler via context.
-type parsedMultipart struct {
-	Form  *multipart.Form
-	Files []*multipart.FileHeader
-}
-
 // requestLog is the structured log entry for an HTTP request.
-// omitempty keeps the JSON output lean for non-POST/PUT requests.
 type requestLog struct {
-	Method        string            `json:"method"`
-	URL           string            `json:"url"`
-	ClientIP      string            `json:"client_ip"`
-	Headers       map[string]string `json:"headers"`
-	Body          any               `json:"body,omitempty"`
-	BodyError     string            `json:"body_error,omitempty"`
-	FormFields    map[string]string `json:"form_fields,omitempty"`
-	UploadedFiles []uploadedFile    `json:"uploaded_files,omitempty"`
+	Method     string            `json:"method"`
+	URL        string            `json:"url"`
+	ClientIP   string            `json:"client_ip"`
+	Headers    map[string]string `json:"headers"`
+	Body       any               `json:"body,omitempty"`
+	BodyError  string            `json:"body_error,omitempty"`
+	FormFields map[string]string `json:"form_fields,omitempty"`
 }
 
-type uploadedFile struct {
-	Field       string `json:"field"`
-	Filename    string `json:"filename"`
-	SizeBytes   int64  `json:"size_bytes"`
-	ContentType string `json:"content_type"`
-}
-
-// multipartFromContext retrieves the parsed multipart from the request context.
-// Returns nil if the request was not a multipart upload.
-func multipartFromContext(ctx context.Context) *parsedMultipart {
-	pm, _ := ctx.Value(multipartKey).(*parsedMultipart)
-	return pm
-}
-
-// multipartMiddleware parses multipart/form-data requests exactly once
-// and stores the result in the request context for downstream handlers.
-func multipartMiddleware(config *shared.Config) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost &&
-				strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-				if err := r.ParseMultipartForm(int64(config.MaxPostSize)); err != nil {
-					GoLog.Errorf("multipartMiddleware: failed to parse: %v", err)
-					http.Error(w, "Bad Request", http.StatusBadRequest)
-					return
-				}
-				pm := &parsedMultipart{
-					Form:  r.MultipartForm,
-					Files: r.MultipartForm.File["files"],
-				}
-				r = r.WithContext(context.WithValue(r.Context(), multipartKey, pm))
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// loggingMiddleware records every request straight to the admin log store —
-// not through GoLog's text log, since the full request (headers, body,
-// files) is structured data, not a log message. For multipart uploads it
-// reads file metadata from the context instead of parsing the body again.
+// loggingMiddleware records every request in the admin log store.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/log" {
@@ -118,9 +63,7 @@ var (
 	requestLogFile *os.File
 )
 
-// openRequestLog appends request-log entries to the same file GoLog writes
-// to, one JSON object per line, so they survive a restart via LogStore.Load
-// the same way app log lines do.
+// openRequestLog opens GoLog's log file for appending request-log entries, one JSON object per line.
 func openRequestLog() {
 	path := GoLog.LogPath()
 	if path == "" {
@@ -153,8 +96,6 @@ func (rl *requestLog) toJSON() ([]byte, error) {
 }
 
 // buildRequestLog constructs a requestLog from the incoming request.
-// Multipart metadata is read from context (already parsed by multipartMiddleware).
-// Other body types are read and restored for downstream handlers.
 func buildRequestLog(r *http.Request) *requestLog {
 	decodedURL, err := url.QueryUnescape(r.URL.RequestURI())
 	if err != nil {
@@ -196,19 +137,6 @@ func buildRequestLog(r *http.Request) *requestLog {
 		}
 		if form, err := url.ParseQuery(string(body)); err == nil {
 			entry.FormFields = flattenValues(form)
-		}
-
-	case strings.HasPrefix(ct, "multipart/form-data"):
-		// Body already parsed by multipartMiddleware — read from context only.
-		if pm := multipartFromContext(r.Context()); pm != nil {
-			for _, fh := range pm.Files {
-				entry.UploadedFiles = append(entry.UploadedFiles, uploadedFile{
-					Field:       "files",
-					Filename:    fh.Filename,
-					SizeBytes:   fh.Size,
-					ContentType: fh.Header.Get("Content-Type"),
-				})
-			}
 		}
 	}
 

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -31,8 +32,8 @@ const (
 // requestContext holds all resolved data for an incoming request,
 // populated once by prepareRequest and passed down to method handlers.
 type requestContext struct {
-	config   *shared.Config
-	fileData shared.FileData
+	config   config.View
+	fileData config.FileData
 	subpath  string
 	diskPath string
 	fileInfo os.FileInfo

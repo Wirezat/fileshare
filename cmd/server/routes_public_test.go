@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -26,7 +27,7 @@ func shareDir(t *testing.T) string {
 	return dir
 }
 
-func publicServer(t *testing.T, shares map[string]shared.FileData) http.Handler {
+func publicServer(t *testing.T, shares map[string]config.FileData) http.Handler {
 	t.Helper()
 	h := newServer(t)
 	cfg := baseConfig()
@@ -37,7 +38,7 @@ func publicServer(t *testing.T, shares map[string]shared.FileData) http.Handler 
 
 func TestPublicFileAndFolder(t *testing.T) {
 	dir := shareDir(t)
-	h := publicServer(t, map[string]shared.FileData{"docs": {Path: dir}})
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: dir}})
 
 	rec := send(h, http.MethodGet, "/docs/a.txt", nil)
 	if rec.Code != http.StatusOK || rec.Body.String() != "alpha" {
@@ -62,7 +63,7 @@ func TestPublicFileAndFolder(t *testing.T) {
 }
 
 func TestPublicUnknownShareAndMissingFileAre404(t *testing.T) {
-	h := publicServer(t, map[string]shared.FileData{"docs": {Path: shareDir(t)}})
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: shareDir(t)}})
 
 	for _, target := range []string{"/nope", "/docs/missing.txt"} {
 		if rec := send(h, http.MethodGet, target, nil); rec.Code != http.StatusNotFound {
@@ -72,7 +73,7 @@ func TestPublicUnknownShareAndMissingFileAre404(t *testing.T) {
 }
 
 func TestPublicTraversalNeverServesOutsideTheShare(t *testing.T) {
-	h := publicServer(t, map[string]shared.FileData{"docs": {Path: shareDir(t)}})
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: shareDir(t)}})
 
 	for _, target := range []string{"/docs/../secret.txt", "/docs/%2e%2e/secret.txt", "/docs/..%2fsecret.txt"} {
 		rec := send(h, http.MethodGet, target, nil)
@@ -84,7 +85,7 @@ func TestPublicTraversalNeverServesOutsideTheShare(t *testing.T) {
 
 func TestPublicExpiredShareIs410(t *testing.T) {
 	dir := shareDir(t)
-	h := publicServer(t, map[string]shared.FileData{
+	h := publicServer(t, map[string]config.FileData{
 		"flag": {Path: dir, Expired: true},
 		"date": {Path: dir, Expiration: time.Now().Add(-time.Hour).Unix()},
 	})
@@ -94,13 +95,13 @@ func TestPublicExpiredShareIs410(t *testing.T) {
 			t.Errorf("%s: status = %d, want 410", target, rec.Code)
 		}
 	}
-	if !storedConfig(t).Files["date"].Expired {
-		t.Error("expiry by date was not stored")
+	if storedConfig(t).Files["date"].Expired {
+		t.Error("expiry by date set the manual expired flag")
 	}
 }
 
 func TestPublicMethodsOtherThanGetAndHead(t *testing.T) {
-	h := publicServer(t, map[string]shared.FileData{"docs": {Path: shareDir(t)}})
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: shareDir(t)}})
 
 	if rec := send(h, http.MethodHead, "/docs/a.txt", nil); rec.Code != http.StatusOK {
 		t.Errorf("HEAD: %d", rec.Code)
@@ -116,7 +117,7 @@ func passwordShare(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return publicServer(t, map[string]shared.FileData{"priv": {Path: shareDir(t), Password: hash}})
+	return publicServer(t, map[string]config.FileData{"priv": {Path: shareDir(t), Password: hash}})
 }
 
 func unlock(h http.Handler, pass string) *httpRecorder {
@@ -184,7 +185,7 @@ func TestUnlockIsRateLimitedAfterFiveFailures(t *testing.T) {
 }
 
 func TestUnlockOfShareWithoutPasswordRedirects(t *testing.T) {
-	h := publicServer(t, map[string]shared.FileData{"priv": {Path: shareDir(t)}})
+	h := publicServer(t, map[string]config.FileData{"priv": {Path: shareDir(t)}})
 
 	if res := unlock(h, "x"); res.code != http.StatusSeeOther || res.header.Get("Location") != "/priv" {
 		t.Fatalf("%d → %q", res.code, res.header.Get("Location"))
@@ -192,7 +193,7 @@ func TestUnlockOfShareWithoutPasswordRedirects(t *testing.T) {
 }
 
 func TestZipOfWholeFolder(t *testing.T) {
-	h := publicServer(t, map[string]shared.FileData{"docs": {Path: shareDir(t)}})
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: shareDir(t)}})
 
 	rec := send(h, http.MethodGet, "/docs?download=zip", nil)
 	if rec.Code != http.StatusOK || !bytes.HasPrefix(rec.Body.Bytes(), []byte("PK")) {
@@ -201,7 +202,7 @@ func TestZipOfWholeFolder(t *testing.T) {
 }
 
 func TestTextViewParameter(t *testing.T) {
-	h := publicServer(t, map[string]shared.FileData{"docs": {Path: shareDir(t)}})
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: shareDir(t)}})
 
 	rec := send(h, http.MethodGet, "/docs/a.txt?view=text", nil)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<pre>alpha</pre>") {
@@ -217,7 +218,7 @@ func chunkInit(h http.Handler, sub string) int {
 
 func TestChunkUploadNeedsAllowPost(t *testing.T) {
 	dir := shareDir(t)
-	h := publicServer(t, map[string]shared.FileData{
+	h := publicServer(t, map[string]config.FileData{
 		"ro":  {Path: dir},
 		"old": {Path: dir, AllowPost: true, Expired: true},
 	})
@@ -235,7 +236,7 @@ func TestChunkUploadNeedsAllowPost(t *testing.T) {
 
 func TestChunkUploadAssemblesTheFile(t *testing.T) {
 	dir := shareDir(t)
-	h := publicServer(t, map[string]shared.FileData{"up": {Path: dir, AllowPost: true}})
+	h := publicServer(t, map[string]config.FileData{"up": {Path: dir, AllowPost: true}})
 
 	if got := chunkInit(h, "up"); got != http.StatusOK {
 		t.Fatalf("init: %d", got)

@@ -7,11 +7,17 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
+const configPath = "./data.json"
+
 var startTime = time.Now()
-var storage *LocalStorage
+var (
+	storage  *LocalStorage
+	cfgStore *store.FileStore
+)
 
 // chain applies middleware in order: first wraps outermost, last wraps innermost.
 func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.Handler {
@@ -81,8 +87,8 @@ func buildMux() *http.ServeMux {
 	return mux
 }
 
-func startServer(config *shared.Config) {
-	addr := fmt.Sprintf(":%d", config.Port)
+func startServer(port int) {
+	addr := fmt.Sprintf(":%d", port)
 	GoLog.Infof("Server running at http://localhost%s", addr)
 	if err := http.ListenAndServe(addr, securityHeaders(buildMux())); err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
@@ -107,19 +113,19 @@ func main() {
 		}
 	}
 
-	config, err := shared.LoadConfig()
+	var err error
+	cfgStore, err = store.Open(configPath)
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
 
-	initSetupToken(config)
+	initSetupToken(cfgStore.Current())
 
 	storage = NewLocalStorage()
 	storage.StartReaper()
 	startTokenReaper()
 	startAdminTokenReaper()
 	startLimiterReaper()
-	startExpirationWatcher(5 * time.Minute)
-	startServer(config)
+	startServer(cfgStore.Current().Port())
 }

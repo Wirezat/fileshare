@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
 func selectionShare(t *testing.T) (*requestContext, string) {
@@ -34,7 +34,7 @@ func selectionShare(t *testing.T) (*requestContext, string) {
 	return &requestContext{
 		subpath:  "docs",
 		diskPath: dir,
-		fileData: shared.FileData{Path: dir},
+		fileData: config.FileData{Path: dir},
 	}, dir
 }
 

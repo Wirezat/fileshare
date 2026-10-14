@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -81,7 +82,7 @@ func appendExpiry(desc string, exp int64) string {
 }
 
 // fileDescription builds the og:description for a single shared file.
-func fileDescription(fd shared.FileData, name string, size int64) string {
+func fileDescription(fd config.FileData, name string, size int64) string {
 	kind := strings.ToUpper(officeExt(name))
 	if kind == "" {
 		kind = "FILE"

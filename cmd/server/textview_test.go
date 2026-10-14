@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
 func textShare(t *testing.T, name, content string) *requestContext {
@@ -23,11 +23,11 @@ func textShare(t *testing.T, name, content string) *requestContext {
 		t.Fatal(err)
 	}
 	return &requestContext{
-		config:   &shared.Config{Files: map[string]shared.FileData{}},
+		config:   config.NewView(&config.Config{Files: map[string]config.FileData{}}),
 		subpath:  "docs",
 		diskPath: path,
 		fileInfo: info,
-		fileData: shared.FileData{Path: dir},
+		fileData: config.FileData{Path: dir},
 	}
 }
 

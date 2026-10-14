@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 const docBytes = "PK\x03\x04 pretend this is a docx"
 
-func withOfficeShare(t *testing.T, fd shared.FileData, officeURL, secret string) string {
+func withOfficeShare(t *testing.T, fd config.FileData, officeURL, secret string) string {
 	t.Helper()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "bericht.docx"), []byte(docBytes), 0o600)
@@ -54,7 +55,7 @@ func get(t *testing.T, target string, hdr ...string) *httptest.ResponseRecorder 
 }
 
 func TestViewerPageForOfficeDoc(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeView}, "https://office.example.com", testSecret)
+	withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
 
 	rec := get(t, "/docs/bericht.docx", "Accept-Language", "de-DE,de;q=0.9")
 	body := rec.Body.String()
@@ -87,7 +88,7 @@ func TestViewerPageForOfficeDoc(t *testing.T) {
 }
 
 func TestDlServesTheFileInsideTheSandbox(t *testing.T) {
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeView}, "https://office.example.com", testSecret)
+	withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
 
 	rec := get(t, "/docs/bericht.docx?dl=1")
 	if rec.Code != http.StatusOK || rec.Body.String() != docBytes {
@@ -101,15 +102,15 @@ func TestDlServesTheFileInsideTheSandbox(t *testing.T) {
 func TestFileServedDirectlyWhenViewerDoesNotApply(t *testing.T) {
 	cases := []struct {
 		name      string
-		fd        shared.FileData
+		fd        config.FileData
 		officeURL string
 		secret    string
 		target    string
 	}{
-		{"office off", shared.FileData{}, "https://office.example.com", testSecret, "/docs/bericht.docx"},
-		{"no server configured", shared.FileData{Office: shared.OfficeView}, "", "", "/docs/bericht.docx"},
-		{"secret missing", shared.FileData{Office: shared.OfficeView}, "https://office.example.com", "", "/docs/bericht.docx"},
-		{"not an office file", shared.FileData{Office: shared.OfficeView}, "https://office.example.com", testSecret, "/docs/notiz.txt"},
+		{"office off", config.FileData{}, "https://office.example.com", testSecret, "/docs/bericht.docx"},
+		{"no server configured", config.FileData{Office: config.OfficeView}, "", "", "/docs/bericht.docx"},
+		{"secret missing", config.FileData{Office: config.OfficeView}, "https://office.example.com", "", "/docs/bericht.docx"},
+		{"not an office file", config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret, "/docs/notiz.txt"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -127,7 +128,7 @@ func TestFileServedDirectlyWhenViewerDoesNotApply(t *testing.T) {
 
 func TestPasswordShareOpensForTheDocumentServer(t *testing.T) {
 	hash, _ := shared.HashPassword("geheim")
-	withOfficeShare(t, shared.FileData{Office: shared.OfficeView, Password: hash}, "https://office.example.com", testSecret)
+	withOfficeShare(t, config.FileData{Office: config.OfficeView, Password: hash}, "https://office.example.com", testSecret)
 	exp := time.Now().Add(5 * time.Minute).Unix()
 
 	if rec := get(t, "/docs/bericht.docx?dl=1"); strings.Contains(rec.Body.String(), docBytes) {
@@ -157,7 +158,7 @@ func TestPasswordShareOpensForTheDocumentServer(t *testing.T) {
 }
 
 func TestPdfIsServedWithoutTheSandbox(t *testing.T) {
-	dir := withOfficeShare(t, shared.FileData{}, "", "")
+	dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "scan.pdf"), []byte("%PDF-1.4 fake"), 0o600)
 
 	pdf := get(t, "/docs/scan.pdf")

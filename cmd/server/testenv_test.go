@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,38 +9,53 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/store"
 )
 
+var testConfigPath string
+
 // baseConfig returns a config past setup with no shares.
-func baseConfig() *shared.Config {
-	return &shared.Config{
+func baseConfig() *config.Config {
+	return &config.Config{
 		AdminUsername: "admin",
 		AdminPassword: testAdminHash,
-		Files:         map[string]shared.FileData{},
+		Files:         map[string]config.FileData{},
 	}
 }
 
 // seedConfig installs cfg as the server's config for the rest of the test.
-func seedConfig(t *testing.T, cfg *shared.Config) {
+func seedConfig(t *testing.T, cfg *config.Config) {
 	t.Helper()
 	if cfg.Files == nil {
-		cfg.Files = map[string]shared.FileData{}
+		cfg.Files = map[string]config.FileData{}
 	}
-	if err := shared.SaveConfig(cfg); err != nil {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testConfigPath = filepath.Join(t.TempDir(), "data.json")
+	if err := os.WriteFile(testConfigPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cfgStore, err = store.Open(testConfigPath); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	t.Cleanup(func() { os.Remove("data.json") })
 }
 
-// storedConfig returns the config as the server currently holds it.
-func storedConfig(t *testing.T) *shared.Config {
+// storedConfig returns the config as it was last written to disk.
+func storedConfig(t *testing.T) *config.Config {
 	t.Helper()
-	cfg, err := shared.LoadConfig()
+	data, err := os.ReadFile(testConfigPath)
 	if err != nil {
-		t.Fatalf("load config: %v", err)
+		t.Fatalf("read config: %v", err)
 	}
-	return cfg
+	var cfg config.Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("decode config: %v", err)
+	}
+	cfg.ApplyDefaults()
+	return &cfg
 }
 
 // newServer returns the full production handler, running in a fresh working

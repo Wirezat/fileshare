@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
-// wantsLoginPage reports whether the request is a browser navigation (as
-// opposed to a fetch() call, which needs a status code rather than a redirect).
+// wantsLoginPage reports whether the request is a browser navigation rather than a fetch() call.
 func wantsLoginPage(r *http.Request) bool {
 	if mode := r.Header.Get("Sec-Fetch-Mode"); mode != "" {
 		return mode == "navigate"
@@ -22,19 +22,14 @@ func wantsLoginPage(r *http.Request) bool {
 // redirected to /setup or /admin/login, script requests get 401.
 func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		config, err := shared.LoadConfig()
-		if err != nil {
-			GoLog.Errorf("adminAuth: failed to load config: %v", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		if config.AdminPassword == "" || !hasAdminCookie(r) {
+		noPassword := cfgStore.Current().AdminPassword() == ""
+		if noPassword || !hasAdminCookie(r) {
 			if !wantsLoginPage(r) {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 			target := "/admin/login"
-			if config.AdminPassword == "" {
+			if noPassword {
 				target = "/setup"
 			}
 			http.Redirect(w, r, target, http.StatusFound)
@@ -46,12 +41,8 @@ func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 
 // handleAdminLogin serves the login page (GET) and validates credentials (POST).
 func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	if config.AdminPassword == "" {
+	cfg := cfgStore.Current()
+	if cfg.AdminPassword() == "" {
 		http.Redirect(w, r, "/setup", http.StatusFound)
 		return
 	}
@@ -81,8 +72,8 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			creds.Password = r.FormValue("password")
 		}
 
-		usernameOK := config.AdminUsername == "" || creds.Username == config.AdminUsername
-		passwordOK := shared.CheckPassword(creds.Password, config.AdminPassword)
+		usernameOK := cfg.AdminUsername() == "" || creds.Username == cfg.AdminUsername()
+		passwordOK := shared.CheckPassword(creds.Password, cfg.AdminPassword())
 
 		if !usernameOK || !passwordOK {
 			loginLimiter.recordFailure(ip)
@@ -93,10 +84,13 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		loginLimiter.recordSuccess(ip)
 
 		// Upgrade an outdated hash while the plaintext is available.
-		if shared.NeedsRehash(config.AdminPassword) {
+		if shared.NeedsRehash(cfg.AdminPassword()) {
 			if rehashed, err := shared.HashPassword(creds.Password); err == nil {
-				config.AdminPassword = rehashed
-				if err := shared.SaveConfig(config); err != nil {
+				err := cfgStore.Update(func(c *config.Config) error {
+					c.AdminPassword = rehashed
+					return nil
+				})
+				if err != nil {
 					GoLog.Errorf("handleAdminLogin: failed to store upgraded hash: %v", err)
 				} else {
 					GoLog.Infof("admin password hash upgraded to argon2id")
@@ -138,21 +132,16 @@ func handleAdminSettingsMaxPostSize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	config, err := shared.LoadConfig()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	config.MaxPostSize = body.MaxPostSize
-	if err := shared.SaveConfig(config); err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	if !updateOrErr(w, func(c *config.Config) error {
+		c.MaxPostSize = body.MaxPostSize
+		return nil
+	}) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleAdminSettingsChunkInactivityTimeout updates the inactivity timeout
-// for incomplete chunked upload sessions.
+// handleAdminSettingsChunkInactivityTimeout updates the inactivity timeout of incomplete chunked uploads.
 // PATCH /admin/api/settings/chunk_inactivity_timeout
 // Body: {"chunkInactivityTimeout": 1800}  (seconds)
 func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Request) {
@@ -163,14 +152,10 @@ func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Bad Request: minimum 60 seconds", http.StatusBadRequest)
 		return
 	}
-	config, err := shared.LoadConfig()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	config.ChunkInactivityTimeout = body.Seconds
-	if err := shared.SaveConfig(config); err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	if !updateOrErr(w, func(c *config.Config) error {
+		c.ChunkInactivityTimeout = body.Seconds
+		return nil
+	}) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

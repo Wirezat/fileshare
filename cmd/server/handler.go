@@ -11,11 +11,11 @@ import (
 	"syscall"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
 // handleRequest is the main entry point for public share routes.
-// Logging middleware is applied upstream.
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/log" {
 		if r.Method != http.MethodPost {
@@ -53,17 +53,12 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		return nil, false
 	}
 
-	config, err := shared.LoadConfig()
-	if err != nil {
-		GoLog.Errorf("failed to load config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return nil, false
-	}
+	cfg := cfgStore.Current()
 
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
 	relativePath := strings.TrimPrefix(r.URL.Path, "/"+subpath)
 
-	fileData, exists := config.Files[subpath]
+	fileData, exists := cfg.Share(subpath)
 	if !exists {
 		serveNotFoundPage(w)
 		return nil, false
@@ -86,7 +81,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		return nil, false
 	}
 
-	if fileData.Password != "" && !hasPasswordCookie(r, subpath) && !dsTokenAllows(r, config.OfficeSecret) {
+	if fileData.Password != "" && !hasPasswordCookie(r, subpath) && !dsTokenAllows(r, cfg.OfficeSecret()) {
 		serveGatePage(w, gateData{
 			Subpath:    subpath,
 			FormAction: "/" + subpath + "/unlock",
@@ -107,7 +102,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 	}
 
 	return &requestContext{
-		config:   config,
+		config:   cfg,
 		fileData: fileData,
 		subpath:  subpath,
 		diskPath: diskPath,
@@ -119,12 +114,7 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	fd := ctx.fileData
 
-	if shared.IsExpired(fd) {
-		fd.Expired = true
-		ctx.config.Files[ctx.subpath] = fd
-		if err := shared.SaveConfig(ctx.config); err != nil {
-			GoLog.Errorf("failed to save config after expiry: %v", err)
-		}
+	if config.IsExpired(fd) {
 		if isPreviewBot(r) {
 			serveExpiredPreview(w, r, ctx.subpath)
 		} else {
@@ -149,8 +139,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	}
 }
 
-// serveShareFile hands out the shared file inside a CSP sandbox, so user-supplied
-// content cannot run script against the admin API on this origin.
+// serveShareFile hands out the shared file inside a CSP sandbox.
 func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
 	if officeExt(diskPath) != "pdf" {
 		w.Header().Set("Content-Security-Policy", "sandbox")
@@ -160,27 +149,20 @@ func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
 
 // resolveUploadTarget loads the FileData for the subpath in the request URL
 // and verifies that uploads are permitted.
-func resolveUploadTarget(w http.ResponseWriter, r *http.Request) (shared.FileData, bool) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		GoLog.Errorf("resolveUploadTarget: load config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return shared.FileData{}, false
-	}
-
+func resolveUploadTarget(w http.ResponseWriter, r *http.Request) (config.FileData, bool) {
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
-	fd, exists := config.Files[subpath]
+	fd, exists := cfgStore.Current().Share(subpath)
 	if !exists {
 		http.NotFound(w, r)
-		return shared.FileData{}, false
+		return config.FileData{}, false
 	}
 	if !fd.AllowPost {
 		http.Error(w, "Forbidden", http.StatusForbidden)
-		return shared.FileData{}, false
+		return config.FileData{}, false
 	}
-	if shared.IsExpired(fd) {
+	if config.IsExpired(fd) {
 		http.Error(w, "File share expired", http.StatusGone)
-		return shared.FileData{}, false
+		return config.FileData{}, false
 	}
 	return fd, true
 }
@@ -283,18 +265,10 @@ func serveExpiredPage(w http.ResponseWriter, subpath string) {
 
 // handleUnlock handles POST /{subpath}/unlock — verifies the share password,
 // issues a token cookie on success, and redirects to the share.
-// Not wrapped in loggingMiddleware intentionally — form body contains the password.
 func handleUnlock(w http.ResponseWriter, r *http.Request) {
 	subpath := r.PathValue("subpath")
 
-	config, err := shared.LoadConfig()
-	if err != nil {
-		GoLog.Errorf("handleUnlock: load config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	fd, exists := config.Files[subpath]
+	fd, exists := cfgStore.Current().Share(subpath)
 	if !exists {
 		serveNotFoundPage(w)
 		return
@@ -332,9 +306,14 @@ func handleUnlock(w http.ResponseWriter, r *http.Request) {
 	// Upgrade an outdated hash while the plaintext is available.
 	if shared.NeedsRehash(fd.Password) {
 		if rehashed, err := shared.HashPassword(password); err == nil {
-			fd.Password = rehashed
-			config.Files[subpath] = fd
-			if err := shared.SaveConfig(config); err != nil {
+			err := cfgStore.Update(func(c *config.Config) error {
+				if cur, ok := c.Files[subpath]; ok && cur.Password == fd.Password {
+					cur.Password = rehashed
+					c.Files[subpath] = cur
+				}
+				return nil
+			})
+			if err != nil {
 				GoLog.Errorf("handleUnlock: failed to store upgraded hash: %v", err)
 			} else {
 				GoLog.Infof("share password hash upgraded to argon2id: /%s", subpath)

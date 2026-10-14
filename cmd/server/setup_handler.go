@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/pkg/shared"
 )
 
@@ -16,8 +17,8 @@ var setupToken string
 
 // initSetupToken mints the token when the instance has no admin password yet,
 // and prints it where the operator will see it.
-func initSetupToken(config *shared.Config) {
-	if config.AdminPassword != "" {
+func initSetupToken(cfg config.View) {
+	if cfg.AdminPassword() != "" {
 		return
 	}
 	b := make([]byte, 16)
@@ -31,12 +32,7 @@ func initSetupToken(config *shared.Config) {
 
 // GET /setup — serves the setup page for initial admin password configuration.
 func handleSetupUI(w http.ResponseWriter, r *http.Request) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	if config.AdminPassword != "" {
+	if cfgStore.Current().AdminPassword() != "" {
 		http.Redirect(w, r, "/admin", http.StatusFound)
 		return
 	}
@@ -46,12 +42,7 @@ func handleSetupUI(w http.ResponseWriter, r *http.Request) {
 // POST /setup/api/init — set initial admin username and password.
 // Only allowed if no password is set yet, otherwise 403 Forbidden.
 func handleSetupInit(w http.ResponseWriter, r *http.Request) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	if config.AdminPassword != "" {
+	if cfgStore.Current().AdminPassword() != "" {
 		http.Error(w, "Setup already complete", http.StatusForbidden)
 		return
 	}
@@ -76,23 +67,27 @@ func handleSetupInit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
 		return
 	}
-	// Username is optional — keep the existing default if not provided.
-	if req.NewUsername != "" {
-		config.AdminUsername = req.NewUsername
-	}
 	hashed, err := shared.HashPassword(req.NewPassword)
 	if err != nil {
 		GoLog.Errorf("setup: failed to hash password: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	config.AdminPassword = hashed
-	if err := shared.SaveConfig(config); err != nil {
-		GoLog.Errorf("setup: failed to save config: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	var username string
+	if !updateOrErr(w, func(c *config.Config) error {
+		if c.AdminPassword != "" {
+			return httpError{http.StatusForbidden, "Setup already complete"}
+		}
+		if req.NewUsername != "" {
+			c.AdminUsername = req.NewUsername
+		}
+		c.AdminPassword = hashed
+		username = c.AdminUsername
+		return nil
+	}) {
 		return
 	}
 	setupToken = "" // one shot
-	GoLog.Infof("initial credentials set via setup page (username: %s)", config.AdminUsername)
+	GoLog.Infof("initial credentials set via setup page (username: %s)", username)
 	w.WriteHeader(http.StatusNoContent)
 }

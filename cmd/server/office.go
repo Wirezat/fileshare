@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/pkg/shared"
+	"github.com/Wirezat/fileshare/internal/config"
 )
 
 var officeHtmlPath = "./web/html/office.html"
@@ -163,12 +163,11 @@ func officeConfig(doc officeDoc, lang, secret string) map[string]any {
 	return cfg
 }
 
-// officeWanted reports whether this request should get the viewer page rather
-// than the file itself.
+// officeWanted reports whether this request should get the viewer page instead of the file.
 func officeWanted(r *http.Request, ctx *requestContext) bool {
 	return !ctx.fileInfo.IsDir() &&
-		ctx.fileData.Office != shared.OfficeOff &&
-		ctx.config.OfficeURL != "" && ctx.config.OfficeSecret != "" &&
+		ctx.fileData.Office != config.OfficeOff &&
+		ctx.config.OfficeReady() &&
 		officeDocType(ctx.fileInfo.Name()) != "" &&
 		r.URL.Query().Get("dl") == ""
 }
@@ -223,9 +222,9 @@ func serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestConte
 		name:     name,
 		key:      officeDocKey(ctx.diskPath, ctx.fileInfo),
 		url:      scheme + "://" + r.Host + downloadPath,
-		edit:     ctx.fileData.Office == shared.OfficeEdit,
+		edit:     ctx.fileData.Office == config.OfficeEdit,
 		callback: scheme + "://" + r.Host + r.URL.Path + "?callback=1",
-	}, requestLang(r), ctx.config.OfficeSecret)
+	}, requestLang(r), ctx.config.OfficeSecret())
 	cfgJSON, err := json.Marshal(cfg)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -243,7 +242,7 @@ func serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestConte
 		Subpath:     ctx.subpath,
 		ParentURL:   parent,
 		DownloadURL: downloadPath,
-		APIScript:   ctx.config.OfficeURL + "/web-apps/apps/api/documents/api.js",
+		APIScript:   ctx.config.OfficeURL() + "/web-apps/apps/api/documents/api.js",
 		Config:      template.JS(cfgJSON),
 	}); err != nil {
 		GoLog.Errorf("failed to render office template: %v", err)
@@ -290,13 +289,9 @@ func dsReply(w http.ResponseWriter, code int, dsErr int) {
 // handleOfficeCallback receives the document server's save notifications and
 // replaces the file when a saved version is announced.
 func handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
-	config, err := shared.LoadConfig()
-	if err != nil {
-		dsReply(w, http.StatusInternalServerError, 1)
-		return
-	}
+	cfg := cfgStore.Current()
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
-	fd, exists := config.Files[subpath]
+	fd, exists := cfg.Share(subpath)
 	if !exists {
 		dsReply(w, http.StatusNotFound, 1)
 		return
@@ -306,28 +301,28 @@ func handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
 		dsReply(w, http.StatusForbidden, 1)
 		return
 	}
-	cb, ok := dsCallback(r, config.OfficeSecret)
+	cb, ok := dsCallback(r, cfg.OfficeSecret())
 	if !ok {
 		dsReply(w, http.StatusUnauthorized, 1)
 		return
 	}
-	if fd.Expired || shared.IsExpired(fd) {
+	if config.IsExpired(fd) {
 		dsReply(w, http.StatusGone, 1)
 		return
 	}
-	if fd.Office != shared.OfficeEdit || officeDocType(diskPath) == "" {
+	if fd.Office != config.OfficeEdit || officeDocType(diskPath) == "" {
 		dsReply(w, http.StatusForbidden, 1)
 		return
 	}
 
 	switch cb.Status {
 	case 2, 6:
-		if !strings.HasPrefix(cb.URL, config.OfficeURL+"/") {
+		if !strings.HasPrefix(cb.URL, cfg.OfficeURL()+"/") {
 			GoLog.Warnf("office callback for /%s named a download outside the document server: %s", subpath, cb.URL)
 			dsReply(w, http.StatusForbidden, 1)
 			return
 		}
-		if err := replaceFromURL(diskPath, cb.URL, int64(config.MaxPostSize)); err != nil {
+		if err := replaceFromURL(diskPath, cb.URL, int64(cfg.MaxPostSize())); err != nil {
 			GoLog.Errorf("office save failed for %s: %v", diskPath, err)
 			dsReply(w, http.StatusInternalServerError, 1)
 			return
