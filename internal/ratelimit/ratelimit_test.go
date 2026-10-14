@@ -80,21 +80,27 @@ func TestFailureSweepsStaleKeysOncePerInterval(t *testing.T) {
 	now := clock(l, t0)
 	l.Failure("stale")
 	*now = t0.Add(window + time.Minute)
-	for range MaxFailures {
-		l.Failure("blocked")
-	}
+	l.Failure("other")
 	if _, ok := l.failures["stale"]; ok {
 		t.Error("stale key kept after sweep")
 	}
-	if d := l.RetryAfter("blocked"); d <= 0 {
-		t.Error("sweep unblocked a blocked key")
-	}
 	l.Failure("stale")
-	*now = now.Add(window + time.Minute)
+	*now = now.Add(time.Minute)
 	l.Failure("other")
-	*now = now.Add(time.Second)
+	if _, ok := l.failures["stale"]; !ok {
+		t.Error("swept again before the interval passed")
+	}
+}
+
+func TestSweepKeepsBlockedClientBlocked(t *testing.T) {
+	l := New()
+	now := clock(l, t0)
+	for range MaxFailures {
+		l.Failure("blocked")
+	}
+	*now = t0.Add(6 * time.Minute)
 	l.Failure("other")
-	if len(l.failures) != 1 {
-		t.Errorf("keys = %d after sweep, want only other", len(l.failures))
+	if d := l.RetryAfter("blocked"); d != 9*time.Minute {
+		t.Errorf("RetryAfter = %v after sweep, want 9m", d)
 	}
 }
