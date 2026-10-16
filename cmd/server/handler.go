@@ -60,27 +60,8 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		AuthHeader: r.Header.Get("Authorization"),
 		RequestURI: r.URL.RequestURI(),
 	})
-	switch err {
-	case nil:
-	case share.ErrNotFound:
-		serveNotFoundPage(w)
-		return nil, false
-	case share.ErrOutside:
-		GoLog.Warnf("path traversal attempt: %s", res.DiskPath)
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return nil, false
-	case share.ErrExpired:
-		if media.IsPreviewBot(r.UserAgent()) {
-			serveExpiredPreview(w, r, subpath)
-		} else {
-			serveExpiredPage(w, subpath)
-		}
-		return nil, false
-	case share.ErrLocked:
-		serveGatePage(w, gateData{
-			Subpath:    subpath,
-			FormAction: "/" + subpath + "/unlock",
-		})
+	if err != nil {
+		resolveErr(w, r, subpath, res, err)
 		return nil, false
 	}
 	diskPath := res.DiskPath
@@ -104,6 +85,30 @@ func prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bo
 		diskPath: diskPath,
 		fileInfo: fileInfo,
 	}, true
+}
+
+func resolveErr(w http.ResponseWriter, r *http.Request, subpath string, res share.Resolved, err error) {
+	switch {
+	case errors.Is(err, share.ErrNotFound):
+		serveNotFoundPage(w)
+	case errors.Is(err, share.ErrOutside):
+		GoLog.Warnf("path traversal attempt: %s", res.DiskPath)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	case errors.Is(err, share.ErrExpired):
+		if media.IsPreviewBot(r.UserAgent()) {
+			serveExpiredPreview(w, r, subpath)
+		} else {
+			serveExpiredPage(w, subpath)
+		}
+	case errors.Is(err, share.ErrLocked):
+		serveGatePage(w, gateData{
+			Subpath:    subpath,
+			FormAction: "/" + subpath + "/unlock",
+		})
+	default:
+		GoLog.Errorf("share lookup /%s: %v", subpath, err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // handleGet serves a file or directory.
@@ -136,17 +141,25 @@ func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
 func resolveUploadTarget(w http.ResponseWriter, r *http.Request) (config.FileData, bool) {
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
 	fd, err := shares.UploadTarget(subpath)
-	switch err {
-	case nil:
-		return fd, true
-	case share.ErrNotFound:
-		http.NotFound(w, r)
-	case share.ErrUploadsOff:
-		http.Error(w, "Forbidden", http.StatusForbidden)
-	case share.ErrExpired:
-		http.Error(w, "File share expired", http.StatusGone)
+	if err != nil {
+		uploadErr(w, r, err)
+		return config.FileData{}, false
 	}
-	return config.FileData{}, false
+	return fd, true
+}
+
+func uploadErr(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, share.ErrNotFound):
+		http.NotFound(w, r)
+	case errors.Is(err, share.ErrUploadsOff):
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	case errors.Is(err, share.ErrExpired):
+		http.Error(w, "File share expired", http.StatusGone)
+	default:
+		GoLog.Errorf("upload target: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 var (
