@@ -9,6 +9,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
+	"github.com/Wirezat/fileshare/internal/store"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -133,5 +134,29 @@ func TestPruneRemovesOnlyExpiredShares(t *testing.T) {
 	}
 	if st.Current().ShareCount() != 2 {
 		t.Errorf("left %d shares, want 2", st.Current().ShareCount())
+	}
+}
+
+type deleteBeforeUpdate struct {
+	*store.FileStore
+	subpath string
+}
+
+func (d deleteBeforeUpdate) Update(fn func(*config.Config) error) error {
+	d.FileStore.Update(func(c *config.Config) error {
+		delete(c.Files, d.subpath)
+		return nil
+	})
+	return d.FileStore.Update(fn)
+}
+
+func TestPatchOfAShareDeletedMeanwhileDoesNotBringItBack(t *testing.T) {
+	_, st := newService(t, map[string]config.FileData{"docs": {Path: "/srv"}})
+	s := New(deleteBeforeUpdate{st, "docs"})
+	if _, err := s.Patch("docs", Patch{AllowPost: ptr(true)}); err != ErrNotFound {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+	if _, ok := st.Current().Share("docs"); ok {
+		t.Error("patch brought the deleted share back")
 	}
 }
