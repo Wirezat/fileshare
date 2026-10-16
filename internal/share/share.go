@@ -142,6 +142,10 @@ func (s *Service) upgradeHash(subpath, old, pw string) {
 	GoLog.Infof("share password hash upgraded to argon2id: /%s", subpath)
 }
 
+func (s *Service) revoke(subpath string) {
+	s.tokens.DeleteFunc(func(_ string, sp string) bool { return sp == subpath })
+}
+
 func (s *Service) grant(subpath string) (string, error) {
 	token, err := ttl.Token()
 	if err != nil {

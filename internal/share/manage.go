@@ -121,10 +121,13 @@ func (s *Service) Patch(subpath string, p Patch) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if p.Password != nil {
+		s.revoke(subpath)
+	}
 	return changes, nil
 }
 
-// Delete removes the share at subpath and returns it; an unknown subpath is not an error.
+// Delete removes the share at subpath with its unlock tokens and returns it; an unknown subpath is not an error.
 func (s *Service) Delete(subpath string) (config.FileData, error) {
 	var removed config.FileData
 	err := s.store.Update(func(c *config.Config) error {
@@ -132,6 +135,9 @@ func (s *Service) Delete(subpath string) (config.FileData, error) {
 		delete(c.Files, subpath)
 		return nil
 	})
+	if err == nil {
+		s.revoke(subpath)
+	}
 	return removed, err
 }
 

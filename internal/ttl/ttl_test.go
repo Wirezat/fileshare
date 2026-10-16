@@ -77,3 +77,19 @@ func TestTokenIsRandomHex(t *testing.T) {
 		t.Errorf("token not hex: %v", err)
 	}
 }
+
+func TestDeleteFuncRemovesMatchingEntries(t *testing.T) {
+	s := New[string]()
+	s.Set("a", "docs", time.Hour)
+	s.Set("b", "docs", time.Hour)
+	s.Set("c", "other", time.Hour)
+	if n := s.DeleteFunc(func(_ string, v string) bool { return v == "docs" }); n != 2 {
+		t.Errorf("removed %d, want 2", n)
+	}
+	if _, ok := s.Get("c"); !ok {
+		t.Error("non-matching entry removed")
+	}
+	if _, ok := s.Get("a"); ok {
+		t.Error("matching entry kept")
+	}
+}

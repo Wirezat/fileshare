@@ -73,6 +73,19 @@ func (s *Store[V]) DeleteExcept(keep string) int {
 	return removed
 }
 
+func (s *Store[V]) DeleteFunc(match func(token string, value V) bool) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	removed := 0
+	for token, e := range s.entries {
+		if match(token, e.value) {
+			delete(s.entries, token)
+			removed++
+		}
+	}
+	return removed
+}
+
 // Token returns a random 48-character hex string for session and share tokens.
 func Token() (string, error) {
 	b := make([]byte, 24)
