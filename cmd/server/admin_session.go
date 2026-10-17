@@ -3,34 +3,9 @@ package main
 import (
 	"net/http"
 	"time"
-
-	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
-const (
-	adminSessionCookie = "admin_session"
-	adminTokenTTL      = 7 * 24 * time.Hour
-)
-
-var adminSessions = ttl.New[struct{}]()
-
-func storeAdminToken(token string) {
-	adminSessions.Set(token, struct{}{}, adminTokenTTL)
-}
-
-func validateAdminToken(token string) bool {
-	_, ok := adminSessions.Get(token)
-	return ok
-}
-
-func deleteAdminToken(token string) {
-	adminSessions.Delete(token)
-}
-
-// deleteAdminTokensExcept drops every session but keep and returns how many it removed.
-func deleteAdminTokensExcept(keep string) int {
-	return adminSessions.DeleteExcept(keep)
-}
+const adminSessionCookie = "admin_session"
 
 // currentAdminToken returns the session token carried by this request, if any.
 func currentAdminToken(r *http.Request) string {
@@ -45,7 +20,7 @@ func hasAdminCookie(r *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	return validateAdminToken(cookie.Value)
+	return admins.Valid(cookie.Value)
 }
 
 // setAdminCookie issues the session cookie; Secure follows the actual connection.

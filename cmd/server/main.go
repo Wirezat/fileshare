@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
@@ -23,6 +24,7 @@ var (
 	storage  *upload.Storage
 	cfgStore *store.FileStore
 	shares   *share.Service
+	admins   *auth.Service
 )
 
 // chain applies middleware in order: first wraps outermost, last wraps innermost.
@@ -129,6 +131,7 @@ func main() {
 		os.Exit(1)
 	}
 	shares = share.New(cfgStore)
+	admins = auth.New(cfgStore)
 
 	initSetupToken(cfgStore.Current())
 

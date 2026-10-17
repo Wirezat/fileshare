@@ -1,6 +1,8 @@
 package ratelimit
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -102,5 +104,39 @@ func TestSweepKeepsBlockedClientBlocked(t *testing.T) {
 	l.Failure("other")
 	if d := l.RetryAfter("blocked"); d != 9*time.Minute {
 		t.Errorf("RetryAfter = %v after sweep, want 9m", d)
+	}
+}
+
+func TestAttemptCountsUntilSuccess(t *testing.T) {
+	l := New()
+	clock(l, t0)
+	for i := range MaxFailures {
+		if d := l.Attempt("ip"); d != 0 {
+			t.Fatalf("attempt %d refused", i+1)
+		}
+	}
+	if d := l.Attempt("ip"); d != window {
+		t.Errorf("Attempt = %v, want %v", d, window)
+	}
+	l.Success("ip")
+	if d := l.Attempt("ip"); d != 0 {
+		t.Errorf("refused after Success: %v", d)
+	}
+}
+
+func TestParallelAttemptsPassAtMostMaxFailures(t *testing.T) {
+	l := New()
+	var passed atomic.Int32
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Go(func() {
+			if l.Attempt("ip") == 0 {
+				passed.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if got := passed.Load(); got != MaxFailures {
+		t.Errorf("%d of 50 parallel attempts passed, want %d", got, MaxFailures)
 	}
 }

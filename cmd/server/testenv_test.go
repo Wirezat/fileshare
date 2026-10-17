@@ -9,15 +9,28 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/ratelimit"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
-	"github.com/Wirezat/fileshare/internal/ttl"
 	"github.com/Wirezat/fileshare/internal/upload"
 )
 
 var testConfigPath string
+
+const testAdminPassword = "test-admin-pw"
+
+var testAdminHash = mustHash(testAdminPassword)
+
+func mustHash(pw string) string {
+	h, err := password.Hash(pw)
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
 
 // baseConfig returns a config past setup with no shares.
 func baseConfig() *config.Config {
@@ -46,6 +59,7 @@ func seedConfig(t *testing.T, cfg *config.Config) {
 		t.Fatalf("seed config: %v", err)
 	}
 	shares = share.New(cfgStore)
+	admins = auth.New(cfgStore)
 }
 
 // storedConfig returns the config as it was last written to disk.
@@ -77,20 +91,18 @@ func newServer(t *testing.T) http.Handler {
 	t.Chdir(dir)
 
 	loginLimiter = ratelimit.New()
-	adminSessions = ttl.New[struct{}]()
 	setupToken = ""
 	storage = upload.New(filepath.Join(dir, "chunks"), chunkTimeout)
 	return securityHeaders(buildMux())
 }
 
-// adminCookie returns a valid admin session cookie.
+// adminCookie logs in with the baseConfig credentials and returns the session cookie.
 func adminCookie(t *testing.T) *http.Cookie {
 	t.Helper()
-	token, err := ttl.Token()
+	token, err := admins.Login("admin", testAdminPassword, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	storeAdminToken(token)
 	return &http.Cookie{Name: adminSessionCookie, Value: token}
 }
 

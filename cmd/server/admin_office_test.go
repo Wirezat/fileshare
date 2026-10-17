@@ -10,8 +10,6 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 )
 
-const testAdminHash = "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHQ$aGFzaA"
-
 func withOfficeConfig(t *testing.T, officeURL, officeSecret string) {
 	t.Helper()
 	cfg := baseConfig()

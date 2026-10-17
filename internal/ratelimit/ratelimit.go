@@ -35,11 +35,25 @@ func (l *Limiter) RetryAfter(key string) time.Duration {
 	return recent[0].Add(window).Sub(now)
 }
 
-// Failure records a failed attempt for key and drops aged-out failures of all keys at most once per sweepInterval.
 func (l *Limiter) Failure(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.record(key, l.now())
+}
+
+// Attempt returns how long key must wait, or zero after counting this attempt as a failure until Success clears it.
+func (l *Limiter) Attempt(key string) time.Duration {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	now := l.now()
+	if recent := l.prune(key, now); len(recent) >= MaxFailures {
+		return recent[0].Add(window).Sub(now)
+	}
+	l.record(key, now)
+	return 0
+}
+
+func (l *Limiter) record(key string, now time.Time) {
 	if now.Sub(l.swept) > sweepInterval {
 		for k := range l.failures {
 			l.prune(k, now)

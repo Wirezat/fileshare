@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/internal/password"
-	"github.com/Wirezat/fileshare/internal/ttl"
 )
 
 // wantsLoginPage reports whether the request is a browser navigation rather than a fetch() call.
@@ -23,7 +23,7 @@ func wantsLoginPage(r *http.Request) bool {
 // redirected to /setup or /admin/login, script requests get 401.
 func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		noPassword := cfgStore.Current().AdminPassword() == ""
+		noPassword := admins.NeedsSetup()
 		if noPassword || !hasAdminCookie(r) {
 			if !wantsLoginPage(r) {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -42,8 +42,7 @@ func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 
 // handleAdminLogin serves the login page (GET) and validates credentials (POST).
 func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
-	cfg := cfgStore.Current()
-	if cfg.AdminPassword() == "" {
+	if admins.NeedsSetup() {
 		http.Redirect(w, r, "/setup", http.StatusFound)
 		return
 	}
@@ -53,12 +52,6 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, adminLoginHtmlPath)
 
 	case http.MethodPost:
-		ip := clientIP(r)
-		if !allow(loginLimiter, w, ip, "admin login") {
-			return
-		}
-
-		// Credentials arrive as JSON (wui initAuth) or as a plain form POST.
 		var creds struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
@@ -73,40 +66,24 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			creds.Password = r.FormValue("password")
 		}
 
-		usernameOK := cfg.AdminUsername() == "" || creds.Username == cfg.AdminUsername()
-		passwordOK := password.Check(creds.Password, cfg.AdminPassword())
-
-		if !usernameOK || !passwordOK {
-			loginLimiter.Failure(ip)
+		ip := clientIP(r)
+		token, err := admins.Login(creds.Username, creds.Password, ip)
+		var limited auth.RateLimitedError
+		switch {
+		case err == nil:
+			setAdminCookie(w, r, token)
+			w.WriteHeader(http.StatusNoContent)
+		case errors.Is(err, auth.ErrNotSetUp):
+			http.Redirect(w, r, "/setup", http.StatusFound)
+		case errors.As(err, &limited):
+			tooManyAttempts(w, limited.RetryAfter, ip, "admin login")
+		case errors.Is(err, auth.ErrWrongCredentials):
 			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", ip)
 			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
-			return
-		}
-		loginLimiter.Success(ip)
-
-		// Upgrade an outdated hash.
-		if password.NeedsRehash(cfg.AdminPassword()) {
-			if rehashed, err := password.Hash(creds.Password); err == nil {
-				err := cfgStore.Update(func(c *config.Config) error {
-					c.AdminPassword = rehashed
-					return nil
-				})
-				if err != nil {
-					GoLog.Errorf("handleAdminLogin: failed to store upgraded hash: %v", err)
-				} else {
-					GoLog.Infof("admin password hash upgraded to argon2id")
-				}
-			}
-		}
-
-		token, err := ttl.Token()
-		if err != nil {
+		default:
+			GoLog.Errorf("handleAdminLogin: %v", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
 		}
-		storeAdminToken(token)
-		setAdminCookie(w, r, token)
-		w.WriteHeader(http.StatusNoContent)
 
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -115,9 +92,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 
 // handleAdminLogout invalidates the session token and clears the cookie.
 func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie(adminSessionCookie); err == nil {
-		deleteAdminToken(cookie.Value)
-	}
+	admins.Logout(currentAdminToken(r))
 	clearAdminCookie(w, r)
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }

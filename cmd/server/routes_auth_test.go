@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -164,5 +165,39 @@ func TestSetupIsRateLimited(t *testing.T) {
 	}
 	if got := setupInit(h, setupToken, "pw"); got != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", got)
+	}
+}
+
+func TestLoginWithABrokenBodyIs400EvenWhileLocked(t *testing.T) {
+	h := newServer(t)
+	seedConfig(t, configWithAdmin(t, "secret"))
+
+	for range ratelimit.MaxFailures {
+		login(h, "admin", "wrong")
+	}
+	rec := send(h, http.MethodPost, "/admin/login", strings.NewReader("{"), withHeader("Content-Type", "application/json"))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestPasswordChangeIsRateLimitedAfterFiveWrongCurrentPasswords(t *testing.T) {
+	h := newServer(t)
+	seedConfig(t, baseConfig())
+	cookie := adminCookie(t)
+	change := func(current string) *httptest.ResponseRecorder {
+		body := `{"current_password":"` + current + `","new_password":"neu"}`
+		return send(h, http.MethodPost, "/admin/api/settings/password", strings.NewReader(body),
+			asFetch, withCookie(cookie), withHeader("Content-Type", "application/json"))
+	}
+
+	for range ratelimit.MaxFailures {
+		if rec := change("wrong"); rec.Code != http.StatusForbidden {
+			t.Fatalf("wrong current password: %d, want 403", rec.Code)
+		}
+	}
+	rec := change(testAdminPassword)
+	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("status = %d, Retry-After = %q, want 429 with Retry-After", rec.Code, rec.Header().Get("Retry-After"))
 	}
 }
