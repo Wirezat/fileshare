@@ -120,3 +120,20 @@ func TestParallelWrongCredentialChangesReachThePasswordCheckAtMostMaxFailuresTim
 		t.Errorf("%d of 20 parallel changes reached the password check, want %d", checked, ratelimit.MaxFailures)
 	}
 }
+
+func TestCredentialChangeAfterFourTyposStillWorks(t *testing.T) {
+	s, _ := adminService(t)
+	token := sessions(t, s, 1)[0]
+	for range ratelimit.MaxFailures - 1 {
+		s.ChangePassword("falsch", "neu", token)
+	}
+	if _, err := s.ChangeUsername("pw", "boss", token); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	for range ratelimit.MaxFailures - 1 {
+		s.ChangeUsername("falsch", "chef", token)
+	}
+	if _, err := s.ChangePassword("pw", "neu", token); err != nil {
+		t.Errorf("the successful change did not clear the earlier typos: %v", err)
+	}
+}

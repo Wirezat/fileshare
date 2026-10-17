@@ -23,7 +23,7 @@ var (
 	ErrEmptyPassword    = errors.New("auth: password cannot be empty")
 )
 
-// RateLimitedError reports that a client sent too many wrong credentials.
+// RateLimitedError reports that a client sent too many attempts.
 type RateLimitedError struct{ RetryAfter time.Duration }
 
 func (e RateLimitedError) Error() string {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
@@ -131,5 +132,19 @@ func TestLoginAfterFourTyposStillGetsIn(t *testing.T) {
 	}
 	if _, err := s.Login("admin", "pw", "1.2.3.4"); err != nil {
 		t.Errorf("the successful login did not clear the earlier typos: %v", err)
+	}
+}
+
+func TestWrongUsernameStillRunsThePasswordCheck(t *testing.T) {
+	s, st := adminService(t)
+	start := time.Now()
+	password.Check("pw", st.Current().AdminPassword())
+	check := time.Since(start)
+	start = time.Now()
+	if _, err := s.Login("other", "pw", "1.2.3.4"); !errors.Is(err, ErrWrongCredentials) {
+		t.Fatalf("err = %v, want ErrWrongCredentials", err)
+	}
+	if took := time.Since(start); took < check/2 {
+		t.Errorf("login with a wrong name took %s, a password check takes %s", took, check)
 	}
 }

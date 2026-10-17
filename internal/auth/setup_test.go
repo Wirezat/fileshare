@@ -145,3 +145,29 @@ func TestSetupAfterFourTyposStillWorks(t *testing.T) {
 		t.Errorf("err = %v, want nil", err)
 	}
 }
+
+func TestParallelSetupsWithTheRightCodeSucceedOnce(t *testing.T) {
+	s, _ := newService(t, "admin", "")
+	code := s.SetupCode()
+	var mu sync.Mutex
+	succeeded := 0
+	var wg sync.WaitGroup
+	for i := range 10 {
+		wg.Go(func() {
+			err := s.Setup(code, "boss", "pw", string(rune('a'+i)))
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				succeeded++
+			case !errors.Is(err, ErrSetupDone) && !errors.Is(err, ErrWrongSetupCode):
+				t.Errorf("err = %v", err)
+			}
+		})
+		wg.Go(func() { s.SetupCode() })
+	}
+	wg.Wait()
+	if succeeded != 1 {
+		t.Errorf("%d setups succeeded, want exactly 1", succeeded)
+	}
+}
