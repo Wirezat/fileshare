@@ -23,24 +23,6 @@ func New() *Limiter {
 	return &Limiter{failures: map[string][]time.Time{}, now: time.Now}
 }
 
-// RetryAfter returns how long key must wait, or zero if it may proceed.
-func (l *Limiter) RetryAfter(key string) time.Duration {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.now()
-	recent := l.prune(key, now)
-	if len(recent) < MaxFailures {
-		return 0
-	}
-	return recent[0].Add(window).Sub(now)
-}
-
-func (l *Limiter) Failure(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.record(key, l.now())
-}
-
 // Attempt returns how long key must wait, or zero after counting this attempt as a failure until Success clears it.
 func (l *Limiter) Attempt(key string) time.Duration {
 	l.mu.Lock()

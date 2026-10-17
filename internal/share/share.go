@@ -39,7 +39,6 @@ type configStore interface {
 	Update(func(*config.Config) error) error
 }
 
-// Service applies the share rules on top of the config store.
 type Service struct {
 	store   configStore
 	tokens  *ttl.Store[string]
@@ -108,11 +107,10 @@ func (s *Service) Unlock(subpath, pw, clientKey string) (string, error) {
 		return "", ErrNoPassword
 	}
 	key := clientKey + "|" + subpath
-	if wait := s.limiter.RetryAfter(key); wait > 0 {
+	if wait := s.limiter.Attempt(key); wait > 0 {
 		return "", RateLimitedError{RetryAfter: wait}
 	}
 	if !password.Check(pw, fd.Password) {
-		s.limiter.Failure(key)
 		return "", ErrWrongPassword
 	}
 	s.limiter.Success(key)

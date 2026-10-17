@@ -3,6 +3,7 @@ package share
 import (
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Wirezat/fileshare/internal/config"
@@ -89,5 +90,61 @@ func TestUpgradeKeepsAPasswordChangedMeanwhile(t *testing.T) {
 	s.upgradeHash("old", string(legacy), "pw")
 	if fd, _ := st.Current().Share("old"); fd.Password != "changed-by-admin" {
 		t.Errorf("password = %q, upgrade overwrote a newer password", fd.Password)
+	}
+}
+
+func TestParallelWrongUnlocksReachThePasswordCheckAtMostMaxFailuresTimes(t *testing.T) {
+	s := lockedService(t)
+	var mu sync.Mutex
+	checked := 0
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			if _, err := s.Unlock("priv", "falsch", "1.2.3.4"); errors.Is(err, ErrWrongPassword) {
+				mu.Lock()
+				checked++
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	if checked != ratelimit.MaxFailures {
+		t.Errorf("%d of 20 parallel unlocks reached the password check, want %d", checked, ratelimit.MaxFailures)
+	}
+}
+
+func TestUpToMaxFailuresParallelRightUnlocksFromOneClientAllPass(t *testing.T) {
+	s := lockedService(t)
+	var mu sync.Mutex
+	passed := 0
+	var wg sync.WaitGroup
+	for range ratelimit.MaxFailures {
+		wg.Go(func() {
+			if _, err := s.Unlock("priv", "pw", "1.2.3.4"); err == nil {
+				mu.Lock()
+				passed++
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	if passed != ratelimit.MaxFailures {
+		t.Errorf("%d of %d parallel right unlocks passed", passed, ratelimit.MaxFailures)
+	}
+}
+
+func TestUnlockAfterFourTyposStillWorks(t *testing.T) {
+	s := lockedService(t)
+	for range ratelimit.MaxFailures - 1 {
+		s.Unlock("priv", "falsch", "1.2.3.4")
+	}
+	if _, err := s.Unlock("priv", "pw", "1.2.3.4"); err != nil {
+		t.Fatalf("err = %v, want a token", err)
+	}
+	for range ratelimit.MaxFailures - 1 {
+		s.Unlock("priv", "falsch", "1.2.3.4")
+	}
+	if _, err := s.Unlock("priv", "pw", "1.2.3.4"); err != nil {
+		t.Errorf("the right password did not clear the earlier typos: %v", err)
 	}
 }

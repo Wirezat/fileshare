@@ -15,30 +15,15 @@ func clock(l *Limiter, start time.Time) *time.Time {
 	return &now
 }
 
-func TestRefusesAfterMaxFailures(t *testing.T) {
-	l := New()
-	clock(l, t0)
-	for i := range MaxFailures - 1 {
-		l.Failure("ip")
-		if d := l.RetryAfter("ip"); d != 0 {
-			t.Fatalf("refused after %d failures", i+1)
-		}
-	}
-	l.Failure("ip")
-	if d := l.RetryAfter("ip"); d != window {
-		t.Errorf("RetryAfter = %v, want %v", d, window)
-	}
-}
-
 func TestWaitCountsFromOldestFailure(t *testing.T) {
 	l := New()
 	now := clock(l, t0)
 	for range MaxFailures {
-		l.Failure("ip")
+		l.Attempt("ip")
 		*now = now.Add(time.Minute)
 	}
-	if d := l.RetryAfter("ip"); d != 10*time.Minute {
-		t.Errorf("RetryAfter = %v, want 10m", d)
+	if d := l.Attempt("ip"); d != 10*time.Minute {
+		t.Errorf("Attempt = %v, want 10m", d)
 	}
 }
 
@@ -46,11 +31,11 @@ func TestFailuresAgeOut(t *testing.T) {
 	l := New()
 	now := clock(l, t0)
 	for range MaxFailures {
-		l.Failure("ip")
+		l.Attempt("ip")
 	}
 	*now = t0.Add(window + time.Second)
-	if d := l.RetryAfter("ip"); d != 0 {
-		t.Errorf("RetryAfter = %v after window, want 0", d)
+	if d := l.Attempt("ip"); d != 0 {
+		t.Errorf("Attempt = %v after window, want 0", d)
 	}
 }
 
@@ -58,11 +43,11 @@ func TestSuccessClearsFailures(t *testing.T) {
 	l := New()
 	clock(l, t0)
 	for range MaxFailures {
-		l.Failure("ip")
+		l.Attempt("ip")
 	}
 	l.Success("ip")
-	if d := l.RetryAfter("ip"); d != 0 {
-		t.Errorf("RetryAfter = %v after success, want 0", d)
+	if d := l.Attempt("ip"); d != 0 {
+		t.Errorf("Attempt = %v after success, want 0", d)
 	}
 }
 
@@ -70,25 +55,25 @@ func TestKeysAreIndependent(t *testing.T) {
 	l := New()
 	clock(l, t0)
 	for range MaxFailures {
-		l.Failure("a")
+		l.Attempt("a")
 	}
-	if d := l.RetryAfter("b"); d != 0 {
+	if d := l.Attempt("b"); d != 0 {
 		t.Errorf("key b refused: %v", d)
 	}
 }
 
-func TestFailureSweepsStaleKeysOncePerInterval(t *testing.T) {
+func TestAttemptSweepsStaleKeysOncePerInterval(t *testing.T) {
 	l := New()
 	now := clock(l, t0)
-	l.Failure("stale")
+	l.Attempt("stale")
 	*now = t0.Add(window + time.Minute)
-	l.Failure("other")
+	l.Attempt("other")
 	if _, ok := l.failures["stale"]; ok {
 		t.Error("stale key kept after sweep")
 	}
-	l.Failure("stale")
+	l.Attempt("stale")
 	*now = now.Add(time.Minute)
-	l.Failure("other")
+	l.Attempt("other")
 	if _, ok := l.failures["stale"]; !ok {
 		t.Error("swept again before the interval passed")
 	}
@@ -98,12 +83,12 @@ func TestSweepKeepsBlockedClientBlocked(t *testing.T) {
 	l := New()
 	now := clock(l, t0)
 	for range MaxFailures {
-		l.Failure("blocked")
+		l.Attempt("blocked")
 	}
 	*now = t0.Add(6 * time.Minute)
-	l.Failure("other")
-	if d := l.RetryAfter("blocked"); d != 9*time.Minute {
-		t.Errorf("RetryAfter = %v after sweep, want 9m", d)
+	l.Attempt("other")
+	if d := l.Attempt("blocked"); d != 9*time.Minute {
+		t.Errorf("Attempt = %v after sweep, want 9m", d)
 	}
 }
 
