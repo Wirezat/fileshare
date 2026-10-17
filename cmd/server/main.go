@@ -132,8 +132,11 @@ func main() {
 	}
 	shares = share.New(cfgStore)
 	admins = auth.New(cfgStore)
-
-	initSetupToken(cfgStore.Current())
+	if code := admins.SetupCode(); code != "" {
+		GoLog.Infof("no admin password set — open /setup and enter this setup code: %s", code)
+	} else if admins.NeedsSetup() {
+		GoLog.Errorf("setup: failed to generate setup code")
+	}
 
 	storage = upload.New(chunkTempBase, chunkTimeout)
 	storage.Sweep()

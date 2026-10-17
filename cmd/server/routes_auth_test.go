@@ -127,8 +127,7 @@ func TestSetupFlow(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
 	seedConfig(t, cfg)
-	initSetupToken(cfgStore.Current())
-	code := setupToken
+	code := admins.SetupCode()
 
 	if rec := send(h, http.MethodGet, "/setup", nil); rec.Code != http.StatusOK {
 		t.Fatalf("GET /setup = %d, want 200", rec.Code)
@@ -158,12 +157,11 @@ func TestSetupIsRateLimited(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
 	seedConfig(t, cfg)
-	initSetupToken(cfgStore.Current())
 
 	for i := 0; i < ratelimit.MaxFailures; i++ {
 		setupInit(h, "wrong", "pw")
 	}
-	if got := setupInit(h, setupToken, "pw"); got != http.StatusTooManyRequests {
+	if got := setupInit(h, admins.SetupCode(), "pw"); got != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", got)
 	}
 }
@@ -199,5 +197,20 @@ func TestPasswordChangeIsRateLimitedAfterFiveWrongCurrentPasswords(t *testing.T)
 	rec := change(testAdminPassword)
 	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
 		t.Fatalf("status = %d, Retry-After = %q, want 429 with Retry-After", rec.Code, rec.Header().Get("Retry-After"))
+	}
+}
+
+func TestSetupWithABrokenBodyIs400EvenWhileLocked(t *testing.T) {
+	h := newServer(t)
+	cfg := baseConfig()
+	cfg.AdminPassword = ""
+	seedConfig(t, cfg)
+
+	for range ratelimit.MaxFailures {
+		setupInit(h, "wrong", "pw")
+	}
+	rec := send(h, http.MethodPost, "/setup/api/init", strings.NewReader("{"), withHeader("Content-Type", "application/json"))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
 	}
 }

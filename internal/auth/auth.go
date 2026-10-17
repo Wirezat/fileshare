@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Wirezat/GoLog"
@@ -40,10 +41,15 @@ type Service struct {
 	store    configStore
 	sessions *ttl.Store[struct{}]
 	limiter  *ratelimit.Limiter
+
+	mu        sync.Mutex
+	setupCode string
 }
 
 func New(store configStore) *Service {
-	return &Service{store: store, sessions: ttl.New[struct{}](), limiter: ratelimit.New()}
+	s := &Service{store: store, sessions: ttl.New[struct{}](), limiter: ratelimit.New()}
+	s.mintSetupCode()
+	return s
 }
 
 // NeedsSetup reports whether no admin password is set yet.

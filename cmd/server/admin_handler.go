@@ -19,23 +19,11 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 )
 
-type httpError struct {
-	code int
-	msg  string
-}
-
-func (e httpError) Error() string { return e.msg }
-
 // updateOrErr applies fn through the config store; on failure it writes the HTTP error and returns false.
 func updateOrErr(w http.ResponseWriter, fn func(*config.Config) error) bool {
 	err := cfgStore.Update(fn)
 	if err == nil {
 		return true
-	}
-	var he httpError
-	if errors.As(err, &he) {
-		http.Error(w, he.msg, he.code)
-		return false
 	}
 	GoLog.Errorf("failed to update config: %v", err)
 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -72,7 +60,6 @@ func jsonResponse(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// The three admin pages are static shells rendered by their modules under /admin/static/js/.
 func handleAdminUI(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminHtmlPath) }
 func handleAdminLogsPage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, adminLogsHtmlPath)

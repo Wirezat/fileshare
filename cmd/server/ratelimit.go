@@ -6,19 +6,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/internal/ratelimit"
 )
-
-var loginLimiter = ratelimit.New()
-
-// allow writes a 429 and reports false when key is out of attempts; what names the endpoint in the log line.
-func allow(l *ratelimit.Limiter, w http.ResponseWriter, key, what string) bool {
-	if wait := l.RetryAfter(key); wait > 0 {
-		tooManyAttempts(w, wait, key, what)
-		return false
-	}
-	return true
-}
 
 func tooManyAttempts(w http.ResponseWriter, wait time.Duration, key, what string) {
 	secs := int(wait.Seconds()) + 1

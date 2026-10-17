@@ -12,7 +12,6 @@ import (
 	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
-	"github.com/Wirezat/fileshare/internal/ratelimit"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/upload"
@@ -32,7 +31,6 @@ func mustHash(pw string) string {
 	return h
 }
 
-// baseConfig returns a config past setup with no shares.
 func baseConfig() *config.Config {
 	return &config.Config{
 		AdminUsername: "admin",
@@ -90,8 +88,6 @@ func newServer(t *testing.T) http.Handler {
 	}
 	t.Chdir(dir)
 
-	loginLimiter = ratelimit.New()
-	setupToken = ""
 	storage = upload.New(filepath.Join(dir, "chunks"), chunkTimeout)
 	return securityHeaders(buildMux())
 }
