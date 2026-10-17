@@ -8,22 +8,22 @@ import (
 )
 
 // withConfig seeds a server that is past setup.
-func withConfig(t *testing.T) {
+func withConfig(t *testing.T) *testEnv {
 	t.Helper()
-	seedConfig(t, baseConfig())
+	return newEnv(t, baseConfig())
 }
 
 func okHandler(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }
 
 func TestAdminAuthRedirectsPageNavigation(t *testing.T) {
-	withConfig(t)
+	e := withConfig(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	req.Header.Set("Sec-Fetch-Mode", "navigate")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 	rec := httptest.NewRecorder()
 
-	adminAuth(okHandler)(rec, req)
+	e.srv.adminAuth(okHandler)(rec, req)
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusFound)
@@ -34,7 +34,7 @@ func TestAdminAuthRedirectsPageNavigation(t *testing.T) {
 }
 
 func TestAdminAuthRejectsScriptRequestsWith401(t *testing.T) {
-	withConfig(t)
+	e := withConfig(t)
 
 	cases := []struct {
 		name   string
@@ -54,7 +54,7 @@ func TestAdminAuthRejectsScriptRequestsWith401(t *testing.T) {
 			req.Header.Set("Accept", "*/*")
 			rec := httptest.NewRecorder()
 
-			adminAuth(okHandler)(rec, req)
+			e.srv.adminAuth(okHandler)(rec, req)
 
 			if rec.Code != http.StatusUnauthorized {
 				t.Fatalf("status = %d, want %d (body %q)", rec.Code, http.StatusUnauthorized, rec.Body.String())
@@ -67,26 +67,26 @@ func TestAdminAuthRejectsScriptRequestsWith401(t *testing.T) {
 }
 
 func TestAdminAuthFallsBackToAcceptHeader(t *testing.T) {
-	withConfig(t)
+	e := withConfig(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	req.Header.Set("Accept", "text/html")
 	rec := httptest.NewRecorder()
-	adminAuth(okHandler)(rec, req)
+	e.srv.adminAuth(okHandler)(rec, req)
 	if rec.Code != http.StatusFound {
 		t.Fatalf("html client: status = %d, want %d", rec.Code, http.StatusFound)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/admin/api/shares", nil)
 	rec = httptest.NewRecorder()
-	adminAuth(okHandler)(rec, req)
+	e.srv.adminAuth(okHandler)(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("api client: status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 }
 
 func TestCredentialChangeRejectsWithForbiddenNotUnauthorized(t *testing.T) {
-	withConfig(t)
+	e := withConfig(t)
 
 	cases := []struct {
 		name    string
@@ -95,12 +95,12 @@ func TestCredentialChangeRejectsWithForbiddenNotUnauthorized(t *testing.T) {
 	}{
 		{
 			"change username",
-			handleAdminSettingsUsername,
+			e.srv.handleAdminSettingsUsername,
 			`{"current_password":"wrong","new_username":"other"}`,
 		},
 		{
 			"change password",
-			handleAdminSettingsPassword,
+			e.srv.handleAdminSettingsPassword,
 			`{"current_password":"wrong","new_password":"other"}`,
 		},
 	}

@@ -13,8 +13,8 @@ import (
 // POST /{subpath}/chunk-init
 // Form: uploadId (client-generated hash), filename, totalChunks
 // Response: 200 + {"uploadId":"...", "missingChunks":[0,1,...]}
-func handleChunkInit(w http.ResponseWriter, r *http.Request) {
-	fd, ok := resolveUploadTarget(w, r)
+func (s *server) handleChunkInit(w http.ResponseWriter, r *http.Request) {
+	fd, ok := s.resolveUploadTarget(w, r)
 	if !ok {
 		return
 	}
@@ -41,7 +41,7 @@ func handleChunkInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	missing, err := storage.Init(uploadID, filename, totalChunks, fd.Path)
+	missing, err := s.deps.Uploads.Init(uploadID, filename, totalChunks, fd.Path)
 	if err != nil {
 		GoLog.Errorf("handleChunkInit: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -55,8 +55,8 @@ func handleChunkInit(w http.ResponseWriter, r *http.Request) {
 // handleChunkReceive stores one chunk: 202 while more are expected, 204 once the file is assembled.
 // POST /{subpath}/chunk
 // Multipart: uploadId, chunkIndex, chunk (file)
-func handleChunkReceive(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(int64(cfgStore.Current().MaxPostSize())); err != nil {
+func (s *server) handleChunkReceive(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(int64(s.deps.Store.Current().MaxPostSize())); err != nil {
 		GoLog.Errorf("handleChunkReceive: parse multipart: %v", err)
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
@@ -81,7 +81,7 @@ func handleChunkReceive(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	done, err := storage.Receive(uploadID, chunkIndex, f)
+	done, err := s.deps.Uploads.Receive(uploadID, chunkIndex, f)
 	if err != nil {
 		GoLog.Errorf("handleChunkReceive: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

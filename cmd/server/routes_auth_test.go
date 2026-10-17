@@ -45,8 +45,8 @@ func sessionCookie(cookies []*http.Cookie) *http.Cookie {
 }
 
 func TestLoginSetsAStrictHttpOnlySessionCookie(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, configWithAdmin(t, "secret"))
+	e := newEnv(t, configWithAdmin(t, "secret"))
+	h := e.handler
 
 	res := login(h, "admin", "secret")
 
@@ -66,8 +66,8 @@ func TestLoginSetsAStrictHttpOnlySessionCookie(t *testing.T) {
 }
 
 func TestLoginRejectsWrongCredentials(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, configWithAdmin(t, "secret"))
+	e := newEnv(t, configWithAdmin(t, "secret"))
+	h := e.handler
 
 	for _, tc := range []struct{ user, pass string }{{"admin", "wrong"}, {"other", "secret"}} {
 		res := login(h, tc.user, tc.pass)
@@ -78,8 +78,8 @@ func TestLoginRejectsWrongCredentials(t *testing.T) {
 }
 
 func TestLoginIsRateLimitedAfterFiveFailures(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, configWithAdmin(t, "secret"))
+	e := newEnv(t, configWithAdmin(t, "secret"))
+	h := e.handler
 
 	for i := 0; i < ratelimit.MaxFailures; i++ {
 		login(h, "admin", "wrong")
@@ -91,9 +91,9 @@ func TestLoginIsRateLimitedAfterFiveFailures(t *testing.T) {
 }
 
 func TestLogoutEndsTheSession(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, baseConfig())
-	cookie := adminCookie(t)
+	e := newEnv(t, baseConfig())
+	h := e.handler
+	cookie := e.cookie(t)
 
 	rec := send(h, http.MethodGet, "/admin/logout", nil, withCookie(cookie))
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
@@ -105,10 +105,10 @@ func TestLogoutEndsTheSession(t *testing.T) {
 }
 
 func TestLoginPageBeforeSetupRedirects(t *testing.T) {
-	h := newServer(t)
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
-	seedConfig(t, cfg)
+	e := newEnv(t, cfg)
+	h := e.handler
 
 	rec := send(h, http.MethodGet, "/admin/login", nil)
 	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/setup" {
@@ -123,11 +123,11 @@ func setupInit(h http.Handler, code, pass string) int {
 }
 
 func TestSetupFlow(t *testing.T) {
-	h := newServer(t)
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
-	seedConfig(t, cfg)
-	code := admins.SetupCode()
+	e := newEnv(t, cfg)
+	h := e.handler
+	code := e.auth.SetupCode()
 
 	if rec := send(h, http.MethodGet, "/setup", nil); rec.Code != http.StatusOK {
 		t.Fatalf("GET /setup = %d, want 200", rec.Code)
@@ -141,7 +141,7 @@ func TestSetupFlow(t *testing.T) {
 	if got := setupInit(h, code, "pw"); got != http.StatusNoContent {
 		t.Fatalf("right code: %d, want 204", got)
 	}
-	if stored := storedConfig(t); stored.AdminUsername != "boss" || !password.Check("pw", stored.AdminPassword) {
+	if stored := e.stored(t); stored.AdminUsername != "boss" || !password.Check("pw", stored.AdminPassword) {
 		t.Errorf("credentials not stored: user %q", stored.AdminUsername)
 	}
 	if got := setupInit(h, code, "again"); got != http.StatusForbidden {
@@ -153,22 +153,22 @@ func TestSetupFlow(t *testing.T) {
 }
 
 func TestSetupIsRateLimited(t *testing.T) {
-	h := newServer(t)
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
-	seedConfig(t, cfg)
+	e := newEnv(t, cfg)
+	h := e.handler
 
 	for i := 0; i < ratelimit.MaxFailures; i++ {
 		setupInit(h, "wrong", "pw")
 	}
-	if got := setupInit(h, admins.SetupCode(), "pw"); got != http.StatusTooManyRequests {
+	if got := setupInit(h, e.auth.SetupCode(), "pw"); got != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", got)
 	}
 }
 
 func TestLoginWithABrokenBodyIs400EvenWhileLocked(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, configWithAdmin(t, "secret"))
+	e := newEnv(t, configWithAdmin(t, "secret"))
+	h := e.handler
 
 	for range ratelimit.MaxFailures {
 		login(h, "admin", "wrong")
@@ -180,9 +180,9 @@ func TestLoginWithABrokenBodyIs400EvenWhileLocked(t *testing.T) {
 }
 
 func TestPasswordChangeIsRateLimitedAfterFiveWrongCurrentPasswords(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, baseConfig())
-	cookie := adminCookie(t)
+	e := newEnv(t, baseConfig())
+	h := e.handler
+	cookie := e.cookie(t)
 	change := func(current string) *httptest.ResponseRecorder {
 		body := `{"current_password":"` + current + `","new_password":"neu"}`
 		return send(h, http.MethodPost, "/admin/api/settings/password", strings.NewReader(body),
@@ -201,10 +201,10 @@ func TestPasswordChangeIsRateLimitedAfterFiveWrongCurrentPasswords(t *testing.T)
 }
 
 func TestSetupWithABrokenBodyIs400EvenWhileLocked(t *testing.T) {
-	h := newServer(t)
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
-	seedConfig(t, cfg)
+	e := newEnv(t, cfg)
+	h := e.handler
 
 	for range ratelimit.MaxFailures {
 		setupInit(h, "wrong", "pw")

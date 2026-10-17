@@ -30,8 +30,8 @@ var adminRouteTable = []struct {
 }
 
 func TestAdminRoutesWithoutSession(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, baseConfig())
+	e := newEnv(t, baseConfig())
+	h := e.handler
 
 	for _, rt := range adminRouteTable {
 		t.Run(rt.method+" "+rt.path, func(t *testing.T) {
@@ -47,10 +47,10 @@ func TestAdminRoutesWithoutSession(t *testing.T) {
 }
 
 func TestAdminRoutesBeforeSetupRedirectToSetup(t *testing.T) {
-	h := newServer(t)
 	cfg := baseConfig()
 	cfg.AdminPassword = ""
-	seedConfig(t, cfg)
+	e := newEnv(t, cfg)
+	h := e.handler
 
 	rec := send(h, http.MethodGet, "/admin", nil, asNavigation)
 	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/setup" {
@@ -59,9 +59,9 @@ func TestAdminRoutesBeforeSetupRedirectToSetup(t *testing.T) {
 }
 
 func TestAdminRoutesWithSession(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, baseConfig())
-	cookie := adminCookie(t)
+	e := newEnv(t, baseConfig())
+	h := e.handler
+	cookie := e.cookie(t)
 
 	for _, rt := range adminRouteTable {
 		t.Run(rt.method+" "+rt.path, func(t *testing.T) {
@@ -74,8 +74,8 @@ func TestAdminRoutesWithSession(t *testing.T) {
 }
 
 func TestForgedSessionCookieIsRejected(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, baseConfig())
+	e := newEnv(t, baseConfig())
+	h := e.handler
 
 	rec := send(h, http.MethodGet, "/admin/api/shares", nil, asFetch,
 		withCookie(&http.Cookie{Name: adminSessionCookie, Value: "forged"}))

@@ -8,15 +8,12 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/share"
 )
-
-var officeHtmlPath = "./web/html/office.html"
 
 // officeWanted reports whether this request should get the viewer page instead of the file.
 func officeWanted(r *http.Request, ctx *requestContext) bool {
@@ -44,27 +41,9 @@ type officePage struct {
 	Config      template.JS
 }
 
-var (
-	officeTemplateOnce sync.Once
-	officeTemplate     *template.Template
-	officeTemplateErr  error
-)
-
-func loadOfficeTemplate() (*template.Template, error) {
-	officeTemplateOnce.Do(func() {
-		officeTemplate, officeTemplateErr = template.New("office").ParseFiles(officeHtmlPath)
-	})
-	return officeTemplate, officeTemplateErr
-}
-
 // serveOfficeViewer renders the page that embeds the document server editor.
-func serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
-	tmpl, err := loadOfficeTemplate()
-	if err != nil {
-		GoLog.Errorf("failed to load office template: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+func (s *server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	tmpl := s.tpl.office
 
 	scheme := "http"
 	if requestIsHTTPS(r) {
@@ -110,10 +89,9 @@ func dsReply(w http.ResponseWriter, code int, dsErr int) {
 	fmt.Fprintf(w, `{"error":%d}`, dsErr)
 }
 
-// handleOfficeCallback receives the document server's save notifications and
-// replaces the file when a saved version is announced.
-func handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
-	cfg := cfgStore.Current()
+// handleOfficeCallback replaces the file when the document server announces a saved version.
+func (s *server) handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
+	cfg := s.deps.Store.Current()
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
 	fd, exists := cfg.Share(subpath)
 	if !exists {

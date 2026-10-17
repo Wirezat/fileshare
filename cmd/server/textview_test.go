@@ -35,7 +35,7 @@ func textView(t *testing.T, ctx *requestContext) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/docs/"+ctx.fileInfo.Name()+"?view=text", nil)
 	rec := httptest.NewRecorder()
-	handleGet(rec, req, ctx)
+	newEnv(t, baseConfig()).srv.handleGet(rec, req, ctx)
 	return rec
 }
 
@@ -96,7 +96,7 @@ func TestWithoutViewParamTheFileIsServedAsIs(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/docs/notes.txt", nil)
 	rec := httptest.NewRecorder()
 
-	handleGet(rec, req, ctx)
+	newEnv(t, baseConfig()).srv.handleGet(rec, req, ctx)
 
 	if body := rec.Body.String(); body != "plain" {
 		t.Errorf("body = %q, want the raw file", body)

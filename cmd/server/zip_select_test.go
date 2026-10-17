@@ -14,8 +14,9 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 )
 
-func selectionShare(t *testing.T) (*requestContext, string) {
+func selectionShare(t *testing.T) (*testEnv, *requestContext, string) {
 	t.Helper()
+	e := newEnv(t, baseConfig())
 	dir := t.TempDir()
 	must := func(err error) {
 		if err != nil {
@@ -31,7 +32,7 @@ func selectionShare(t *testing.T) (*requestContext, string) {
 	must(os.WriteFile(filepath.Join(dir, "sub", ".hidden"), []byte("h"), 0o644))
 	must(os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
 	must(os.WriteFile(filepath.Join(dir, ".git", "HEAD"), []byte("ref"), 0o644))
-	return &requestContext{
+	return e, &requestContext{
 		subpath:  "docs",
 		diskPath: dir,
 		fileData: config.FileData{Path: dir},
@@ -53,11 +54,11 @@ func zipNames(t *testing.T, body []byte) []string {
 }
 
 func TestSelectionZipContainsOnlyChosenEntries(t *testing.T) {
-	ctx, _ := selectionShare(t)
+	e, ctx, _ := selectionShare(t)
 	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip&f=a.txt&f=sub", nil)
 	rec := httptest.NewRecorder()
 
-	serveDirectory(rec, req, ctx)
+	e.srv.serveDirectory(rec, req, ctx)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -73,12 +74,12 @@ func TestSelectionZipContainsOnlyChosenEntries(t *testing.T) {
 }
 
 func TestSelectionZipRejectsPathsOutsideTheDirectory(t *testing.T) {
-	ctx, _ := selectionShare(t)
+	e, ctx, _ := selectionShare(t)
 	for _, f := range []string{"../x", "/etc/passwd", ".secret", "sub/../../x"} {
 		req := httptest.NewRequest(http.MethodGet, "/docs?download=zip&f="+f, nil)
 		rec := httptest.NewRecorder()
 
-		serveDirectory(rec, req, ctx)
+		e.srv.serveDirectory(rec, req, ctx)
 
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("f=%q: status = %d, want 400", f, rec.Code)
@@ -87,12 +88,12 @@ func TestSelectionZipRejectsPathsOutsideTheDirectory(t *testing.T) {
 }
 
 func TestSelectionZipDeniedWhenNoZip(t *testing.T) {
-	ctx, _ := selectionShare(t)
+	e, ctx, _ := selectionShare(t)
 	ctx.fileData.NoZip = true
 	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip&f=a.txt", nil)
 	rec := httptest.NewRecorder()
 
-	serveDirectory(rec, req, ctx)
+	e.srv.serveDirectory(rec, req, ctx)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
@@ -100,11 +101,11 @@ func TestSelectionZipDeniedWhenNoZip(t *testing.T) {
 }
 
 func TestWholeFolderZipSkipsHiddenEntries(t *testing.T) {
-	ctx, _ := selectionShare(t)
+	e, ctx, _ := selectionShare(t)
 	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip", nil)
 	rec := httptest.NewRecorder()
 
-	serveDirectory(rec, req, ctx)
+	e.srv.serveDirectory(rec, req, ctx)
 
 	got := zipNames(t, rec.Body.Bytes())
 	want := []string{"a.txt", "b.txt", "sub/c.txt", "sub/deep/d.txt"}

@@ -3,16 +3,12 @@ package main
 import (
 	"html/template"
 	"net/http"
-	"sync"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/media"
 )
 
-var previewHtmlPath = "./web/html/preview.html"
-
-// previewWanted reports whether this request should get a link-preview page
-// with Open Graph tags instead of the file itself.
+// previewWanted reports whether this request should get the link-preview page instead of the file.
 func previewWanted(r *http.Request, ctx *requestContext) bool {
 	return r.Method == http.MethodGet &&
 		!ctx.fileInfo.IsDir() &&
@@ -41,30 +37,9 @@ func absoluteURL(r *http.Request, path string) string {
 	return scheme + "://" + r.Host + path
 }
 
-var (
-	previewTemplateOnce sync.Once
-	previewTemplate     *template.Template
-	previewTemplateErr  error
-)
-
-func loadPreviewTemplate() (*template.Template, error) {
-	previewTemplateOnce.Do(func() {
-		previewTemplate, previewTemplateErr = template.New("preview").ParseFiles(previewHtmlPath)
-		if previewTemplateErr != nil {
-			GoLog.Errorf("failed to parse preview template: %v", previewTemplateErr)
-		}
-	})
-	return previewTemplate, previewTemplateErr
-}
-
-// servePreview renders an Open Graph preview page for a bot hitting a shared
-// file directly, instead of handing it the file's raw bytes.
-func servePreview(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
-	tmpl, err := loadPreviewTemplate()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+// servePreview renders the Open Graph preview page for a shared file.
+func (s *server) servePreview(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	tmpl := s.tpl.preview
 
 	name := ctx.fileInfo.Name()
 	dlPath := r.URL.Path + "?dl=1"
@@ -90,12 +65,8 @@ func servePreview(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 }
 
 // serveExpiredPreview renders the same page for a bot hitting an expired share.
-func serveExpiredPreview(w http.ResponseWriter, r *http.Request, subpath string) {
-	tmpl, err := loadPreviewTemplate()
-	if err != nil {
-		http.Error(w, "File share expired. Please ask your host to re-share it", http.StatusGone)
-		return
-	}
+func (s *server) serveExpiredPreview(w http.ResponseWriter, r *http.Request, subpath string) {
+	tmpl := s.tpl.preview
 	renderPreview(w, http.StatusGone, tmpl, previewData{
 		Title:       "/" + subpath,
 		Description: "This share has expired",

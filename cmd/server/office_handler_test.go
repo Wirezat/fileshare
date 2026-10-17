@@ -15,7 +15,7 @@ import (
 
 const docBytes = "PK\x03\x04 pretend this is a docx"
 
-func withOfficeShare(t *testing.T, fd config.FileData, officeURL, secret string) string {
+func withOfficeShare(t *testing.T, fd config.FileData, officeURL, secret string) (*testEnv, string) {
 	t.Helper()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "bericht.docx"), []byte(docBytes), 0o600)
@@ -25,39 +25,24 @@ func withOfficeShare(t *testing.T, fd config.FileData, officeURL, secret string)
 	cfg := baseConfig()
 	cfg.OfficeURL, cfg.OfficeSecret = officeURL, secret
 	cfg.Files["docs"] = fd
-	seedConfig(t, cfg)
-	prevOffice, prevPreview := officeHtmlPath, previewHtmlPath
-	prevShare, prevGate := shareHtmlPath, gateHtmlPath
-	prevNotFound, prevExpired := notFoundHtmlPath, expiredHtmlPath
-	officeHtmlPath = "../../assets/web/html/office.html"
-	previewHtmlPath = "../../assets/web/html/preview.html"
-	shareHtmlPath = "../../assets/web/html/share.html"
-	gateHtmlPath = "../../assets/web/html/gate.html"
-	notFoundHtmlPath = "../../assets/web/html/notfound.html"
-	expiredHtmlPath = "../../assets/web/html/expired.html"
-	t.Cleanup(func() {
-		officeHtmlPath, previewHtmlPath = prevOffice, prevPreview
-		shareHtmlPath, gateHtmlPath = prevShare, prevGate
-		notFoundHtmlPath, expiredHtmlPath = prevNotFound, prevExpired
-	})
-	return dir
+	return newEnv(t, cfg), dir
 }
 
-func get(t *testing.T, target string, hdr ...string) *httptest.ResponseRecorder {
+func get(t *testing.T, e *testEnv, target string, hdr ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	for i := 0; i+1 < len(hdr); i += 2 {
 		req.Header.Set(hdr[i], hdr[i+1])
 	}
 	rec := httptest.NewRecorder()
-	handleRequest(rec, req)
+	e.srv.handleRequest(rec, req)
 	return rec
 }
 
 func TestViewerPageForOfficeDoc(t *testing.T) {
-	withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
 
-	rec := get(t, "/docs/bericht.docx", "Accept-Language", "de-DE,de;q=0.9")
+	rec := get(t, e, "/docs/bericht.docx", "Accept-Language", "de-DE,de;q=0.9")
 	body := rec.Body.String()
 
 	if rec.Code != http.StatusOK {
@@ -88,9 +73,9 @@ func TestViewerPageForOfficeDoc(t *testing.T) {
 }
 
 func TestDlServesTheFileInsideTheSandbox(t *testing.T) {
-	withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
 
-	rec := get(t, "/docs/bericht.docx?dl=1")
+	rec := get(t, e, "/docs/bericht.docx?dl=1")
 	if rec.Code != http.StatusOK || rec.Body.String() != docBytes {
 		t.Fatalf("status = %d, body = %q", rec.Code, rec.Body.String())
 	}
@@ -114,8 +99,8 @@ func TestFileServedDirectlyWhenViewerDoesNotApply(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			withOfficeShare(t, tc.fd, tc.officeURL, tc.secret)
-			rec := get(t, tc.target)
+			e, _ := withOfficeShare(t, tc.fd, tc.officeURL, tc.secret)
+			rec := get(t, e, tc.target)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d", rec.Code)
 			}
@@ -128,29 +113,29 @@ func TestFileServedDirectlyWhenViewerDoesNotApply(t *testing.T) {
 
 func TestPasswordShareOpensForTheDocumentServer(t *testing.T) {
 	hash, _ := password.Hash("geheim")
-	withOfficeShare(t, config.FileData{Office: config.OfficeView, Password: hash}, "https://office.example.com", testSecret)
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeView, Password: hash}, "https://office.example.com", testSecret)
 	exp := time.Now().Add(5 * time.Minute).Unix()
 
-	if rec := get(t, "/docs/bericht.docx?dl=1"); strings.Contains(rec.Body.String(), docBytes) {
+	if rec := get(t, e, "/docs/bericht.docx?dl=1"); strings.Contains(rec.Body.String(), docBytes) {
 		t.Fatal("file served without password or token")
 	}
-	if rec := get(t, "/docs/bericht.docx"); strings.Contains(rec.Body.String(), "api.js") {
+	if rec := get(t, e, "/docs/bericht.docx"); strings.Contains(rec.Body.String(), "api.js") {
 		t.Fatal("viewer page served without password")
 	}
 
-	rec := get(t, "/docs/bericht.docx?dl=1",
+	rec := get(t, e, "/docs/bericht.docx?dl=1",
 		"Authorization", dsBearer(t, testSecret, "https://fileshare.example.com/docs/bericht.docx?dl=1", exp))
 	if rec.Code != http.StatusOK || rec.Body.String() != docBytes {
 		t.Fatalf("with document server token: status = %d, body = %q", rec.Code, rec.Body.String())
 	}
 
-	rec = get(t, "/docs/bericht.docx?dl=1",
+	rec = get(t, e, "/docs/bericht.docx?dl=1",
 		"Authorization", dsBearer(t, testSecret, "https://fileshare.example.com/docs/notiz.txt?dl=1", exp))
 	if strings.Contains(rec.Body.String(), docBytes) {
 		t.Fatal("token for another file unlocked this one")
 	}
 
-	rec = get(t, "/docs/bericht.docx?dl=1",
+	rec = get(t, e, "/docs/bericht.docx?dl=1",
 		"Authorization", dsBearer(t, "wrong", "https://fileshare.example.com/docs/bericht.docx?dl=1", exp))
 	if strings.Contains(rec.Body.String(), docBytes) {
 		t.Fatal("token with the wrong secret unlocked the file")
@@ -158,10 +143,10 @@ func TestPasswordShareOpensForTheDocumentServer(t *testing.T) {
 }
 
 func TestPdfIsServedWithoutTheSandbox(t *testing.T) {
-	dir := withOfficeShare(t, config.FileData{}, "", "")
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "scan.pdf"), []byte("%PDF-1.4 fake"), 0o600)
 
-	pdf := get(t, "/docs/scan.pdf")
+	pdf := get(t, e, "/docs/scan.pdf")
 	if pdf.Code != http.StatusOK || pdf.Header().Get("Content-Security-Policy") != "" {
 		t.Errorf("pdf: status %d, CSP %q, want 200 and no sandbox", pdf.Code, pdf.Header().Get("Content-Security-Policy"))
 	}
@@ -169,13 +154,13 @@ func TestPdfIsServedWithoutTheSandbox(t *testing.T) {
 		t.Errorf("pdf Content-Type = %q", ct)
 	}
 
-	txt := get(t, "/docs/notiz.txt")
+	txt := get(t, e, "/docs/notiz.txt")
 	if txt.Header().Get("Content-Security-Policy") != "sandbox" {
 		t.Errorf("txt lost its sandbox: %q", txt.Header().Get("Content-Security-Policy"))
 	}
 
 	os.WriteFile(filepath.Join(dir, "fake.pdf"), []byte("<html><script>alert(1)</script>"), 0o600)
-	fake := get(t, "/docs/fake.pdf")
+	fake := get(t, e, "/docs/fake.pdf")
 	if ct := fake.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/pdf") {
 		t.Errorf("html disguised as .pdf served as %q", ct)
 	}

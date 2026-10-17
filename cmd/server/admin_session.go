@@ -15,12 +15,12 @@ func currentAdminToken(r *http.Request) string {
 	return ""
 }
 
-func hasAdminCookie(r *http.Request) bool {
+func (s *server) hasAdminCookie(r *http.Request) bool {
 	cookie, err := r.Cookie(adminSessionCookie)
 	if err != nil {
 		return false
 	}
-	return admins.Valid(cookie.Value)
+	return s.deps.Auth.Valid(cookie.Value)
 }
 
 // setAdminCookie issues the session cookie; Secure follows the actual connection.

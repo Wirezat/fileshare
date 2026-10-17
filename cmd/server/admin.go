@@ -21,10 +21,10 @@ func wantsLoginPage(r *http.Request) bool {
 
 // adminAuth gates every /admin route: navigations without a valid session are
 // redirected to /setup or /admin/login, script requests get 401.
-func adminAuth(next http.HandlerFunc) http.HandlerFunc {
+func (s *server) adminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		noPassword := admins.NeedsSetup()
-		if noPassword || !hasAdminCookie(r) {
+		noPassword := s.deps.Auth.NeedsSetup()
+		if noPassword || !s.hasAdminCookie(r) {
 			if !wantsLoginPage(r) {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -41,15 +41,15 @@ func adminAuth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // handleAdminLogin serves the login page (GET) and validates credentials (POST).
-func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
-	if admins.NeedsSetup() {
+func (s *server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Auth.NeedsSetup() {
 		http.Redirect(w, r, "/setup", http.StatusFound)
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
-		http.ServeFile(w, r, adminLoginHtmlPath)
+		http.ServeFile(w, r, s.asset("html/admin-login.html"))
 
 	case http.MethodPost:
 		var creds struct {
@@ -67,7 +67,7 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		ip := clientIP(r)
-		token, err := admins.Login(creds.Username, creds.Password, ip)
+		token, err := s.deps.Auth.Login(creds.Username, creds.Password, ip)
 		var limited auth.RateLimitedError
 		switch {
 		case err == nil:
@@ -91,8 +91,8 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAdminLogout invalidates the session token and clears the cookie.
-func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
-	admins.Logout(currentAdminToken(r))
+func (s *server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
+	s.deps.Auth.Logout(currentAdminToken(r))
 	clearAdminCookie(w, r)
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
@@ -100,7 +100,7 @@ func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 // handleAdminSettingsMaxPostSize updates the maximum per-chunk POST size.
 // PATCH /admin/api/settings/max_post_size
 // Body: {"maxPostSize": 94371840}
-func handleAdminSettingsMaxPostSize(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminSettingsMaxPostSize(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		MaxPostSize int `json:"maxPostSize"`
 	}
@@ -108,7 +108,7 @@ func handleAdminSettingsMaxPostSize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	if !updateOrErr(w, func(c *config.Config) error {
+	if !s.updateOrErr(w, func(c *config.Config) error {
 		c.MaxPostSize = body.MaxPostSize
 		return nil
 	}) {
@@ -120,7 +120,7 @@ func handleAdminSettingsMaxPostSize(w http.ResponseWriter, r *http.Request) {
 // handleAdminSettingsChunkInactivityTimeout updates the inactivity timeout of incomplete chunked uploads.
 // PATCH /admin/api/settings/chunk_inactivity_timeout
 // Body: {"chunkInactivityTimeout": 1800}  (seconds)
-func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Seconds int `json:"chunkInactivityTimeout"`
 	}
@@ -128,7 +128,7 @@ func handleAdminSettingsChunkInactivityTimeout(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Bad Request: minimum 60 seconds", http.StatusBadRequest)
 		return
 	}
-	if !updateOrErr(w, func(c *config.Config) error {
+	if !s.updateOrErr(w, func(c *config.Config) error {
 		c.ChunkInactivityTimeout = body.Seconds
 		return nil
 	}) {

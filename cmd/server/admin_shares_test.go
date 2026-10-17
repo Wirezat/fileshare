@@ -13,48 +13,48 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 )
 
-func withShare(t *testing.T, sub string, fd config.FileData) {
+func withShare(t *testing.T, sub string, fd config.FileData) *testEnv {
 	t.Helper()
 	cfg := baseConfig()
 	if sub != "" {
 		cfg.Files[sub] = fd
 	}
-	seedConfig(t, cfg)
+	return newEnv(t, cfg)
 }
 
-func shareOf(t *testing.T, sub string) config.FileData {
+func shareOf(t *testing.T, e *testEnv, sub string) config.FileData {
 	t.Helper()
-	fd, ok := storedConfig(t).Files[sub]
+	fd, ok := e.stored(t).Files[sub]
 	if !ok {
 		t.Fatalf("share %q missing", sub)
 	}
 	return fd
 }
 
-func postShare(t *testing.T, body string) *httptest.ResponseRecorder {
+func postShare(t *testing.T, e *testEnv, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/admin/api/shares", strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	handleAdminShares(rec, req)
+	e.srv.handleAdminShares(rec, req)
 	return rec
 }
 
-func patchShare(t *testing.T, sub, body string) *httptest.ResponseRecorder {
+func patchShare(t *testing.T, e *testEnv, sub, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPatch, "/admin/api/shares?subpath="+sub, strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	handleAdminShares(rec, req)
+	e.srv.handleAdminShares(rec, req)
 	return rec
 }
 
 func TestShareCreateStoresZipAndOffice(t *testing.T) {
-	withShare(t, "", config.FileData{})
+	e := withShare(t, "", config.FileData{})
 
-	rec := postShare(t, `{"subpath":"docs","path":"/tmp","no_zip":true,"office":"view"}`)
+	rec := postShare(t, e, `{"subpath":"docs","path":"/tmp","no_zip":true,"office":"view"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
-	fd := shareOf(t, "docs")
+	fd := shareOf(t, e, "docs")
 	if !fd.NoZip {
 		t.Error("NoZip = false, want true")
 	}
@@ -64,13 +64,13 @@ func TestShareCreateStoresZipAndOffice(t *testing.T) {
 }
 
 func TestShareCreateRejectsUnknownOffice(t *testing.T) {
-	withShare(t, "", config.FileData{})
+	e := withShare(t, "", config.FileData{})
 
-	rec := postShare(t, `{"subpath":"docs","path":"/tmp","office":"print"}`)
+	rec := postShare(t, e, `{"subpath":"docs","path":"/tmp","office":"print"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
-	cfg := storedConfig(t)
+	cfg := e.stored(t)
 	if _, exists := cfg.Files["docs"]; exists {
 		t.Error("rejected share was stored anyway")
 	}
@@ -90,13 +90,13 @@ func TestSharePatchOffice(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			withShare(t, "docs", config.FileData{Path: "/tmp", Office: config.OfficeView})
+			e := withShare(t, "docs", config.FileData{Path: "/tmp", Office: config.OfficeView})
 
-			rec := patchShare(t, "docs", tc.body)
+			rec := patchShare(t, e, "docs", tc.body)
 			if rec.Code != tc.code {
 				t.Fatalf("status = %d, want %d: %s", rec.Code, tc.code, rec.Body.String())
 			}
-			if got := shareOf(t, "docs").Office; got != tc.wantO {
+			if got := shareOf(t, e, "docs").Office; got != tc.wantO {
 				t.Errorf("Office = %q, want %q", got, tc.wantO)
 			}
 		})
@@ -104,19 +104,19 @@ func TestSharePatchOffice(t *testing.T) {
 }
 
 func TestSharePatchNoZip(t *testing.T) {
-	withShare(t, "docs", config.FileData{Path: "/tmp"})
+	e := withShare(t, "docs", config.FileData{Path: "/tmp"})
 
-	if rec := patchShare(t, "docs", `{"no_zip":true}`); rec.Code != http.StatusOK {
+	if rec := patchShare(t, e, "docs", `{"no_zip":true}`); rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
-	if !shareOf(t, "docs").NoZip {
+	if !shareOf(t, e, "docs").NoZip {
 		t.Error("NoZip = false after patch, want true")
 	}
 
-	if rec := patchShare(t, "docs", `{"no_zip":false}`); rec.Code != http.StatusOK {
+	if rec := patchShare(t, e, "docs", `{"no_zip":false}`); rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if shareOf(t, "docs").NoZip {
+	if shareOf(t, e, "docs").NoZip {
 		t.Error("NoZip = true after clearing, want false")
 	}
 }
@@ -145,11 +145,11 @@ func TestNoZipIsOmittedWhenFalse(t *testing.T) {
 }
 
 func TestShareQRReturnsAPNG(t *testing.T) {
-	withShare(t, "docs", config.FileData{Path: "/tmp"})
+	e := withShare(t, "docs", config.FileData{Path: "/tmp"})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr?subpath=docs", nil)
 	rec := httptest.NewRecorder()
-	handleAdminShareQR(rec, req)
+	e.srv.handleAdminShareQR(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -167,11 +167,11 @@ func TestShareQRReturnsAPNG(t *testing.T) {
 }
 
 func TestShareQRMissingShareIs404(t *testing.T) {
-	withShare(t, "", config.FileData{})
+	e := withShare(t, "", config.FileData{})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr?subpath=nope", nil)
 	rec := httptest.NewRecorder()
-	handleAdminShareQR(rec, req)
+	e.srv.handleAdminShareQR(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
@@ -179,11 +179,11 @@ func TestShareQRMissingShareIs404(t *testing.T) {
 }
 
 func TestShareQRRequiresSubpath(t *testing.T) {
-	withShare(t, "docs", config.FileData{Path: "/tmp"})
+	e := withShare(t, "docs", config.FileData{Path: "/tmp"})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares/qr", nil)
 	rec := httptest.NewRecorder()
-	handleAdminShareQR(rec, req)
+	e.srv.handleAdminShareQR(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", rec.Code)
@@ -191,6 +191,7 @@ func TestShareQRRequiresSubpath(t *testing.T) {
 }
 
 func TestZipDownloadDeniedWhenNoZip(t *testing.T) {
+	e := newEnv(t, baseConfig())
 	dir := t.TempDir()
 	ctx := &requestContext{
 		subpath:  "docs",
@@ -200,7 +201,7 @@ func TestZipDownloadDeniedWhenNoZip(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip", nil)
 	rec := httptest.NewRecorder()
 
-	serveDirectory(rec, req, ctx)
+	e.srv.serveDirectory(rec, req, ctx)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
@@ -213,29 +214,29 @@ func TestZipDownloadDeniedWhenNoZip(t *testing.T) {
 func TestShareCreateCleansTrailingSlash(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "notiz.txt"), []byte("plain"), 0o600)
-	withShare(t, "", config.FileData{})
+	e := withShare(t, "", config.FileData{})
 
-	rec := postShare(t, `{"subpath":"docs","path":"`+dir+`/"}`)
+	rec := postShare(t, e, `{"subpath":"docs","path":"`+dir+`/"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
-	if got := shareOf(t, "docs").Path; got != dir {
+	if got := shareOf(t, e, "docs").Path; got != dir {
 		t.Errorf("Path = %q, want %q", got, dir)
 	}
-	if rec := get(t, "/docs/notiz.txt"); rec.Code != http.StatusOK {
+	if rec := get(t, e, "/docs/notiz.txt"); rec.Code != http.StatusOK {
 		t.Errorf("GET status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 }
 
 func TestSharePatchCleansTrailingSlash(t *testing.T) {
 	dir := t.TempDir()
-	withShare(t, "docs", config.FileData{Path: "/tmp"})
+	e := withShare(t, "docs", config.FileData{Path: "/tmp"})
 
-	rec := patchShare(t, "docs", `{"path":"`+dir+`//"}`)
+	rec := patchShare(t, e, "docs", `{"path":"`+dir+`//"}`)
 	if rec.Code/100 != 2 {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
-	if got := shareOf(t, "docs").Path; got != dir {
+	if got := shareOf(t, e, "docs").Path; got != dir {
 		t.Errorf("Path = %q, want %q", got, dir)
 	}
 }

@@ -7,16 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/logstore"
 )
-
-var logStore = logstore.New()
 
 const (
 	maxBodyBytes = 1 << 20 // 1 MB
@@ -35,7 +31,7 @@ type requestLog struct {
 }
 
 // loggingMiddleware records every request in the admin log store.
-func loggingMiddleware(next http.Handler) http.Handler {
+func (s *server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/log" {
 			next.ServeHTTP(w, r)
@@ -50,8 +46,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 				Message: fmt.Sprintf("%s %s", rl.Method, rl.URL),
 				Request: data,
 			}
-			logStore.Add(entry)
-			persistRequestLog(entry)
+			s.deps.Logs.Add(entry)
+			s.persistRequestLog(entry)
 		} else {
 			GoLog.Warnf("loggingMiddleware: failed to serialize request: %v", err)
 		}
@@ -60,36 +56,15 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-var (
-	requestLogMu   sync.Mutex
-	requestLogFile *os.File
-)
-
-// openRequestLog opens GoLog's log file for appending request-log entries, one JSON object per line.
-func openRequestLog() {
-	path := GoLog.LogPath()
-	if path == "" {
-		return
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		GoLog.Warnf("openRequestLog: %v", err)
-		return
-	}
-	requestLogMu.Lock()
-	requestLogFile = f
-	requestLogMu.Unlock()
-}
-
-func persistRequestLog(entry logstore.Entry) {
+func (s *server) persistRequestLog(entry logstore.Entry) {
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return
 	}
-	requestLogMu.Lock()
-	defer requestLogMu.Unlock()
-	if requestLogFile != nil {
-		fmt.Fprintln(requestLogFile, string(data))
+	s.requestLogMu.Lock()
+	defer s.requestLogMu.Unlock()
+	if s.deps.RequestLog != nil {
+		fmt.Fprintln(s.deps.RequestLog, string(data))
 	}
 }
 

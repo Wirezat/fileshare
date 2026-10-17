@@ -10,33 +10,33 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 )
 
-func withOfficeConfig(t *testing.T, officeURL, officeSecret string) {
+func withOfficeConfig(t *testing.T, officeURL, officeSecret string) *testEnv {
 	t.Helper()
 	cfg := baseConfig()
 	cfg.OfficeURL = officeURL
 	cfg.OfficeSecret = officeSecret
-	seedConfig(t, cfg)
+	return newEnv(t, cfg)
 }
 
-func patchOffice(t *testing.T, body string) *httptest.ResponseRecorder {
+func patchOffice(t *testing.T, e *testEnv, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPatch, "/admin/api/settings/office", strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	handleAdminSettingsOffice(rec, req)
+	e.srv.handleAdminSettingsOffice(rec, req)
 	return rec
 }
 
-func loadOffice(t *testing.T) *config.Config {
+func loadOffice(t *testing.T, e *testEnv) *config.Config {
 	t.Helper()
-	return storedConfig(t)
+	return e.stored(t)
 }
 
 func TestOfficeSettingsGetNeverReturnsTheSecret(t *testing.T) {
-	withOfficeConfig(t, "https://office.example.com", "s3cret")
+	e := withOfficeConfig(t, "https://office.example.com", "s3cret")
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/settings/office", nil)
 	rec := httptest.NewRecorder()
-	handleAdminSettingsOffice(rec, req)
+	e.srv.handleAdminSettingsOffice(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -61,11 +61,11 @@ func TestOfficeSettingsGetNeverReturnsTheSecret(t *testing.T) {
 }
 
 func TestOfficeSettingsGetReportsUnsetSecret(t *testing.T) {
-	withOfficeConfig(t, "", "")
+	e := withOfficeConfig(t, "", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/settings/office", nil)
 	rec := httptest.NewRecorder()
-	handleAdminSettingsOffice(rec, req)
+	e.srv.handleAdminSettingsOffice(rec, req)
 
 	var got struct {
 		SecretSet bool `json:"secret_set"`
@@ -77,14 +77,14 @@ func TestOfficeSettingsGetReportsUnsetSecret(t *testing.T) {
 }
 
 func TestOfficeSettingsPatchStoresBothValues(t *testing.T) {
-	withOfficeConfig(t, "", "")
+	e := withOfficeConfig(t, "", "")
 
-	rec := patchOffice(t, `{"office_url":"https://office.example.com","office_secret":"abc123"}`)
+	rec := patchOffice(t, e, `{"office_url":"https://office.example.com","office_secret":"abc123"}`)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204: %s", rec.Code, rec.Body.String())
 	}
 
-	cfg := loadOffice(t)
+	cfg := loadOffice(t, e)
 	if cfg.OfficeURL != "https://office.example.com" {
 		t.Errorf("OfficeURL = %q", cfg.OfficeURL)
 	}
@@ -96,14 +96,14 @@ func TestOfficeSettingsPatchStoresBothValues(t *testing.T) {
 // An omitted field means "leave it alone" — the UI never sends the stored
 // secret back, so a URL-only edit must not wipe it.
 func TestOfficeSettingsPatchLeavesOmittedSecretAlone(t *testing.T) {
-	withOfficeConfig(t, "https://old.example.com", "keepme")
+	e := withOfficeConfig(t, "https://old.example.com", "keepme")
 
-	rec := patchOffice(t, `{"office_url":"https://new.example.com"}`)
+	rec := patchOffice(t, e, `{"office_url":"https://new.example.com"}`)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", rec.Code)
 	}
 
-	cfg := loadOffice(t)
+	cfg := loadOffice(t, e)
 	if cfg.OfficeURL != "https://new.example.com" {
 		t.Errorf("OfficeURL = %q", cfg.OfficeURL)
 	}
@@ -114,14 +114,14 @@ func TestOfficeSettingsPatchLeavesOmittedSecretAlone(t *testing.T) {
 
 // An explicit empty string is how the UI deletes a value.
 func TestOfficeSettingsPatchClearsWithEmptyStrings(t *testing.T) {
-	withOfficeConfig(t, "https://office.example.com", "abc123")
+	e := withOfficeConfig(t, "https://office.example.com", "abc123")
 
-	rec := patchOffice(t, `{"office_url":"","office_secret":""}`)
+	rec := patchOffice(t, e, `{"office_url":"","office_secret":""}`)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", rec.Code)
 	}
 
-	cfg := loadOffice(t)
+	cfg := loadOffice(t, e)
 	if cfg.OfficeURL != "" || cfg.OfficeSecret != "" {
 		t.Errorf("not cleared: url=%q secret=%q", cfg.OfficeURL, cfg.OfficeSecret)
 	}
@@ -139,13 +139,13 @@ func TestOfficeSettingsPatchRejectsUnusableURL(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			withOfficeConfig(t, "https://good.example.com", "keepme")
+			e := withOfficeConfig(t, "https://good.example.com", "keepme")
 
-			rec := patchOffice(t, `{"office_url":`+quote(tc.url)+`}`)
+			rec := patchOffice(t, e, `{"office_url":`+quote(tc.url)+`}`)
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400", rec.Code)
 			}
-			if cfg := loadOffice(t); cfg.OfficeURL != "https://good.example.com" {
+			if cfg := loadOffice(t, e); cfg.OfficeURL != "https://good.example.com" {
 				t.Errorf("rejected value was stored anyway: %q", cfg.OfficeURL)
 			}
 		})
@@ -161,13 +161,13 @@ func TestOfficeSettingsPatchNormalizesURL(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
-			withOfficeConfig(t, "", "")
+			e := withOfficeConfig(t, "", "")
 
-			rec := patchOffice(t, `{"office_url":`+quote(tc.in)+`}`)
+			rec := patchOffice(t, e, `{"office_url":`+quote(tc.in)+`}`)
 			if rec.Code != http.StatusNoContent {
 				t.Fatalf("status = %d, want 204: %s", rec.Code, rec.Body.String())
 			}
-			if got := loadOffice(t).OfficeURL; got != tc.want {
+			if got := loadOffice(t, e).OfficeURL; got != tc.want {
 				t.Errorf("OfficeURL = %q, want %q", got, tc.want)
 			}
 		})
@@ -175,11 +175,11 @@ func TestOfficeSettingsPatchNormalizesURL(t *testing.T) {
 }
 
 func TestOfficeSettingsRejectsOtherMethods(t *testing.T) {
-	withOfficeConfig(t, "", "")
+	e := withOfficeConfig(t, "", "")
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/api/settings/office", strings.NewReader(`{}`))
 	rec := httptest.NewRecorder()
-	handleAdminSettingsOffice(rec, req)
+	e.srv.handleAdminSettingsOffice(rec, req)
 
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)

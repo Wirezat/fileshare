@@ -31,11 +31,11 @@ func normalizeOfficeURL(raw string) (string, error) {
 //	PATCH /admin/api/settings/office   Body: {"office_url":"…","office_secret":"…"}
 //
 // The secret is write-only. On PATCH an omitted field keeps its value and "" deletes it.
-func handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case http.MethodGet:
-		cfg := cfgStore.Current()
+		cfg := s.deps.Store.Current()
 		jsonResponse(w, map[string]any{
 			"office_url": cfg.OfficeURL(),
 			"secret_set": cfg.OfficeSecret() != "",
@@ -58,7 +58,7 @@ func handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		var saved config.Config
-		if !updateOrErr(w, func(c *config.Config) error {
+		if !s.updateOrErr(w, func(c *config.Config) error {
 			if req.OfficeURL != nil {
 				c.OfficeURL = normalized
 			}

@@ -44,7 +44,7 @@ func fakeDS(t *testing.T, saved string) *httptest.Server {
 	return srv
 }
 
-func callback(t *testing.T, target string, body map[string]any, secret string) *httptest.ResponseRecorder {
+func callback(t *testing.T, e *testEnv, target string, body map[string]any, secret string) *httptest.ResponseRecorder {
 	t.Helper()
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(string(raw)))
@@ -54,7 +54,7 @@ func callback(t *testing.T, target string, body map[string]any, secret string) *
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	rec := httptest.NewRecorder()
-	handleRequest(rec, req)
+	e.srv.handleRequest(rec, req)
 	return rec
 }
 
@@ -71,10 +71,10 @@ func dsError(t *testing.T, rec *httptest.ResponseRecorder) int {
 
 func TestCallbackSavesTheDocument(t *testing.T) {
 	ds := fakeDS(t, "PK new version")
-	dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
+	e, dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 	os.Chmod(filepath.Join(dir, "bericht.docx"), 0o644)
 
-	rec := callback(t, "/docs/bericht.docx?callback=1",
+	rec := callback(t, e, "/docs/bericht.docx?callback=1",
 		map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/files/out.docx"}, testSecret)
 
 	if rec.Code != http.StatusOK || dsError(t, rec) != 0 {
@@ -95,9 +95,9 @@ func TestCallbackSavesTheDocument(t *testing.T) {
 
 func TestCallbackForceSaveAlsoWrites(t *testing.T) {
 	ds := fakeDS(t, "forced")
-	dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
+	e, dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 
-	rec := callback(t, "/docs/bericht.docx?callback=1",
+	rec := callback(t, e, "/docs/bericht.docx?callback=1",
 		map[string]any{"key": "k", "status": 6, "url": ds.URL + "/cache/x"}, testSecret)
 	if dsError(t, rec) != 0 {
 		t.Fatal(rec.Body.String())
@@ -110,8 +110,8 @@ func TestCallbackForceSaveAlsoWrites(t *testing.T) {
 func TestCallbackStatusWithoutSaveLeavesFileAlone(t *testing.T) {
 	ds := fakeDS(t, "should never land")
 	for _, status := range []int{1, 3, 4, 7} {
-		dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
-		rec := callback(t, "/docs/bericht.docx?callback=1",
+		e, dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
+		rec := callback(t, e, "/docs/bericht.docx?callback=1",
 			map[string]any{"key": "k", "status": status, "url": ds.URL + "/cache/x"}, testSecret)
 		if dsError(t, rec) != 0 {
 			t.Errorf("status %d: error %d", status, dsError(t, rec))
@@ -145,8 +145,8 @@ func TestCallbackRefusals(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := withOfficeShare(t, tc.fd, ds.URL, testSecret)
-			rec := callback(t, tc.target, map[string]any{"key": "k", "status": 2, "url": tc.url}, tc.secret)
+			e, dir := withOfficeShare(t, tc.fd, ds.URL, testSecret)
+			rec := callback(t, e, tc.target, map[string]any{"key": "k", "status": 2, "url": tc.url}, tc.secret)
 			if rec.Code != tc.want {
 				t.Errorf("status = %d, want %d: %s", rec.Code, tc.want, rec.Body.String())
 			}
@@ -161,19 +161,19 @@ func TestCallbackRefusals(t *testing.T) {
 }
 
 func TestCallbackWithoutTheFlagIsANormalPost(t *testing.T) {
-	withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
 	req := httptest.NewRequest(http.MethodPost, "/docs/bericht.docx", strings.NewReader("{}"))
 	rec := httptest.NewRecorder()
-	handleRequest(rec, req)
+	e.srv.handleRequest(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", rec.Code)
 	}
 }
 
 func TestEditShareGetsAnEditableConfigWithCallback(t *testing.T) {
-	withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
 
-	body := get(t, "/docs/bericht.docx").Body.String()
+	body := get(t, e, "/docs/bericht.docx").Body.String()
 	for _, want := range []string{
 		`"mode":"edit"`,
 		`"edit":true`,
@@ -186,13 +186,13 @@ func TestEditShareGetsAnEditableConfigWithCallback(t *testing.T) {
 }
 
 func TestViewShareGetsNoCallback(t *testing.T) {
-	withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
-	if body := get(t, "/docs/bericht.docx").Body.String(); strings.Contains(body, "callbackUrl") {
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
+	if body := get(t, e, "/docs/bericht.docx").Body.String(); strings.Contains(body, "callbackUrl") {
 		t.Error("view config carries a callbackUrl")
 	}
 }
 
-func withSingleFileShare(t *testing.T, officeURL string) string {
+func withSingleFileShare(t *testing.T, officeURL string) (*testEnv, string) {
 	t.Helper()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "vertrag.docx")
@@ -200,18 +200,14 @@ func withSingleFileShare(t *testing.T, officeURL string) string {
 	cfg := baseConfig()
 	cfg.OfficeURL, cfg.OfficeSecret = officeURL, testSecret
 	cfg.Files["vertrag"] = config.FileData{Path: file, Office: config.OfficeEdit}
-	seedConfig(t, cfg)
-	prev := officeHtmlPath
-	officeHtmlPath = "../../assets/web/html/office.html"
-	t.Cleanup(func() { officeHtmlPath = prev })
-	return file
+	return newEnv(t, cfg), file
 }
 
 func TestSingleFileShareRoundTrip(t *testing.T) {
 	ds := fakeDS(t, "signed version")
-	file := withSingleFileShare(t, ds.URL)
+	e, file := withSingleFileShare(t, ds.URL)
 
-	page := get(t, "/vertrag").Body.String()
+	page := get(t, e, "/vertrag").Body.String()
 	for _, want := range []string{`"mode":"edit"`, `"url":"http://example.com/vertrag?dl=1"`, `"callbackUrl":"http://example.com/vertrag?callback=1"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("viewer lacks %s", want)
@@ -221,11 +217,11 @@ func TestSingleFileShareRoundTrip(t *testing.T) {
 		t.Error("viewer links back to the server root, which is not a listing")
 	}
 
-	if rec := get(t, "/vertrag?dl=1"); rec.Body.String() != docBytes {
+	if rec := get(t, e, "/vertrag?dl=1"); rec.Body.String() != docBytes {
 		t.Fatalf("dl served %q", rec.Body.String())
 	}
 
-	rec := callback(t, "/vertrag?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)
+	rec := callback(t, e, "/vertrag?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)
 	if rec.Code != http.StatusOK || dsError(t, rec) != 0 {
 		t.Fatalf("callback: status %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -236,10 +232,10 @@ func TestSingleFileShareRoundTrip(t *testing.T) {
 
 func TestCallbackRefusesToWriteADirectory(t *testing.T) {
 	ds := fakeDS(t, "x")
-	dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
+	e, dir := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, ds.URL, testSecret)
 	os.Mkdir(filepath.Join(dir, "ordner.docx"), 0o755)
 
-	rec := callback(t, "/docs/ordner.docx?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)
+	rec := callback(t, e, "/docs/ordner.docx?callback=1", map[string]any{"key": "k", "status": 2, "url": ds.URL + "/cache/x"}, testSecret)
 	if rec.Code == http.StatusOK {
 		t.Error("callback accepted a directory as save target")
 	}

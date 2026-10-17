@@ -136,13 +136,13 @@ func TestBrowseRejectsPost(t *testing.T) {
 }
 
 func TestBrowseRequiresAdmin(t *testing.T) {
-	withConfig(t)
+	e := withConfig(t)
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/browse?path=/", nil)
 	req.Header.Set("Sec-Fetch-Mode", "cors")
 	req.Header.Set("Accept", "*/*")
 	rec := httptest.NewRecorder()
 
-	buildMux().ServeHTTP(rec, req)
+	e.srv.buildMux().ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)

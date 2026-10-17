@@ -8,16 +8,16 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/upload"
 )
-
-var testConfigPath string
 
 const testAdminPassword = "test-admin-pw"
 
@@ -39,8 +39,16 @@ func baseConfig() *config.Config {
 	}
 }
 
-// seedConfig installs cfg as the server's config for the rest of the test.
-func seedConfig(t *testing.T, cfg *config.Config) {
+type testEnv struct {
+	path    string
+	store   *store.FileStore
+	auth    *auth.Service
+	srv     *server
+	handler http.Handler
+}
+
+// newEnv builds a fresh server for one test with cfg as its config.
+func newEnv(t *testing.T, cfg *config.Config) *testEnv {
 	t.Helper()
 	if cfg.Files == nil {
 		cfg.Files = map[string]config.FileData{}
@@ -49,21 +57,35 @@ func seedConfig(t *testing.T, cfg *config.Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testConfigPath = filepath.Join(t.TempDir(), "data.json")
-	if err := os.WriteFile(testConfigPath, data, 0o600); err != nil {
+	dir := t.TempDir()
+	e := &testEnv{path: filepath.Join(dir, "data.json")}
+	if err := os.WriteFile(e.path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if cfgStore, err = store.Open(testConfigPath); err != nil {
+	if e.store, err = store.Open(e.path); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	shares = share.New(cfgStore)
-	admins = auth.New(cfgStore)
+	e.auth = auth.New(e.store)
+	e.srv, err = newHTTPServer(deps{
+		Store:   e.store,
+		Shares:  share.New(e.store),
+		Auth:    e.auth,
+		Uploads: upload.New(filepath.Join(dir, "chunks"), chunkTimeout(e.store)),
+		Logs:    logstore.New(),
+		Assets:  "../../assets/web",
+		Started: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.handler = e.srv.handler()
+	return e
 }
 
-// storedConfig returns the config as it was last written to disk.
-func storedConfig(t *testing.T) *config.Config {
+// stored returns the config as it was last written to disk.
+func (e *testEnv) stored(t *testing.T) *config.Config {
 	t.Helper()
-	data, err := os.ReadFile(testConfigPath)
+	data, err := os.ReadFile(e.path)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
@@ -75,27 +97,10 @@ func storedConfig(t *testing.T) *config.Config {
 	return &cfg
 }
 
-// newServer returns the full production handler in a fresh working directory with all in-memory state reset.
-func newServer(t *testing.T) http.Handler {
+// cookie logs in with the baseConfig credentials and returns the session cookie.
+func (e *testEnv) cookie(t *testing.T) *http.Cookie {
 	t.Helper()
-	assets, err := filepath.Abs("../../assets/web")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dir := t.TempDir()
-	if err := os.Symlink(assets, filepath.Join(dir, "web")); err != nil {
-		t.Fatal(err)
-	}
-	t.Chdir(dir)
-
-	storage = upload.New(filepath.Join(dir, "chunks"), chunkTimeout)
-	return securityHeaders(buildMux())
-}
-
-// adminCookie logs in with the baseConfig credentials and returns the session cookie.
-func adminCookie(t *testing.T) *http.Cookie {
-	t.Helper()
-	token, err := admins.Login("admin", testAdminPassword, "test")
+	token, err := e.auth.Login("admin", testAdminPassword, "test")
 	if err != nil {
 		t.Fatal(err)
 	}

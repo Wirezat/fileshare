@@ -9,12 +9,12 @@ import (
 )
 
 // handleShareCSS and handleShareJS serve static assets.
-func handleShareCSS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, shareCssPath)
+func (s *server) handleShareCSS(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("css/share.css"))
 }
 
-func handleShareJS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, shareJsPath)
+func (s *server) handleShareJS(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("js/share.js"))
 }
 
 // handleLogEvent allows the client to send log messages to the server.

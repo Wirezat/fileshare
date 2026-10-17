@@ -7,30 +7,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/media"
 )
 
-var (
-	shareHtmlPath    = "./web/html/share.html"
-	gateHtmlPath     = "./web/html/gate.html"
-	notFoundHtmlPath = "./web/html/notfound.html"
-	expiredHtmlPath  = "./web/html/expired.html"
-)
-
-const (
-	shareCssPath  = "./web/css/share.css"
-	shareJsPath   = "./web/js/share.js"
-	setupHtmlPath = "./web/html/setup.html"
-
-	adminHtmlPath         = "./web/html/admin.html"
-	adminLogsHtmlPath     = "./web/html/admin-logs.html"
-	adminSettingsHtmlPath = "./web/html/admin-settings.html"
-	adminLoginHtmlPath    = "./web/html/admin-login.html"
-	adminJsDir            = "./web/js/admin"
-	themeCssPath          = "./web/css/theme.css"
-	uiDir                 = "./web/ui"
-	localesDir            = "./web/locales"
-)
-
-// requestContext holds all resolved data for an incoming request,
-// populated once by prepareRequest and passed down to method handlers.
+// requestContext holds the resolved share and file of one request.
 type requestContext struct {
 	config   config.View
 	fileData config.FileData

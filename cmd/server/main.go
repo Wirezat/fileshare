@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -19,14 +20,6 @@ const (
 	chunkTempBase = "/tmp/fileshare-chunks"
 )
 
-var startTime = time.Now()
-var (
-	storage  *upload.Storage
-	cfgStore *store.FileStore
-	shares   *share.Service
-	admins   *auth.Service
-)
-
 // chain applies middleware in order: first wraps outermost, last wraps innermost.
 func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.Handler {
 	for i := len(middleware) - 1; i >= 0; i-- {
@@ -35,110 +28,136 @@ func chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.H
 	return h
 }
 
-func buildMux() *http.ServeMux {
+func (s *server) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	adminRoutes := map[string]http.HandlerFunc{
-		"/admin/api/shares":                            handleAdminShares,
-		"/admin/api/shares/qr":                         handleAdminShareQR,
+		"/admin/api/shares":                            s.handleAdminShares,
+		"/admin/api/shares/qr":                         s.handleAdminShareQR,
 		"/admin/api/browse":                            handleAdminBrowse,
-		"/admin/api/logs":                              handleAdminLogs,
-		"/admin/api/logs/stream":                       handleAdminLogsStream,
-		"/admin/api/settings/username":                 handleAdminSettingsUsername,
-		"/admin/api/settings/password":                 handleAdminSettingsPassword,
-		"/admin/api/settings/max_post_size":            handleAdminSettingsMaxPostSize,
-		"/admin/api/settings/chunk_inactivity_timeout": handleAdminSettingsChunkInactivityTimeout,
-		"/admin/api/settings/office":                   handleAdminSettingsOffice,
-		"/admin/api/settings/prune_expired":            handleAdminFunctionPruneExpired,
-		"/admin/api/uptime":                            handleAdminUptime,
+		"/admin/api/logs":                              s.handleAdminLogs,
+		"/admin/api/logs/stream":                       s.handleAdminLogsStream,
+		"/admin/api/settings/username":                 s.handleAdminSettingsUsername,
+		"/admin/api/settings/password":                 s.handleAdminSettingsPassword,
+		"/admin/api/settings/max_post_size":            s.handleAdminSettingsMaxPostSize,
+		"/admin/api/settings/chunk_inactivity_timeout": s.handleAdminSettingsChunkInactivityTimeout,
+		"/admin/api/settings/office":                   s.handleAdminSettingsOffice,
+		"/admin/api/settings/prune_expired":            s.handleAdminFunctionPruneExpired,
+		"/admin/api/uptime":                            s.handleAdminUptime,
 
-		"/admin":          handleAdminUI,
-		"/admin/logs":     handleAdminLogsPage,
-		"/admin/settings": handleAdminSettingsPage,
-		"/admin/api/me":   handleAdminMe,
+		"/admin":          s.handleAdminUI,
+		"/admin/logs":     s.handleAdminLogsPage,
+		"/admin/settings": s.handleAdminSettingsPage,
+		"/admin/api/me":   s.handleAdminMe,
 	}
 	for path, h := range adminRoutes {
-		mux.HandleFunc(path, adminAuth(h))
+		mux.HandleFunc(path, s.adminAuth(h))
 	}
 
-	uiFS := http.StripPrefix("/static/ui/", http.FileServer(http.Dir(uiDir)))
+	uiFS := http.StripPrefix("/static/ui/", http.FileServer(http.Dir(s.asset("ui"))))
 	mux.Handle("/static/ui/", uiFS)
-	mux.HandleFunc("/static/theme.css", handleThemeCSS)
+	mux.HandleFunc("/static/theme.css", s.handleThemeCSS)
 
-	jsFS := http.StripPrefix("/admin/static/js/", http.FileServer(http.Dir(adminJsDir)))
-	mux.HandleFunc("/admin/static/js/", adminAuth(jsFS.ServeHTTP))
+	jsFS := http.StripPrefix("/admin/static/js/", http.FileServer(http.Dir(s.asset("js/admin"))))
+	mux.HandleFunc("/admin/static/js/", s.adminAuth(jsFS.ServeHTTP))
 
-	// Admin login/logout — no auth middleware.
-	mux.HandleFunc("/admin/login", handleAdminLogin)
-	mux.HandleFunc("/admin/logout", handleAdminLogout)
+	mux.HandleFunc("/admin/login", s.handleAdminLogin)
+	mux.HandleFunc("/admin/logout", s.handleAdminLogout)
 
-	mux.HandleFunc("GET /setup", handleSetupUI)
-	mux.HandleFunc("POST /setup/api/init", handleSetupInit)
+	mux.HandleFunc("GET /setup", s.handleSetupUI)
+	mux.HandleFunc("POST /setup/api/init", s.handleSetupInit)
 
-	mux.HandleFunc("POST /{subpath}/chunk-init", handleChunkInit)
-	mux.HandleFunc("POST /{subpath}/chunk", handleChunkReceive)
+	mux.HandleFunc("POST /{subpath}/chunk-init", s.handleChunkInit)
+	mux.HandleFunc("POST /{subpath}/chunk", s.handleChunkReceive)
 
-	mux.HandleFunc("POST /{subpath}/unlock", handleUnlock)
+	mux.HandleFunc("POST /{subpath}/unlock", s.handleUnlock)
 
-	// Public routes.
 	public := chain(
-		http.HandlerFunc(handleRequest),
-		loggingMiddleware,
+		http.HandlerFunc(s.handleRequest),
+		s.loggingMiddleware,
 	)
 	mux.Handle("/", public)
-	mux.HandleFunc("/static/share.css", handleShareCSS)
-	mux.HandleFunc("/static/share.js", handleShareJS)
+	mux.HandleFunc("/static/share.css", s.handleShareCSS)
+	mux.HandleFunc("/static/share.js", s.handleShareJS)
 
-	mux.Handle("/static/locales/", http.StripPrefix("/static/locales/", http.FileServer(http.Dir(localesDir))))
+	mux.Handle("/static/locales/", http.StripPrefix("/static/locales/", http.FileServer(http.Dir(s.asset("locales")))))
 
 	return mux
 }
 
-func startServer(port int) {
-	addr := fmt.Sprintf(":%d", port)
-	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, securityHeaders(buildMux())); err != nil {
-		GoLog.Errorf("server stopped unexpectedly: %v", err)
-		os.Exit(1)
+// chunkTimeout returns the current chunk inactivity timeout of st.
+func chunkTimeout(st configStore) func() time.Duration {
+	return func() time.Duration {
+		return time.Duration(st.Current().ChunkInactivityTimeout()) * time.Second
 	}
 }
 
-func chunkTimeout() time.Duration {
-	return time.Duration(cfgStore.Current().ChunkInactivityTimeout()) * time.Second
+// openRequestLog opens GoLog's log file for appending request-log entries, or returns nil.
+func openRequestLog() io.Writer {
+	path := GoLog.LogPath()
+	if path == "" {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		GoLog.Warnf("openRequestLog: %v", err)
+		return nil
+	}
+	return f
 }
 
 func main() {
+	logs := logstore.New()
 	GoLog.OnRecord = func(r GoLog.Record) {
-		logStore.Add(logstore.Entry{Level: r.Level, Time: r.Time, Message: r.Message})
+		logs.Add(logstore.Entry{Level: r.Level, Time: r.Time, Message: r.Message})
 	}
 
 	if err := GoLog.ToFile(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	openRequestLog()
+	requestLog := openRequestLog()
 
 	if path := GoLog.LogPath(); path != "" {
-		if err := logStore.Load(path); err != nil {
+		if err := logs.Load(path); err != nil {
 			GoLog.Errorf("failed to load log history: %v", err)
 		}
 	}
 
-	var err error
-	cfgStore, err = store.Open(configPath)
+	st, err := store.Open(configPath)
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
-	shares = share.New(cfgStore)
-	admins = auth.New(cfgStore)
+	admins := auth.New(st)
 	if code := admins.SetupCode(); code != "" {
 		GoLog.Infof("no admin password set — open /setup and enter this setup code: %s", code)
 	} else if admins.NeedsSetup() {
 		GoLog.Errorf("setup: failed to generate setup code")
 	}
 
-	storage = upload.New(chunkTempBase, chunkTimeout)
-	storage.Sweep()
-	startServer(cfgStore.Current().Port())
+	uploads := upload.New(chunkTempBase, chunkTimeout(st))
+	uploads.Sweep()
+
+	srv, err := newHTTPServer(deps{
+		Store:      st,
+		Shares:     share.New(st),
+		Auth:       admins,
+		Uploads:    uploads,
+		Logs:       logs,
+		RequestLog: requestLog,
+		Assets:     "./web",
+		Started:    time.Now(),
+	})
+	if err != nil {
+		GoLog.Errorf("failed to load web templates: %v", err)
+		os.Exit(1)
+	}
+
+	addr := fmt.Sprintf(":%d", st.Current().Port())
+	GoLog.Infof("Server running at http://localhost%s", addr)
+	if err := http.ListenAndServe(addr, srv.handler()); err != nil {
+		GoLog.Errorf("server stopped unexpectedly: %v", err)
+		os.Exit(1)
+	}
 }

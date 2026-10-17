@@ -18,9 +18,9 @@ import (
 )
 
 func TestPreviewPageForPlainFile(t *testing.T) {
-	withOfficeShare(t, config.FileData{}, "", "")
+	e, _ := withOfficeShare(t, config.FileData{}, "", "")
 
-	rec := get(t, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
+	rec := get(t, e, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
 	body := rec.Body.String()
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d: %s", rec.Code, body)
@@ -61,10 +61,10 @@ func writeTestPNG(t *testing.T, path string, w, h int) {
 }
 
 func TestPreviewPageForImage(t *testing.T) {
-	dir := withOfficeShare(t, config.FileData{}, "", "")
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
 	writeTestPNG(t, filepath.Join(dir, "photo.jpg"), 40, 30)
 
-	rec := get(t, "/docs/photo.jpg", "User-Agent", "facebookexternalhit/1.1")
+	rec := get(t, e, "/docs/photo.jpg", "User-Agent", "facebookexternalhit/1.1")
 	body := rec.Body.String()
 	for _, want := range []string{
 		`og:image" content="http://example.com/docs/photo.jpg?preview=1"`,
@@ -80,11 +80,11 @@ func TestPreviewPageForImage(t *testing.T) {
 }
 
 func TestPreviewImageThumbnail(t *testing.T) {
-	dir := withOfficeShare(t, config.FileData{}, "", "")
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
 	writeTestPNG(t, filepath.Join(dir, "big.png"), 3000, 200)
 	writeTestPNG(t, filepath.Join(dir, "small.png"), 40, 30)
 
-	rec := get(t, "/docs/big.png?preview=1", "User-Agent", "facebookexternalhit/1.1")
+	rec := get(t, e, "/docs/big.png?preview=1", "User-Agent", "facebookexternalhit/1.1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
@@ -105,7 +105,7 @@ func TestPreviewImageThumbnail(t *testing.T) {
 		t.Errorf("thumbnail width = %d, want the long edge scaled to %d", cfg.Width, media.ThumbnailMaxEdge)
 	}
 
-	rec = get(t, "/docs/small.png?preview=1", "User-Agent", "facebookexternalhit/1.1")
+	rec = get(t, e, "/docs/small.png?preview=1", "User-Agent", "facebookexternalhit/1.1")
 	cfg, _, err = image.DecodeConfig(rec.Body)
 	if err != nil {
 		t.Fatalf("small thumbnail did not decode: %v", err)
@@ -116,10 +116,10 @@ func TestPreviewImageThumbnail(t *testing.T) {
 }
 
 func TestPreviewSkipsOgImageForUnthumbnailableFormats(t *testing.T) {
-	dir := withOfficeShare(t, config.FileData{}, "", "")
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "photo.avif"), []byte("not a real avif but irrelevant here"), 0o600)
 
-	rec := get(t, "/docs/photo.avif", "User-Agent", "facebookexternalhit/1.1")
+	rec := get(t, e, "/docs/photo.avif", "User-Agent", "facebookexternalhit/1.1")
 	body := rec.Body.String()
 	if strings.Contains(body, "og:image") {
 		t.Errorf("avif file got an og:image tag we can't actually serve: %s", body)
@@ -130,10 +130,10 @@ func TestPreviewSkipsOgImageForUnthumbnailableFormats(t *testing.T) {
 }
 
 func TestPreviewPageForVideo(t *testing.T) {
-	dir := withOfficeShare(t, config.FileData{}, "", "")
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("fake-mp4-bytes"), 0o600)
 
-	rec := get(t, "/docs/clip.mp4", "User-Agent", "Discordbot/2.0")
+	rec := get(t, e, "/docs/clip.mp4", "User-Agent", "Discordbot/2.0")
 	body := rec.Body.String()
 	for _, want := range []string{
 		`og:video" content="http://example.com/docs/clip.mp4?dl=1"`,
@@ -147,23 +147,23 @@ func TestPreviewPageForVideo(t *testing.T) {
 }
 
 func TestPreviewDoesNotApplyToDl1OrRealBrowsers(t *testing.T) {
-	withOfficeShare(t, config.FileData{}, "", "")
+	e, _ := withOfficeShare(t, config.FileData{}, "", "")
 
-	rec := get(t, "/docs/notiz.txt?dl=1", "User-Agent", "TelegramBot (like TwitterBot)")
+	rec := get(t, e, "/docs/notiz.txt?dl=1", "User-Agent", "TelegramBot (like TwitterBot)")
 	if rec.Body.String() != "plain" {
 		t.Errorf("?dl=1 with a bot UA got %q, want the raw file", rec.Body.String())
 	}
 
-	rec = get(t, "/docs/notiz.txt", "User-Agent", "Mozilla/5.0 Chrome/120.0")
+	rec = get(t, e, "/docs/notiz.txt", "User-Agent", "Mozilla/5.0 Chrome/120.0")
 	if rec.Body.String() != "plain" {
 		t.Errorf("a real browser got %q, want the raw file", rec.Body.String())
 	}
 }
 
 func TestPreviewDoesNotApplyToFolders(t *testing.T) {
-	withOfficeShare(t, config.FileData{}, "", "")
+	e, _ := withOfficeShare(t, config.FileData{}, "", "")
 
-	rec := get(t, "/docs", "User-Agent", "TelegramBot (like TwitterBot)")
+	rec := get(t, e, "/docs", "User-Agent", "TelegramBot (like TwitterBot)")
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="file-grid"`) {
 		t.Errorf("a folder request did not render the directory listing: %s", body)
@@ -178,9 +178,9 @@ func TestPreviewDoesNotApplyToFolders(t *testing.T) {
 
 func TestGatePageDescriptionDoesNotLeakTheShare(t *testing.T) {
 	hash, _ := password.Hash("geheim")
-	withOfficeShare(t, config.FileData{Password: hash}, "", "")
+	e, _ := withOfficeShare(t, config.FileData{Password: hash}, "", "")
 
-	rec := get(t, "/docs/notiz.txt")
+	rec := get(t, e, "/docs/notiz.txt")
 	body := rec.Body.String()
 	if !strings.Contains(body, `og:description" content="Password protected share"`) {
 		t.Errorf("gate page lacks the fixed og:description: %s", body)
@@ -191,9 +191,9 @@ func TestGatePageDescriptionDoesNotLeakTheShare(t *testing.T) {
 }
 
 func TestExpiredSharePreview(t *testing.T) {
-	withOfficeShare(t, config.FileData{Expired: true}, "", "")
+	e, _ := withOfficeShare(t, config.FileData{Expired: true}, "", "")
 
-	rec := get(t, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
+	rec := get(t, e, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
 	if rec.Code != http.StatusGone {
 		t.Fatalf("status = %d, want 410", rec.Code)
 	}
@@ -204,7 +204,7 @@ func TestExpiredSharePreview(t *testing.T) {
 		t.Errorf("expired preview lacks the description: %s", rec.Body.String())
 	}
 
-	rec = get(t, "/docs/notiz.txt", "User-Agent", "Mozilla/5.0 Chrome/120.0")
+	rec = get(t, e, "/docs/notiz.txt", "User-Agent", "Mozilla/5.0 Chrome/120.0")
 	if rec.Code != http.StatusGone {
 		t.Fatalf("status = %d, want 410", rec.Code)
 	}

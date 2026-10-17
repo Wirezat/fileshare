@@ -20,8 +20,8 @@ import (
 )
 
 // updateOrErr applies fn through the config store; on failure it writes the HTTP error and returns false.
-func updateOrErr(w http.ResponseWriter, fn func(*config.Config) error) bool {
-	err := cfgStore.Update(fn)
+func (s *server) updateOrErr(w http.ResponseWriter, fn func(*config.Config) error) bool {
+	err := s.deps.Store.Update(fn)
 	if err == nil {
 		return true
 	}
@@ -60,34 +60,36 @@ func jsonResponse(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func handleAdminUI(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, adminHtmlPath) }
-func handleAdminLogsPage(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, adminLogsHtmlPath)
+func (s *server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("html/admin.html"))
 }
-func handleAdminSettingsPage(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, adminSettingsHtmlPath)
+func (s *server) handleAdminLogsPage(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("html/admin-logs.html"))
 }
-func handleThemeCSS(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, themeCssPath)
+func (s *server) handleAdminSettingsPage(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("html/admin-settings.html"))
+}
+func (s *server) handleThemeCSS(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("css/theme.css"))
 }
 
 // handleAdminMe reports the logged-in admin for the wui user menu.
-func handleAdminMe(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminMe(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodGet) {
 		return
 	}
 	jsonResponse(w, map[string]any{
-		"username": cfgStore.Current().AdminUsername(),
+		"username": s.deps.Store.Current().AdminUsername(),
 		"is_admin": true,
 	})
 }
 
-func handleAdminUptime(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminUptime(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodGet) {
 		return
 	}
 	jsonResponse(w, map[string]any{
-		"uptime_seconds": int(time.Since(startTime).Seconds()),
+		"uptime_seconds": int(time.Since(s.deps.Started).Seconds()),
 	})
 }
 
@@ -106,11 +108,11 @@ func shareErr(w http.ResponseWriter, err error) {
 	}
 }
 
-func handleAdminShares(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case http.MethodGet:
-		jsonResponse(w, maps.Collect(cfgStore.Current().Shares()))
+		jsonResponse(w, maps.Collect(s.deps.Store.Current().Shares()))
 
 	case http.MethodPost:
 		var req struct {
@@ -120,7 +122,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		if !decodeOrErr(w, r, &req) {
 			return
 		}
-		if err := shares.Create(req.Subpath, req.FileData); err != nil {
+		if err := s.deps.Shares.Create(req.Subpath, req.FileData); err != nil {
 			shareErr(w, err)
 			return
 		}
@@ -136,7 +138,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		if !decodeOrErr(w, r, &patch) {
 			return
 		}
-		changes, err := shares.Patch(subpath, patch)
+		changes, err := s.deps.Shares.Patch(subpath, patch)
 		if err != nil {
 			shareErr(w, err)
 			return
@@ -148,7 +150,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		removed, err := shares.Delete(subpath)
+		removed, err := s.deps.Shares.Delete(subpath)
 		if err != nil {
 			shareErr(w, err)
 			return
@@ -163,7 +165,7 @@ func handleAdminShares(w http.ResponseWriter, r *http.Request) {
 const shareQRSize = 512
 
 // handleAdminShareQR answers with a PNG QR code encoding the share's public URL.
-func handleAdminShareQR(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminShareQR(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodGet) {
 		return
 	}
@@ -171,7 +173,7 @@ func handleAdminShareQR(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, exists := cfgStore.Current().Share(subpath); !exists {
+	if _, exists := s.deps.Store.Current().Share(subpath); !exists {
 		http.Error(w, "share not found", http.StatusNotFound)
 		return
 	}
@@ -186,19 +188,19 @@ func handleAdminShareQR(w http.ResponseWriter, r *http.Request) {
 	w.Write(png)
 }
 
-func handleAdminLogs(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminLogs(w http.ResponseWriter, r *http.Request) {
 	n := 100
 	if parsed, err := strconv.Atoi(r.URL.Query().Get("n")); err == nil && parsed > 0 {
 		n = parsed
 	}
-	entries := logStore.Recent(n)
+	entries := s.deps.Logs.Recent(n)
 	if entries == nil {
 		entries = []logstore.Entry{}
 	}
 	jsonResponse(w, entries)
 }
 
-func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -210,8 +212,8 @@ func handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	ch := logStore.Subscribe()
-	defer logStore.Unsubscribe(ch)
+	ch := s.deps.Logs.Subscribe()
+	defer s.deps.Logs.Unsubscribe(ch)
 
 	for {
 		select {
@@ -249,7 +251,7 @@ func credentialErr(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodPost) {
 		return
 	}
@@ -260,7 +262,7 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 	if !decodeOrErr(w, r, &req) {
 		return
 	}
-	dropped, err := admins.ChangeUsername(req.CurrentPassword, req.NewUsername, currentAdminToken(r))
+	dropped, err := s.deps.Auth.ChangeUsername(req.CurrentPassword, req.NewUsername, currentAdminToken(r))
 	if errors.Is(err, auth.ErrWrongPassword) {
 		GoLog.Warnf("admin username change rejected: wrong current password")
 	}
@@ -271,7 +273,7 @@ func handleAdminSettingsUsername(w http.ResponseWriter, r *http.Request) {
 	GoLog.Infof("admin username changed successfully (%d other session(s) ended)", dropped)
 }
 
-func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodPost) {
 		return
 	}
@@ -282,7 +284,7 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	if !decodeOrErr(w, r, &req) {
 		return
 	}
-	dropped, err := admins.ChangePassword(req.CurrentPassword, req.NewPassword, currentAdminToken(r))
+	dropped, err := s.deps.Auth.ChangePassword(req.CurrentPassword, req.NewPassword, currentAdminToken(r))
 	if errors.Is(err, auth.ErrWrongPassword) {
 		GoLog.Warnf("admin password change rejected: wrong current password")
 	}
@@ -293,11 +295,11 @@ func handleAdminSettingsPassword(w http.ResponseWriter, r *http.Request) {
 	GoLog.Infof("admin password changed successfully (%d other session(s) ended)", dropped)
 }
 
-func handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleAdminFunctionPruneExpired(w http.ResponseWriter, r *http.Request) {
 	if !methodOnly(w, r, http.MethodPost) {
 		return
 	}
-	pruned, err := shares.Prune()
+	pruned, err := s.deps.Shares.Prune()
 	if err != nil {
 		shareErr(w, err)
 		return

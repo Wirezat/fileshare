@@ -30,11 +30,14 @@ func shareDir(t *testing.T) string {
 
 func publicServer(t *testing.T, shares map[string]config.FileData) http.Handler {
 	t.Helper()
-	h := newServer(t)
+	return publicEnv(t, shares).handler
+}
+
+func publicEnv(t *testing.T, shares map[string]config.FileData) *testEnv {
+	t.Helper()
 	cfg := baseConfig()
 	cfg.Files = shares
-	seedConfig(t, cfg)
-	return h
+	return newEnv(t, cfg)
 }
 
 func TestPublicFileAndFolder(t *testing.T) {
@@ -86,17 +89,18 @@ func TestPublicTraversalNeverServesOutsideTheShare(t *testing.T) {
 
 func TestPublicExpiredShareIs410(t *testing.T) {
 	dir := shareDir(t)
-	h := publicServer(t, map[string]config.FileData{
+	e := publicEnv(t, map[string]config.FileData{
 		"flag": {Path: dir, Expired: true},
 		"date": {Path: dir, Expiration: time.Now().Add(-time.Hour).Unix()},
 	})
+	h := e.handler
 
 	for _, target := range []string{"/flag/a.txt", "/date/a.txt"} {
 		if rec := send(h, http.MethodGet, target, nil); rec.Code != http.StatusGone {
 			t.Errorf("%s: status = %d, want 410", target, rec.Code)
 		}
 	}
-	if storedConfig(t).Files["date"].Expired {
+	if e.stored(t).Files["date"].Expired {
 		t.Error("expiry by date set the manual expired flag")
 	}
 }
@@ -262,8 +266,8 @@ func TestChunkUploadAssemblesTheFile(t *testing.T) {
 }
 
 func TestStaticAssets(t *testing.T) {
-	h := newServer(t)
-	seedConfig(t, baseConfig())
+	e := newEnv(t, baseConfig())
+	h := e.handler
 
 	for _, target := range []string{"/static/share.css", "/static/share.js", "/static/theme.css", "/static/locales/de.json"} {
 		rec := send(h, http.MethodGet, target, nil)

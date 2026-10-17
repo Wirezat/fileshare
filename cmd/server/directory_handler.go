@@ -1,29 +1,20 @@
 package main
 
 import (
-	"html/template"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/media"
-	"github.com/Wirezat/fileshare/internal/office"
-)
-
-var (
-	dirTemplate     *template.Template
-	dirTemplateErr  error
-	dirTemplateOnce sync.Once
 )
 
 // serveDirectory renders the directory listing, or streams a ZIP if ?download=zip.
 // Repeated f= parameters restrict the ZIP to those entries of the directory.
-func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+func (s *server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if r.URL.Query().Get("download") == "zip" {
 		if ctx.fileData.NoZip {
 			http.Error(w, "Forbidden", http.StatusForbidden)
@@ -38,11 +29,7 @@ func serveDirectory(w http.ResponseWriter, r *http.Request, ctx *requestContext)
 		return
 	}
 
-	tmpl, err := loadTemplate()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	tmpl := s.tpl.directory
 
 	fd := ctx.fileData
 	relPath := filepath.Join("/", strings.TrimPrefix(ctx.diskPath, fd.Path))
@@ -192,17 +179,4 @@ func getFileInfos(dirPath, basePath string) ([]media.FileInfo, error) {
 		})
 	}
 	return infos, nil
-}
-
-// loadTemplate parses the directory template once and reuses it for all listings.
-func loadTemplate() (*template.Template, error) {
-	dirTemplateOnce.Do(func() {
-		dirTemplate, dirTemplateErr = template.New("directory").
-			Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": media.IsText}).
-			ParseFiles(shareHtmlPath)
-		if dirTemplateErr != nil {
-			GoLog.Errorf("failed to parse directory template: %v", dirTemplateErr)
-		}
-	})
-	return dirTemplate, dirTemplateErr
 }
