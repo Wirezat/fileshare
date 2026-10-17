@@ -1,0 +1,220 @@
+package web
+
+import (
+	"image"
+	"image/color"
+	"image/png"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"golang.org/x/image/draw"
+
+	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/media"
+	"github.com/Wirezat/fileshare/internal/password"
+)
+
+func TestPreviewPageForPlainFile(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{}, "", "")
+
+	rec := get(t, e, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, body)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want html", ct)
+	}
+	for _, want := range []string{
+		`og:title" content="notiz.txt"`,
+		`og:description" content="TXT · `,
+		`og:url" content="http://example.com/docs/notiz.txt"`,
+		`url=/docs/notiz.txt?dl=1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("preview page lacks %s: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "og:image") || strings.Contains(body, "og:video") {
+		t.Error("plain text file got an og:image or og:video tag")
+	}
+	if strings.Contains(body, "plain") {
+		t.Error("preview page leaked the file's contents")
+	}
+}
+
+func writeTestPNG(t *testing.T, path string, w, h int) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{200, 40, 40, 255}}, image.Point{}, draw.Src)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPreviewPageForImage(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
+	writeTestPNG(t, filepath.Join(dir, "photo.jpg"), 40, 30)
+
+	rec := get(t, e, "/docs/photo.jpg", "User-Agent", "facebookexternalhit/1.1")
+	body := rec.Body.String()
+	for _, want := range []string{
+		`og:image" content="http://example.com/docs/photo.jpg?preview=1"`,
+		`og:image:type" content="image/jpeg"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("image preview lacks %s: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "og:video") {
+		t.Error("image file got an og:video tag")
+	}
+}
+
+func TestPreviewImageThumbnail(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
+	writeTestPNG(t, filepath.Join(dir, "big.png"), 3000, 200)
+	writeTestPNG(t, filepath.Join(dir, "small.png"), 40, 30)
+
+	rec := get(t, e, "/docs/big.png?preview=1", "User-Agent", "facebookexternalhit/1.1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/jpeg" {
+		t.Errorf("Content-Type = %q, want image/jpeg", ct)
+	}
+	cfg, format, err := image.DecodeConfig(rec.Body)
+	if err != nil {
+		t.Fatalf("thumbnail did not decode as an image: %v", err)
+	}
+	if format != "jpeg" {
+		t.Errorf("format = %q, want jpeg", format)
+	}
+	if cfg.Width > media.ThumbnailMaxEdge || cfg.Height > media.ThumbnailMaxEdge {
+		t.Errorf("thumbnail is %dx%d, want capped at %d", cfg.Width, cfg.Height, media.ThumbnailMaxEdge)
+	}
+	if cfg.Width != media.ThumbnailMaxEdge {
+		t.Errorf("thumbnail width = %d, want the long edge scaled to %d", cfg.Width, media.ThumbnailMaxEdge)
+	}
+
+	rec = get(t, e, "/docs/small.png?preview=1", "User-Agent", "facebookexternalhit/1.1")
+	cfg, _, err = image.DecodeConfig(rec.Body)
+	if err != nil {
+		t.Fatalf("small thumbnail did not decode: %v", err)
+	}
+	if cfg.Width != 40 || cfg.Height != 30 {
+		t.Errorf("small image got resized to %dx%d, want unchanged 40x30", cfg.Width, cfg.Height)
+	}
+}
+
+func TestPreviewSkipsOgImageForUnthumbnailableFormats(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
+	os.WriteFile(filepath.Join(dir, "photo.avif"), []byte("not a real avif but irrelevant here"), 0o600)
+
+	rec := get(t, e, "/docs/photo.avif", "User-Agent", "facebookexternalhit/1.1")
+	body := rec.Body.String()
+	if strings.Contains(body, "og:image") {
+		t.Errorf("avif file got an og:image tag we can't actually serve: %s", body)
+	}
+	if !strings.Contains(body, `og:description" content="AVIF ·`) {
+		t.Errorf("avif file lacks a text description: %s", body)
+	}
+}
+
+func TestPreviewPageForVideo(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
+	os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("fake-mp4-bytes"), 0o600)
+
+	rec := get(t, e, "/docs/clip.mp4", "User-Agent", "Discordbot/2.0")
+	body := rec.Body.String()
+	for _, want := range []string{
+		`og:video" content="http://example.com/docs/clip.mp4?dl=1"`,
+		`og:video:secure_url" content="http://example.com/docs/clip.mp4?dl=1"`,
+		`og:video:type"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("video preview lacks %s: %s", want, body)
+		}
+	}
+}
+
+func TestPreviewDoesNotApplyToDl1OrRealBrowsers(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{}, "", "")
+
+	rec := get(t, e, "/docs/notiz.txt?dl=1", "User-Agent", "TelegramBot (like TwitterBot)")
+	if rec.Body.String() != "plain" {
+		t.Errorf("?dl=1 with a bot UA got %q, want the raw file", rec.Body.String())
+	}
+
+	rec = get(t, e, "/docs/notiz.txt", "User-Agent", "Mozilla/5.0 Chrome/120.0")
+	if rec.Body.String() != "plain" {
+		t.Errorf("a real browser got %q, want the raw file", rec.Body.String())
+	}
+}
+
+func TestPreviewDoesNotApplyToFolders(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{}, "", "")
+
+	rec := get(t, e, "/docs", "User-Agent", "TelegramBot (like TwitterBot)")
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="file-grid"`) {
+		t.Errorf("a folder request did not render the directory listing: %s", body)
+	}
+	if strings.Contains(body, `http-equiv="refresh"`) {
+		t.Error("a folder request rendered the file-preview page")
+	}
+	if !strings.Contains(body, `og:description" content="2 files, 0 folders`) {
+		t.Errorf("folder page lacks an og:description built from its contents: %s", body)
+	}
+}
+
+func TestGatePageDescriptionDoesNotLeakTheShare(t *testing.T) {
+	hash, _ := password.Hash("geheim")
+	e, _ := withOfficeShare(t, config.FileData{Password: hash}, "", "")
+
+	rec := get(t, e, "/docs/notiz.txt")
+	body := rec.Body.String()
+	if !strings.Contains(body, `og:description" content="Password protected share"`) {
+		t.Errorf("gate page lacks the fixed og:description: %s", body)
+	}
+	if strings.Contains(body, "notiz.txt") {
+		t.Error("gate page leaked the requested file name")
+	}
+}
+
+func TestExpiredSharePreview(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{Expired: true}, "", "")
+
+	rec := get(t, e, "/docs/notiz.txt", "User-Agent", "TelegramBot (like TwitterBot)")
+	if rec.Code != http.StatusGone {
+		t.Fatalf("status = %d, want 410", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want html for a bot", ct)
+	}
+	if !strings.Contains(rec.Body.String(), "This share has expired") {
+		t.Errorf("expired preview lacks the description: %s", rec.Body.String())
+	}
+
+	rec = get(t, e, "/docs/notiz.txt", "User-Agent", "Mozilla/5.0 Chrome/120.0")
+	if rec.Code != http.StatusGone {
+		t.Fatalf("status = %d, want 410", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want html", ct)
+	}
+	if strings.Contains(rec.Body.String(), "og:description") {
+		t.Error("a real browser got the bot preview page instead of the styled expired page")
+	}
+	if !strings.Contains(rec.Body.String(), "This share has expired") {
+		t.Errorf("expired page lacks the expected message: %s", rec.Body.String())
+	}
+}
