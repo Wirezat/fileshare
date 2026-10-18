@@ -116,6 +116,15 @@ func TestLoginPageBeforeSetupRedirects(t *testing.T) {
 	}
 }
 
+func TestLoginPageAfterSetup(t *testing.T) {
+	h := newEnv(t, baseConfig()).handler
+
+	rec := send(h, http.MethodGet, "/admin/login", nil)
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("%d %q, want 200 text/html", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}
+
 func setupInit(h http.Handler, code, pass string) int {
 	body := `{"new_username":"boss","new_password":"` + pass + `","setup_token":"` + code + `"}`
 	return send(h, http.MethodPost, "/setup/api/init", strings.NewReader(body),

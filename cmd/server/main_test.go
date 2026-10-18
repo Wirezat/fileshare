@@ -87,7 +87,10 @@ func TestServeClosesRequestsThatOutlastTheTimeout(t *testing.T) {
 	cancel()
 
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Errorf("serve = %v, want nil after closing late requests", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("serve did not return after the timeout")
 	}
@@ -149,5 +152,16 @@ func TestChunkTimeoutFollowsTheConfig(t *testing.T) {
 	st.Update(func(c *config.Config) error { c.ChunkInactivityTimeout = 300; return nil })
 	if got := timeout(); got != 300*time.Second {
 		t.Errorf("timeout = %s after update, want 5m", got)
+	}
+}
+
+func TestServeReturnsAListenerError(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln.Close()
+	if err := serve(context.Background(), &http.Server{}, ln, time.Second); err == nil {
+		t.Error("serve = nil on a closed listener, want the error")
 	}
 }

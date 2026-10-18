@@ -63,4 +63,32 @@ func TestPublicRequestsReachTheRequestLog(t *testing.T) {
 	if len(lines) != 1 || !strings.Contains(lines[0], `"message":"GET /docs/a.txt"`) {
 		t.Errorf("request log = %q, want one line for the public request", log.String())
 	}
+	if entries := d.Logs.Recent(10); len(entries) != 1 || entries[0].Message != "GET /docs/a.txt" {
+		t.Errorf("admin log buffer = %+v, want one entry for the public request", entries)
+	}
+}
+
+func TestUIAssetsComeFromTheAssetsDir(t *testing.T) {
+	e := newEnv(t, baseConfig())
+	assets := t.TempDir()
+	if err := os.CopyFS(filepath.Join(assets, "html"), os.DirFS("../../assets/web/html")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(assets, "ui"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(assets, "ui", "probe.css"), []byte("probe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d := e.srv.deps
+	d.Assets = assets
+	s, err := New(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := send(s.Handler(), http.MethodGet, "/static/ui/probe.css", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "probe" {
+		t.Errorf("%d %q, want the file from <assets>/ui", rec.Code, rec.Body.String())
+	}
 }
