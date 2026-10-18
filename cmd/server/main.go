@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Wirezat/GoLog"
@@ -17,8 +21,9 @@ import (
 )
 
 const (
-	configPath    = "./data.json"
-	chunkTempBase = "/tmp/fileshare-chunks"
+	configPath      = "./data.json"
+	chunkTempBase   = "/tmp/fileshare-chunks"
+	shutdownTimeout = 10 * time.Second
 )
 
 func chunkTimeout(st *store.FileStore) func() time.Duration {
@@ -27,7 +32,6 @@ func chunkTimeout(st *store.FileStore) func() time.Duration {
 	}
 }
 
-// openRequestLog opens GoLog's log file for appending request-log entries, or returns nil.
 func openRequestLog() io.Writer {
 	path := GoLog.LogPath()
 	if path == "" {
@@ -64,16 +68,37 @@ func main() {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
-	admins := auth.New(st)
+	srv, admins, err := build(st, logs, requestLog, "./web", chunkTempBase)
+	if err != nil {
+		GoLog.Errorf("failed to load web templates: %v", err)
+		os.Exit(1)
+	}
+
 	if code := admins.SetupCode(); code != "" {
 		GoLog.Infof("no admin password set — open /setup and enter this setup code: %s", code)
 	} else if admins.NeedsSetup() {
 		GoLog.Errorf("setup: failed to generate setup code")
 	}
 
-	uploads := upload.New(chunkTempBase, chunkTimeout(st))
-	uploads.Sweep()
+	addr := fmt.Sprintf(":%d", st.Current().Port())
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		GoLog.Errorf("server stopped unexpectedly: %v", err)
+		os.Exit(1)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	GoLog.Infof("Server running at http://localhost%s", addr)
+	if err := serve(ctx, &http.Server{Handler: srv.Handler()}, ln, shutdownTimeout); err != nil {
+		GoLog.Errorf("server stopped unexpectedly: %v", err)
+		os.Exit(1)
+	}
+}
 
+func build(st *store.FileStore, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string) (*web.Server, *auth.Service, error) {
+	admins := auth.New(st)
+	uploads := upload.New(chunkBase, chunkTimeout(st))
+	uploads.Sweep()
 	srv, err := web.New(web.Deps{
 		Store:      st,
 		Shares:     share.New(st),
@@ -81,18 +106,27 @@ func main() {
 		Uploads:    uploads,
 		Logs:       logs,
 		RequestLog: requestLog,
-		Assets:     "./web",
+		Assets:     assets,
 		Started:    time.Now(),
 	})
-	if err != nil {
-		GoLog.Errorf("failed to load web templates: %v", err)
-		os.Exit(1)
-	}
+	return srv, admins, err
+}
 
-	addr := fmt.Sprintf(":%d", st.Current().Port())
-	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
-		GoLog.Errorf("server stopped unexpectedly: %v", err)
-		os.Exit(1)
+// serve runs hs on ln until ctx ends, then gives open requests timeout to finish before closing them; it returns any other serve error.
+func serve(ctx context.Context, hs *http.Server, ln net.Listener, timeout time.Duration) error {
+	errc := make(chan error, 1)
+	go func() { errc <- hs.Serve(ln) }()
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
 	}
+	GoLog.Infof("shutting down, open requests get %s", timeout)
+	sctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := hs.Shutdown(sctx); err != nil {
+		GoLog.Warnf("shutdown: %v, closing open connections", err)
+		hs.Close()
+	}
+	return nil
 }

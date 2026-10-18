@@ -1,0 +1,153 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/logstore"
+	"github.com/Wirezat/fileshare/internal/store"
+)
+
+func startServe(t *testing.T, h http.Handler, timeout time.Duration) (addr string, cancel context.CancelFunc, done <-chan error) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	errc := make(chan error, 1)
+	go func() { errc <- serve(ctx, &http.Server{Handler: h}, ln, timeout) }()
+	return ln.Addr().String(), cancel, errc
+}
+
+func TestServeLetsOpenRequestsFinishAndRefusesNewOnes(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	addr, cancel, done := startServe(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+		w.Write([]byte("ok"))
+	}), 5*time.Second)
+
+	res := make(chan error, 1)
+	go func() {
+		resp, err := http.Get("http://" + addr)
+		if err == nil {
+			resp.Body.Close()
+		}
+		res <- err
+	}()
+	<-started
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+
+	if conn, err := net.DialTimeout("tcp", addr, time.Second); err == nil {
+		conn.Close()
+		t.Error("a new connection was accepted after shutdown began")
+	}
+	close(release)
+	if err := <-res; err != nil {
+		t.Errorf("open request: %v, want it to finish", err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("serve = %v, want nil", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("serve did not return after the last request finished")
+	}
+}
+
+func TestServeClosesRequestsThatOutlastTheTimeout(t *testing.T) {
+	started := make(chan struct{})
+	addr, cancel, done := startServe(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done()
+	}), 200*time.Millisecond)
+
+	res := make(chan error, 1)
+	go func() {
+		resp, err := http.Get("http://" + addr)
+		if err == nil {
+			resp.Body.Close()
+		}
+		res <- err
+	}()
+	<-started
+	begin := time.Now()
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("serve did not return after the timeout")
+	}
+	if took := time.Since(begin); took < 200*time.Millisecond {
+		t.Errorf("serve returned after %s, before the timeout", took)
+	}
+	if err := <-res; err == nil {
+		t.Error("the open request finished normally, want it closed")
+	}
+}
+
+func buildTestStore(t *testing.T, dir string) *store.FileStore {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "data.json")
+	cfg := `{"admin_username":"admin","admin_password":"x","chunkInactivityTimeout":120,"files":{"docs":{"path":"` + dir + `"}}}`
+	if err := os.WriteFile(path, []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+func TestBuildWiresRequestLogAndAssets(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("alpha"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var log bytes.Buffer
+	srv, _, err := build(buildTestStore(t, dir), logstore.New(), &log, "../../assets/web", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Handler()
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/docs/a.txt", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "alpha" {
+		t.Fatalf("share file: %d %q", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(log.String(), `"message":"GET /docs/a.txt"`) {
+		t.Errorf("request log = %q, want the public request", log.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/share.css", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("asset: %d, want 200", rec.Code)
+	}
+}
+
+func TestChunkTimeoutFollowsTheConfig(t *testing.T) {
+	st := buildTestStore(t, t.TempDir())
+	timeout := chunkTimeout(st)
+	if got := timeout(); got != 120*time.Second {
+		t.Fatalf("timeout = %s, want 2m", got)
+	}
+	st.Update(func(c *config.Config) error { c.ChunkInactivityTimeout = 300; return nil })
+	if got := timeout(); got != 300*time.Second {
+		t.Errorf("timeout = %s after update, want 5m", got)
+	}
+}
