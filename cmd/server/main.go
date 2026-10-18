@@ -88,6 +88,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	context.AfterFunc(ctx, stop)
 	GoLog.Infof("Server running at http://localhost%s", addr)
 	if err := serve(ctx, &http.Server{Handler: srv.Handler()}, ln, shutdownTimeout); err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
