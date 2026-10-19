@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"maps"
 	"reflect"
 	"time"
@@ -41,8 +42,11 @@ func IsExpired(fd FileData) bool {
 	return fd.Expired || (fd.Expiration != 0 && fd.Expiration < time.Now().Unix())
 }
 
+var ErrRefused = errors.New("config: stored config not taken over")
+
 // Config is the top-level application configuration as stored in data.json.
 type Config struct {
+	Revision               int64               `json:"revision"`
 	Port                   int                 `json:"port"`
 	MaxPostSize            int                 `json:"maxPostSize"`
 	ChunkInactivityTimeout int                 `json:"chunkInactivityTimeout"`
