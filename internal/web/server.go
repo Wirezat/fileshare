@@ -78,6 +78,8 @@ type Server struct {
 	deps         Deps
 	tpl          templates
 	requestLogMu sync.Mutex
+	streamsDone  chan struct{}
+	closeStreams sync.Once
 }
 
 // New parses all page templates under d.Assets and returns a server, or the first parse error.
@@ -99,7 +101,11 @@ func New(d Deps) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{deps: d, tpl: t}, nil
+	return &Server{deps: d, tpl: t, streamsDone: make(chan struct{})}, nil
+}
+
+func (s *Server) CloseStreams() {
+	s.closeStreams.Do(func() { close(s.streamsDone) })
 }
 
 // asset returns the path of rel inside the assets directory.

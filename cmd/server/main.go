@@ -91,10 +91,16 @@ func main() {
 	defer stop()
 	context.AfterFunc(ctx, stop)
 	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := serve(ctx, &http.Server{Handler: srv.Handler()}, ln, shutdownTimeout); err != nil {
+	if err := serve(ctx, httpServer(srv), ln, shutdownTimeout); err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
 		os.Exit(1)
 	}
+}
+
+func httpServer(srv *web.Server) *http.Server {
+	hs := &http.Server{Handler: srv.Handler()}
+	hs.RegisterOnShutdown(srv.CloseStreams)
+	return hs
 }
 
 func build(st *store.FileStore, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string) (*web.Server, *auth.Service, error) {

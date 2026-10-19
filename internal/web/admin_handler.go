@@ -215,10 +215,13 @@ func (s *Server) handleAdminLogsStream(w http.ResponseWriter, r *http.Request) {
 
 	ch := s.deps.Logs.Subscribe()
 	defer s.deps.Logs.Unsubscribe(ch)
+	flusher.Flush()
 
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-s.streamsDone:
 			return
 		case entry, ok := <-ch:
 			if !ok {
