@@ -54,6 +54,8 @@ type Config struct {
 	AdminPassword          string              `json:"admin_password"`
 	OfficeURL              string              `json:"office_url,omitempty"`
 	OfficeSecret           string              `json:"office_secret,omitempty"`
+	DownloadLimitEnabled   bool                `json:"downloadLimitEnabled"`
+	DownloadLimitMbit      int                 `json:"downloadLimitMbit"`
 	Files                  map[string]FileData `json:"files"`
 }
 

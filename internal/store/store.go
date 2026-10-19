@@ -124,6 +124,9 @@ func (s *FileStore) update(fn func(*config.Config) error, onlyAccepted bool) (*c
 	if err := fn(next); err != nil {
 		return ch, err
 	}
+	if err := next.Validate(); err != nil {
+		return ch, err
+	}
 	if reflect.DeepEqual(cur, next) {
 		return ch, nil
 	}
@@ -219,6 +222,9 @@ func load(path string) (*config.Config, [sha256.Size]byte, error) {
 		return nil, [sha256.Size]byte{}, fmt.Errorf("failed to decode config: %w", err)
 	}
 	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
+		return nil, [sha256.Size]byte{}, err
+	}
 	return &cfg, sha256.Sum256(data), nil
 }
 

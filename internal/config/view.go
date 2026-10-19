@@ -16,6 +16,10 @@ func (v View) AdminPassword() string       { return v.c.AdminPassword }
 func (v View) OfficeURL() string           { return v.c.OfficeURL }
 func (v View) OfficeSecret() string        { return v.c.OfficeSecret }
 
+func (v View) DownloadLimit() (enabled bool, mbit int) {
+	return v.c.DownloadLimitEnabled, v.c.DownloadLimitMbit
+}
+
 func (v View) OfficeReady() bool { return v.c.OfficeURL != "" && v.c.OfficeSecret != "" }
 
 func (v View) Share(subpath string) (FileData, bool) {
