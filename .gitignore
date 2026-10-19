@@ -4,7 +4,6 @@ fileshare-interface
 
 # Go
 *.test
-go.sum
 
 # Runtime config
 data.json
