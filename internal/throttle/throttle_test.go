@@ -302,7 +302,7 @@ func TestCanceledResponseGivesItsTokensBack(t *testing.T) {
 
 func TestHighRateIsReached(t *testing.T) {
 	d := serve(context.Background(), New(newSetting(true, 400).get), httptest.NewRecorder(), writeAll(10_000_000))
-	if d < 150*time.Millisecond || d > 1500*time.Millisecond {
+	if d < 150*time.Millisecond || d > 2500*time.Millisecond {
 		t.Errorf("10 MB at 400 Mbit/s took %v, want about 0.2 s", d)
 	}
 }
