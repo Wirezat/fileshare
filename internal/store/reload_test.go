@@ -642,6 +642,27 @@ func TestRestartTakesTheFileOnDiskEvenIfStale(t *testing.T) {
 	}
 }
 
+func TestFileMovedAwayAndBackClearsTheRefusal(t *testing.T) {
+	s, path, c, _ := clockedStore(t, `{"files":{}}`)
+	away := path + ".away"
+	if err := os.Rename(path, away); err != nil {
+		t.Fatal(err)
+	}
+	c.advance(checkInterval)
+	s.Current()
+	if s.Refused() == "" {
+		t.Fatal("missing file not reported")
+	}
+	if err := os.Rename(away, path); err != nil {
+		t.Fatal(err)
+	}
+	c.advance(checkInterval)
+	s.Current()
+	if r := s.Refused(); r != "" {
+		t.Errorf("Refused() = %q after the file came back unchanged, want empty", r)
+	}
+}
+
 func TestRefusedNamesTheReasonUntilResolved(t *testing.T) {
 	s, path, c, _ := clockedStore(t, `{"files":{}}`)
 	if r := s.Refused(); r != "" {

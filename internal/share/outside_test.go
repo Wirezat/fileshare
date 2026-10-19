@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/store"
@@ -14,6 +17,14 @@ import (
 )
 
 func editByHand(t *testing.T, st *store.FileStore, path string, change func(*config.Config)) {
+	t.Helper()
+	writeByHand(t, path, change)
+	if err := st.Update(func(*config.Config) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeByHand(t *testing.T, path string, change func(*config.Config)) {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -30,9 +41,6 @@ func editByHand(t *testing.T, st *store.FileStore, path string, change func(*con
 	}
 	later := time.Now().Add(time.Hour)
 	os.Chtimes(path, later, later)
-	if err := st.Update(func(*config.Config) error { return nil }); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestHandEditedShareEndsItsUnlocks(t *testing.T) {
@@ -129,5 +137,73 @@ func TestVisitorUnlockWithALegacyHashLeavesARefusedFileAlone(t *testing.T) {
 	}
 	if st.Refused() == "" {
 		t.Error("refusal cleared by a visitor's unlock")
+	}
+}
+
+type reloadAfterFirstRead struct {
+	*store.FileStore
+	reads int
+	edit  func()
+}
+
+func (r *reloadAfterFirstRead) Current() config.View {
+	v := r.FileStore.Current()
+	if r.reads++; r.reads == 1 {
+		r.edit()
+	}
+	return v
+}
+
+func TestUnlockWithThePasswordAHandEditJustReplacedFails(t *testing.T) {
+	_, st, path := lockedServiceAt(t)
+	newHash, _ := password.Hash("neu")
+	r := &reloadAfterFirstRead{FileStore: st}
+	r.edit = func() {
+		writeByHand(t, path, func(c *config.Config) { fd := c.Files["priv"]; fd.Password = newHash; c.Files["priv"] = fd })
+		if err := st.Update(func(*config.Config) error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := New(r)
+
+	token, err := s.Unlock("priv", "pw", "1.2.3.4")
+	if err == nil || s.TokenValid(token, "priv") {
+		t.Errorf("Unlock with the replaced password = %v, token valid %v; want refused", err, s.TokenValid(token, "priv"))
+	}
+}
+
+func TestLegacyUnlockAfterAHandEditOfThePasswordFailsAndUpgradesNothing(t *testing.T) {
+	legacy, _ := bcrypt.GenerateFromPassword([]byte("pw"), bcrypt.MinCost)
+	data, _ := json.Marshal(config.Config{Files: map[string]config.FileData{"priv": {Path: "/srv/priv", Password: string(legacy)}}})
+	path := filepath.Join(t.TempDir(), "data.json")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(st)
+	var mu sync.Mutex
+	var logs []string
+	prev := GoLog.OnRecord
+	GoLog.OnRecord = func(r GoLog.Record) { mu.Lock(); logs = append(logs, r.Message); mu.Unlock() }
+	t.Cleanup(func() { GoLog.OnRecord = prev })
+	newHash, _ := password.Hash("neu")
+	writeByHand(t, path, func(c *config.Config) { fd := c.Files["priv"]; fd.Password = newHash; c.Files["priv"] = fd })
+
+	token, err := s.Unlock("priv", "pw", "1.2.3.4")
+	if err == nil || s.TokenValid(token, "priv") {
+		t.Errorf("Unlock with the old password = %v; want refused", err)
+	}
+	if got, _ := st.Current().Share("priv"); got.Password != newHash {
+		t.Error("hand-edited password was replaced")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, l := range logs {
+		if strings.Contains(l, "upgraded") {
+			t.Errorf("log %q claims an upgrade that did not happen", l)
+		}
 	}
 }

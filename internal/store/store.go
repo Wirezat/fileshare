@@ -176,6 +176,7 @@ func (s *FileStore) setAside() (string, error) {
 func (s *FileStore) refresh() (*change, error) {
 	fi, err := s.stat(s.path)
 	if err == nil && sameFile(fi, s.seen) {
+		s.broken, s.brokenErr = nil, ""
 		return nil, nil
 	}
 	var cfg *config.Config

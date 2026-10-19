@@ -1,6 +1,4 @@
-/* fileshare / admin/chrome.js — shell setup shared by every admin page:
-   session config, locale load and sidebar. Nav hrefs must be the real page paths.
-*/
+/* fileshare admin shell shared by every admin page: session config, locale load and sidebar. */
 
 import { init }                        from '/static/ui/js/wui.js'
 import { configure, logout, apiFetch as sessionFetch } from '/static/ui/js/auth.js'
@@ -12,8 +10,7 @@ export const PATHS = {
     settings: '/admin/settings',
 }
 
-/* Configures the session layer, loads the locale and mounts the chrome.
-   Resolves before any page code runs, so t() is safe from then on. */
+/* Configures the session layer, loads the locale and mounts the chrome. */
 export async function bootChrome() {
     configure({
         mode:       'cookie',
@@ -81,7 +78,7 @@ function startUptimeClock() {
             const { uptime_seconds: s } = await res.json()
             const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60)
             el.textContent = d > 0 ? `↑ ${d}d ${h}h` : h > 0 ? `↑ ${h}h ${m}m` : `↑ ${m}m`
-        } catch { /* the header clock is not worth a toast */ }
+        } catch {}
     }
     tick()
     setInterval(tick, 60_000)
@@ -93,9 +90,7 @@ export function esc(str) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
-/* t() with {placeholder} interpolation.
-   @param {string} key   - i18n key
-   @param {object} vars  - placeholder values */
+/* t(key) with each {name} in the text replaced by vars[name]; returns the string. */
 export function tf(key, vars = {}) {
     return Object.entries(vars).reduce(
         (str, [k, v]) => str.replaceAll(`{${k}}`, v), t(key))
