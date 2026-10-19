@@ -89,6 +89,12 @@ Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filter
 | Office integration | Address of your document server and the shared secret it signs requests with. See [Office documents](#office-documents). |
 | Delete expired shares | Permanently removes all expired shares from `data.json`. |
 
+### Editing `data.json` by hand
+
+Changes to `/opt/fileshare/data.json` take effect within two seconds, without a restart. Editing the admin username or password there ends every admin session; editing a share's password or path, or removing the share, ends its unlocks — the same as changing them in the admin UI. The server counts `"revision"` up on every save of its own (admin UI changes, upgrades of old password hashes); leave it as it is. If the file is not valid JSON, or carries a lower revision than the server's last save (for example an editor that kept an old copy open and saved it), the server keeps serving the last valid state, logs the reason once and shows it as a banner on every admin page. The next change in the admin UI still goes through (saving an unchanged value does not count): it moves the rejected file to `data.json.rejected-<time>` next to it and writes the server's state.
+
+To restore an older backup while the server runs, set its `"revision"` to at least the value the log names, or restart the service. On a restart the server always takes the file on disk as it is.
+
 ---
 
 ## Share Behavior
@@ -129,4 +135,4 @@ Pasting a share link into a messenger (Telegram, Discord, WhatsApp, Slack, Signa
 
 ## Forgotten admin password
 
-Stop the service, set `"admin_password": ""` in `/opt/fileshare/data.json` and start it again. The server then generates a new setup code and `/setup` works as on a fresh install (see [First-time setup](#2-first-time-setup)). Shares are not touched.
+Set `"admin_password": ""` in `/opt/fileshare/data.json`. Within two seconds the server ends every admin session and prints a new setup code to its log; `/setup` then works as on a fresh install (see [First-time setup](#2-first-time-setup)). No restart is needed. Shares are not touched.
