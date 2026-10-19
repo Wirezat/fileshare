@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Wirezat/GoLog"
 )
@@ -29,6 +28,35 @@ var flatePool = sync.Pool{
 		w, _ := flate.NewWriter(io.Discard, compressLevel)
 		return w
 	},
+}
+
+type byteBudget struct {
+	mu   sync.Mutex
+	cond *sync.Cond
+	used int64
+	max  int64
+}
+
+func newByteBudget(max int64) *byteBudget {
+	b := &byteBudget{max: max}
+	b.cond = sync.NewCond(&b.mu)
+	return b
+}
+
+func (b *byteBudget) acquire(n int64) {
+	b.mu.Lock()
+	for b.used > b.max {
+		b.cond.Wait()
+	}
+	b.used += n
+	b.mu.Unlock()
+}
+
+func (b *byteBudget) release(n int64) {
+	b.mu.Lock()
+	b.used -= n
+	b.mu.Unlock()
+	b.cond.Broadcast()
 }
 
 type fileJob struct {
@@ -90,7 +118,7 @@ func Write(w io.Writer, dir string, roots []string) error {
 	jobs := make(chan fileJob, numWorkers*8)
 	results := make(chan *fileResult, numWorkers*8)
 
-	var bufferedBytes atomic.Int64
+	buffered := newByteBudget(maxBufferedBytes)
 
 	var wg sync.WaitGroup
 	for range numWorkers {
@@ -115,10 +143,7 @@ func Write(w io.Writer, dir string, roots []string) error {
 				} else {
 					payloadSize = int64(len(r.rawBytes))
 				}
-				for bufferedBytes.Load() > maxBufferedBytes {
-					runtime.Gosched()
-				}
-				bufferedBytes.Add(payloadSize)
+				buffered.acquire(payloadSize)
 				results <- r
 			}
 		}()
@@ -209,13 +234,13 @@ func Write(w io.Writer, dir string, roots []string) error {
 		fw, err := zw.CreateRaw(hdr)
 		if err != nil {
 			GoLog.Errorf("create raw %s: %v", r.job.relPath, err)
-			bufferedBytes.Add(-int64(len(payload)))
+			buffered.release(int64(len(payload)))
 			continue
 		}
 		if _, err := fw.Write(payload); err != nil {
 			GoLog.Errorf("write raw %s: %v", r.job.relPath, err)
 		}
-		bufferedBytes.Add(-int64(len(payload)))
+		buffered.release(int64(len(payload)))
 	}
 
 	if err := zw.Close(); err != nil {

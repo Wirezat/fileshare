@@ -133,3 +133,35 @@ func TestWriteReportsWriterFailureWithoutHanging(t *testing.T) {
 		t.Fatal("Write hung on a failing writer")
 	}
 }
+
+func TestByteBudgetBlocksUntilRelease(t *testing.T) {
+	b := newByteBudget(10)
+	b.acquire(8)
+	b.acquire(8)
+
+	got := make(chan struct{})
+	go func() {
+		b.acquire(1)
+		close(got)
+	}()
+
+	select {
+	case <-got:
+		t.Fatal("acquire went through while the budget was exceeded")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	b.release(3)
+	select {
+	case <-got:
+		t.Fatal("acquire went through while the budget was still exceeded")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	b.release(13)
+	select {
+	case <-got:
+	case <-time.After(2 * time.Second):
+		t.Fatal("acquire still blocked after release")
+	}
+}

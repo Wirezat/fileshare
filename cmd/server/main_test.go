@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/logstore"
+	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/store"
 )
 
@@ -163,5 +164,51 @@ func TestServeReturnsAListenerError(t *testing.T) {
 	ln.Close()
 	if err := serve(context.Background(), &http.Server{}, ln, time.Second); err == nil {
 		t.Error("serve = nil on a closed listener, want the error")
+	}
+}
+
+func TestShutdownEndsAdminLogStreamsAtOnce(t *testing.T) {
+	st := buildTestStore(t, t.TempDir())
+	srv, admins, err := build(st, logstore.New(), nil, "../../assets/web", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.Update(func(c *config.Config) error {
+		c.AdminPassword, err = password.Hash("pw")
+		return err
+	})
+	token, err := admins.Login("admin", "pw", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- serve(ctx, httpServer(srv), ln, 5*time.Second) }()
+
+	req, _ := http.NewRequest(http.MethodGet, "http://"+ln.Addr().String()+"/admin/api/logs/stream", nil)
+	req.AddCookie(&http.Cookie{Name: "admin_session", Value: token})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("stream: %d, want 200", resp.StatusCode)
+	}
+
+	begin := time.Now()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("serve still waits for the log stream")
+	}
+	if took := time.Since(begin); took > time.Second {
+		t.Errorf("shutdown took %s with an open log stream", took)
 	}
 }
