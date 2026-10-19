@@ -24,6 +24,7 @@ func (s *Server) buildMux() *http.ServeMux {
 		"/admin/api/settings/max_post_size":            s.handleAdminSettingsMaxPostSize,
 		"/admin/api/settings/chunk_inactivity_timeout": s.handleAdminSettingsChunkInactivityTimeout,
 		"/admin/api/settings/office":                   s.handleAdminSettingsOffice,
+		"/admin/api/settings/download_limit":           s.handleAdminSettingsDownloadLimit,
 		"/admin/api/settings/prune_expired":            s.handleAdminFunctionPruneExpired,
 		"/admin/api/uptime":                            s.handleAdminUptime,
 

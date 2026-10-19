@@ -162,6 +162,8 @@ html.dark .header-logo {
     max-width: 420px;
 }
 
+.settings-form .radio-group { align-self: flex-start; }
+
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {

@@ -22,6 +22,7 @@ var adminRouteTable = []struct {
 	{http.MethodGet, "/admin/api/me", http.StatusOK},
 	{http.MethodGet, "/admin/api/uptime", http.StatusOK},
 	{http.MethodGet, "/admin/api/settings/office", http.StatusOK},
+	{http.MethodGet, "/admin/api/settings/download_limit", http.StatusOK},
 	{http.MethodPost, "/admin/api/settings/username", http.StatusBadRequest},
 	{http.MethodPost, "/admin/api/settings/password", http.StatusBadRequest},
 	{http.MethodPatch, "/admin/api/settings/max_post_size", http.StatusBadRequest},

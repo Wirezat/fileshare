@@ -1,5 +1,5 @@
-/* fileshare / admin/settings.js — admin credentials, office integration and
-   destructive upkeep. Field markup is built from wui's form classes.
+/* fileshare / admin/settings.js — admin credentials, office integration, download
+   limit and destructive upkeep. Field markup is built from wui's form classes.
 */
 
 import { renderPage, showModal } from '/static/ui/js/wui.js'
@@ -326,11 +326,84 @@ function officeForm(state) {
     return node
 }
 
+/* ── Bandwidth ───────────────────────────────────────────────────────────── */
+
+async function loadDownloadLimit() {
+    try {
+        return await (await apiFetch('/admin/api/settings/download_limit')).json()
+    } catch {
+        return { enabled: false, mbit: 0 }
+    }
+}
+
+function bandwidthForm(state) {
+    const node = document.createElement('div')
+    node.className = 'form-stack settings-form'
+
+    const group = document.createElement('div')
+    group.className = 'radio-group'
+    const options = [false, true].map(value => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'radio-opt'
+        btn.textContent = t(value ? 'settings.bandwidth.on' : 'settings.bandwidth.off')
+        btn.addEventListener('click', () => { enabled = value; paint() })
+        group.appendChild(btn)
+        return { value, btn }
+    })
+    const switchField = field('settings.bandwidth.limit', '')
+    switchField.appendChild(group)
+
+    const rateField = field('settings.bandwidth.mbit',
+        `<input class="input" name="mbit" type="number" min="1" max="100000" step="1"`
+        + ` value="${state.mbit || ''}">`, 'settings.bandwidth.mbit_hint')
+    const rate = rateField.querySelector('input')
+
+    let enabled = state.enabled
+    const paint = () => {
+        for (const { value, btn } of options) btn.classList.toggle('active', value === enabled)
+        rate.disabled = !enabled
+    }
+
+    async function save() {
+        const body = { enabled }
+        if (rate.value !== '') {
+            const mbit = Number(rate.value)
+            if (!Number.isInteger(mbit) || mbit < 1 || mbit > 100000) {
+                return showToast({ tone: 'danger', messageKey: t('settings.bandwidth.invalid') })
+            }
+            body.mbit = mbit
+        } else if (enabled) {
+            return showToast({ tone: 'danger', messageKey: t('settings.bandwidth.invalid') })
+        }
+        try {
+            await apiFetch('/admin/api/settings/download_limit', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            })
+            ok('settings.bandwidth.done')
+        } catch (err) {
+            fail(err)
+        }
+    }
+
+    node.append(
+        description('settings.bandwidth.desc'),
+        switchField,
+        rateField,
+        actions({ labelKey: 'settings.bandwidth.submit', onClick: save }),
+    )
+    paint()
+    return node
+}
+
 /* ── Boot ────────────────────────────────────────────────────────────────── */
 
 await bootChrome()
 
 const office = await loadOffice()
+const downloadLimit = await loadDownloadLimit()
 
 renderPage({
     pageHeader: {
@@ -341,6 +414,7 @@ renderPage({
         { id: 'username', title: 'settings.username.title', content: { type: 'raw', node: usernameForm() } },
         { id: 'password', title: 'settings.password.title', content: { type: 'raw', node: passwordForm() } },
         { id: 'office',   title: 'settings.office.title',   content: { type: 'raw', node: officeForm(office) } },
+        { id: 'bandwidth', title: 'settings.bandwidth.title', content: { type: 'raw', node: bandwidthForm(downloadLimit) } },
         { id: 'danger',   title: 'settings.danger.title',   content: { type: 'raw', node: dangerZone() } },
     ],
 })
