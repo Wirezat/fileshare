@@ -3,8 +3,15 @@ const _dc = {};
 const $ = id => _dc[id] || (_dc[id] = document.getElementById(id));
 const $q = s => document.querySelector(s);
 
+const MAX_UPLOAD_RATE = 0;
 const CHUNK_SIZE = 5 * 1024 * 1024;
-const MAX_PARALLEL = 4;
+const MIN_CHUNK_SIZE = 256 * 1024;
+const MAX_SENDING = 4;
+const INIT_AHEAD = 4;
+const MULTIPLEXED = /^h[23]/.test(performance.getEntriesByType?.("navigation")[0]?.nextHopProtocol ?? "");
+const MAX_OPEN = MULTIPLEXED ? 16 : 6;
+const QUEUE_LOW = 2 * MAX_SENDING;
+const ETA_AFTER_MS = 2000;
 
 // ── Dark mode ─────────────────────────────────────────
 function toggleTheme() {
@@ -374,8 +381,6 @@ document.addEventListener("click", e => {
 });
 
 // ── Format helpers ────────────────────────────────────
-// Steps past MB: a share can hold files the old MB ceiling rendered as
-// "3072.0 MB".
 const _UNITS = ["B", "KB", "MB", "GB", "TB"];
 const _fmt = (b, sfx = "") => {
     let i = 0, n = b;
@@ -385,9 +390,37 @@ const _fmt = (b, sfx = "") => {
 const formatBytes = b => _fmt(b);
 const formatSpeed = b => _fmt(b, "/s");
 
-const formatEta = s => !isFinite(s) || s <= 0 ? null
-    : s < 60 ? `~${Math.ceil(s)}s remaining`
-        : `~${Math.floor(s / 60)}m ${Math.ceil(s % 60)}s remaining`;
+const formatEta = s => {
+    if (!isFinite(s) || s <= 0) return null;
+    const t = Math.ceil(s);
+    return t < 60 ? `~${t}s remaining` : `~${Math.floor(t / 60)}m ${t % 60}s remaining`;
+};
+
+/* Chunk size for the upload: CHUNK_SIZE, or about two seconds' worth of MAX_UPLOAD_RATE when that is set and smaller. */
+const uploadChunkSize = () => MAX_UPLOAD_RATE > 0
+    ? Math.max(MIN_CHUNK_SIZE, Math.min(CHUNK_SIZE, Math.floor(MAX_UPLOAD_RATE * 2 / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE))
+    : CHUNK_SIZE;
+
+/* Token bucket over MAX_UPLOAD_RATE; resolves once n bytes may start, at once when no rate is set. */
+const rateGate = { tokens: Infinity, last: 0 };
+async function waitForRate(n) {
+    if (!(MAX_UPLOAD_RATE > 0)) return;
+    for (;;) {
+        const now = performance.now();
+        rateGate.tokens = Math.min(Math.max(n, MAX_UPLOAD_RATE), rateGate.tokens + (now - rateGate.last) / 1000 * MAX_UPLOAD_RATE);
+        rateGate.last = now;
+        if (rateGate.tokens >= n) { rateGate.tokens -= n; return; }
+        await new Promise(r => setTimeout(r, Math.min(250, (n - rateGate.tokens) / MAX_UPLOAD_RATE * 1000)));
+    }
+}
+
+/* Average speed over the bytes sent in this session and the active time; null until ETA_AFTER_MS have passed.
+   @returns {{speed: number, eta: number} | null} bytes per second and seconds left */
+function estimateUpload(sentBytes, remainingBytes, activeMs) {
+    if (activeMs < ETA_AFTER_MS || sentBytes <= 0) return null;
+    const speed = sentBytes / (activeMs / 1000);
+    return { speed, eta: remainingBytes / speed };
+}
 
 const EXT_MAP = {
     jpg: "JPG", jpeg: "JPG", png: "PNG", gif: "GIF", webp: "WEBP", svg: "SVG",
@@ -406,11 +439,21 @@ const _ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 const escapeHtml = s => s.replace(/[&<>"]/g, c => _ESC[c]);
 
 // ── Upload state ──────────────────────────────────────
-const uploadStats = { totalBytes: 0, startTime: null, bytesUploaded: 0, lastSnapshot: null };
+const uploadStats = { totalBytes: 0, bytesUploaded: 0, sentBytes: 0, activeMs: 0, activeSince: null };
+const activeMs = () => uploadStats.activeMs + (uploadStats.activeSince ? Date.now() - uploadStats.activeSince : 0);
+const stopClock = () => { uploadStats.activeMs = activeMs(); uploadStats.activeSince = null; };
+let activeRun = null;
+const newRun = () => ({ tasks: [], open: 0, sending: 0, waiters: [], cancelled: false });
+const showPaused = () => {
+    const sending = activeRun?.sending ?? 0;
+    if (!sending) stopClock();
+    $("upload-toast-eta").textContent = sending ? "Pausing…" : "Paused";
+};
+const wakeScheduler = (run = activeRun) => run?.waiters.splice(0).forEach(r => r());
+const schedulerChange = run => new Promise(r => run.waiters.push(r));
 let fileStates = [], uploadControlState = "idle", pauseResolvers = [], cancelReject = null;
 const fileSkipFlags = {};
 const fileXhrs = {}; // fileIndex -> Set<XMLHttpRequest>
-// Per-file pause: set of paused file indices
 const filePausedFlags = {};
 const filePauseResolvers = {};
 
@@ -429,6 +472,7 @@ window.abortFile = i => {
     f.status = "skipped";
     f.skipped = true;
     renderFileList();
+    wakeScheduler();
 };
 
 window.togglePauseFile = i => {
@@ -442,14 +486,8 @@ window.togglePauseFile = i => {
         filePausedFlags[i] = true;
     }
     renderFileList();
+    wakeScheduler();
 };
-
-const waitIfFilePaused = i =>
-    !filePausedFlags[i] ? Promise.resolve()
-        : new Promise(r => {
-            filePauseResolvers[i] = filePauseResolvers[i] ?? [];
-            filePauseResolvers[i].push(r);
-        });
 
 // ── Global pause / resume ─────────────────────────────
 function updatePauseButton() {
@@ -472,11 +510,13 @@ window.togglePauseUpload = function () {
         uploadControlState = "paused";
         if (dot) dot.style.animationPlayState = "paused";
         $("upload-toast-speed").textContent = "";
-        $("upload-toast-eta").textContent = "Paused";
+        showPaused();
         $q(".upload-toast-title").textContent = "Paused";
     } else if (uploadControlState === "paused") {
         uploadControlState = "uploading";
+        uploadStats.activeSince ??= Date.now();
         pauseResolvers.splice(0).forEach(r => r());
+        wakeScheduler();
         if (dot) dot.style.animationPlayState = "";
     }
     updatePauseButton();
@@ -485,9 +525,11 @@ window.togglePauseUpload = function () {
 window.abortAllUploads = function () {
     if (uploadControlState === "idle") return;
     uploadControlState = "cancelled";
-    cancelReject?.(new Error("cancelled")); // erst rejecten, bevor Worker resolve() erreichen können
+    if (activeRun) activeRun.cancelled = true;
+    cancelReject?.(new Error("cancelled"));
     fileStates.forEach((_, i) => abortFile(i));
     pauseResolvers.splice(0).forEach(r => r());
+    wakeScheduler();
 };
 
 // ── File list rendering ───────────────────────────────
@@ -560,18 +602,9 @@ function setUploadProgress(pct, loaded, total) {
 
     if (uploadControlState !== "uploading" || loaded == null) return;
 
-    const now = Date.now(), snap = uploadStats.lastSnapshot;
-    if (snap) {
-        const dt = (now - snap.time) / 1000, dl = loaded - snap.bytes;
-        if (dt > 0.1) {
-            const spd = dl / dt;
-            const ts = $("upload-toast-speed"); if (ts) ts.textContent = formatSpeed(spd);
-            const te = $("upload-toast-eta"); if (te) te.textContent = formatEta(spd > 0 ? (total - loaded) / spd : Infinity) ?? "";
-            uploadStats.lastSnapshot = { bytes: loaded, time: now };
-        }
-    } else {
-        uploadStats.lastSnapshot = { bytes: loaded, time: now };
-    }
+    const est = estimateUpload(uploadStats.sentBytes, total - loaded, activeMs());
+    const ts = $("upload-toast-speed"); if (ts) ts.textContent = est ? formatSpeed(est.speed) : "";
+    const te = $("upload-toast-eta"); if (te) te.textContent = est ? formatEta(est.eta) ?? "" : "";
 }
 
 // ── Shared end-of-upload state reset ─────────────────
@@ -628,32 +661,33 @@ function handleUploadError(reason) {
 }
 
 // ── Chunked upload core ───────────────────────────────
-function sendChunk(base, uploadId, index, blob, onProgress, fileIndex) {
-    return new Promise((resolve, reject) => {
-        const fd = new FormData();
-        fd.append("uploadId", uploadId);
-        fd.append("chunkIndex", index);
-        fd.append("chunk", blob);
-        const xhr = new XMLHttpRequest();
-        if (!fileXhrs[fileIndex]) fileXhrs[fileIndex] = new Set();
-        fileXhrs[fileIndex].add(xhr);
-        const cleanup = () => fileXhrs[fileIndex]?.delete(xhr);
-        xhr.upload.onprogress = e => {
-            if (e.lengthComputable) onProgress(e.loaded);
+/* Posts one chunk as the raw request body; create carries filename, size and chunkSize for a file sent without chunk-init.
+   @returns {{sent: Promise<void>, done: Promise<void>}} sent settles once the body is out, done with the server's answer */
+function sendChunk(base, uploadId, index, blob, onProgress, fileIndex, create) {
+    const xhr = new XMLHttpRequest();
+    (fileXhrs[fileIndex] ??= new Set()).add(xhr);
+    const cleanup = () => fileXhrs[fileIndex]?.delete(xhr);
+    let markSent;
+    const sent = new Promise(r => { markSent = r; });
+    const done = new Promise((resolve, reject) => {
+        xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded); };
+        xhr.upload.onload = () => markSent();
+        xhr.onload = () => {
+            cleanup(); markSent();
+            (xhr.status === 202 || xhr.status === 204) ? resolve() : reject(new Error(`chunk ${index}: HTTP ${xhr.status}`));
         };
-        xhr.onload = () => { cleanup(); (xhr.status === 202 || xhr.status === 204) ? resolve() : reject(new Error(`chunk ${index}: HTTP ${xhr.status}`)); };
-        xhr.onerror = () => { cleanup(); reject(new Error("network error")); };
-        xhr.onabort = () => { cleanup(); resolve(); }; // Worker prüft danach selbst fileSkipFlags
-        xhr.open("POST", `${base}/chunk`);
-        xhr.send(fd);
+        xhr.onerror = () => { cleanup(); markSent(); reject(new Error("network error")); };
+        xhr.onabort = () => { cleanup(); markSent(); resolve(); };
     });
+    const query = new URLSearchParams({ uploadId, chunkIndex: index, ...create });
+    xhr.open("POST", `${base}/chunk?${query}`);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.send(blob);
+    return { sent, done };
 }
 
-// Just a stable id to resume and dedupe a chunked upload by — not a security
-// digest, so it must not depend on crypto.subtle, which is undefined outside a
-// secure context (plain http:// on a LAN IP rather than localhost).
-async function computeUploadHash(file) {
-    const input = `${file.name}:${file.size}:${file.lastModified}`;
+async function computeUploadHash(file, chunkSize) {
+    const input = `${file.name}:${file.size}:${file.lastModified}:${chunkSize}`;
     let h1 = 0xdeadbeef ^ input.length, h2 = 0x41c6ce57 ^ input.length;
     for (let i = 0; i < input.length; i++) {
         const ch = input.charCodeAt(i);
@@ -665,46 +699,120 @@ async function computeUploadHash(file) {
     return (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
 }
 
-async function uploadFileChunked(fileIndex, file, base, onChunkDone) {
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
-    const uploadId = await computeUploadHash(file);
+const chunkLength = (file, chunkSize, index) => Math.min(chunkSize, file.size - index * chunkSize);
 
-    const initResp = await fetch(`${base}/chunk-init`, {
-        method: "POST",
-        body: new URLSearchParams({ uploadId, filename: file.name, totalChunks }),
-    });
-    if (!initResp.ok) throw new Error(`init failed: HTTP ${initResp.status}`);
-    const { missingChunks } = await initResp.json();
-
-    const alreadyDone = totalChunks - missingChunks.length;
-    if (alreadyDone > 0) {
-        const lastSize = file.size % CHUNK_SIZE || CHUNK_SIZE;
-        onChunkDone((alreadyDone - 1) * CHUNK_SIZE + (alreadyDone === totalChunks ? lastSize : CHUNK_SIZE));
+/* Asks the server which chunks of file it still needs; a file that fits into one chunk is sent without asking.
+   @returns {Promise<{uploadId: string, chunkSize: number, missing: number[], storedBytes: number, create?: object}>} */
+async function initUpload(file, base) {
+    const chunkSize = uploadChunkSize();
+    const uploadId = await computeUploadHash(file, chunkSize);
+    if (file.size <= chunkSize) {
+        return { uploadId, chunkSize, missing: [0], storedBytes: 0, create: { filename: file.name, size: file.size, chunkSize } };
     }
+    const resp = await fetch(`${base}/chunk-init`, {
+        method: "POST",
+        body: new URLSearchParams({ uploadId, filename: file.name, size: file.size, chunkSize }),
+    });
+    if (!resp.ok) throw new Error(`init failed: HTTP ${resp.status}`);
+    const { missingChunks } = await resp.json();
+    const missingBytes = missingChunks.reduce((sum, index) => sum + chunkLength(file, chunkSize, index), 0);
+    return { uploadId, chunkSize, missing: missingChunks, storedBytes: file.size - missingBytes };
+}
 
-    let next = 0;
-    const worker = async () => {
-        while (next < missingChunks.length) {
-            if (fileSkipFlags[fileIndex]) return;
+/* Uploads all files of run through one queue of chunks, MAX_SENDING bodies at a time and at most MAX_OPEN requests open.
+   ui.start(i), ui.bytes(i, n, sent) and ui.end(i, err) report progress; sent is false for chunks stored earlier. */
+async function runUploads(run, files, base, ui) {
+    const left = files.map(() => 0);
+    const settledFiles = new Set();
+    const finish = (i, err) => { if (!settledFiles.has(i)) { settledFiles.add(i); ui.end(i, err); } };
+    const dropped = i => run.cancelled || fileSkipFlags[i] || settledFiles.has(i);
+    const runnable = () => run.tasks.filter(t => !dropped(t.i) && !filePausedFlags[t.i]).length;
+    let fed = false;
+
+    const inits = [];
+    const startInit = i => inits[i] ??= initUpload(files[i], base).then(r => ({ r }), err => ({ err }));
+    const feeder = (async () => {
+        for (let i = 0; i < files.length && !run.cancelled; i++) {
+            while (runnable() >= QUEUE_LOW && !run.cancelled) await schedulerChange(run);
+            for (let k = i; k < Math.min(files.length, i + INIT_AHEAD); k++) if (!fileSkipFlags[k]) startInit(k);
+            if (run.cancelled) break;
+            if (fileSkipFlags[i]) { finish(i, null); continue; }
+            ui.start(i);
+            const { r, err } = await startInit(i);
+            if (run.cancelled) break;
+            if (err || fileSkipFlags[i]) {
+                finish(i, err ?? null);
+            } else {
+                if (r.storedBytes > 0) ui.bytes(i, r.storedBytes, false);
+                left[i] = r.missing.length;
+                if (!r.missing.length) finish(i, null);
+                r.missing.forEach(index => run.tasks.push({ i, file: files[i], index, uploadId: r.uploadId, chunkSize: r.chunkSize, create: r.create }));
+            }
+            wakeScheduler(run);
+        }
+        fed = true;
+        wakeScheduler(run);
+    })();
+
+    const nextTask = async () => {
+        for (;;) {
+            if (run.cancelled) return null;
             await waitIfPaused();
-            await waitIfFilePaused(fileIndex);
-            if (uploadControlState === "cancelled" || fileSkipFlags[fileIndex]) return;
-
-            const index = missingChunks[next++];
-            const start = index * CHUNK_SIZE;
-            const blob = file.slice(start, Math.min(start + CHUNK_SIZE, file.size));
-
-            let lastReported = 0;
-            await sendChunk(base, uploadId, index, blob, loaded => {
-                onChunkDone(loaded - lastReported);
-                lastReported = loaded;
-            }, fileIndex);
-
-            if (uploadControlState === "cancelled" || fileSkipFlags[fileIndex]) return;
-            onChunkDone(blob.size - lastReported);
+            if (run.cancelled) return null;
+            run.tasks = run.tasks.filter(t => !dropped(t.i));
+            const k = run.tasks.findIndex(t => !filePausedFlags[t.i]);
+            if (k >= 0 && run.open < MAX_OPEN) {
+                const task = run.tasks.splice(k, 1)[0];
+                run.open++;
+                wakeScheduler(run);
+                return task;
+            }
+            if (fed && !run.tasks.length) return null;
+            await schedulerChange(run);
         }
     };
-    await Promise.all(Array.from({ length: Math.min(MAX_PARALLEL, missingChunks.length || 1) }, worker));
+
+    const pending = new Set();
+    const worker = async () => {
+        for (let task; (task = await nextTask());) {
+            const { i, file, index, uploadId, chunkSize, create } = task;
+            const start = index * chunkSize;
+            const blob = file.slice(start, start + chunkLength(file, chunkSize, index));
+            await waitForRate(blob.size);
+            if (dropped(i) || uploadControlState === "paused" || filePausedFlags[i]) {
+                if (!dropped(i)) run.tasks.unshift(task);
+                run.open--;
+                wakeScheduler(run);
+                continue;
+            }
+            let reported = 0;
+            run.sending++;
+            const { sent, done } = sendChunk(base, uploadId, index, blob, loaded => {
+                if (!dropped(i)) ui.bytes(i, loaded - reported, true);
+                reported = loaded;
+            }, i, create);
+            const settled = done.then(() => {
+                if (dropped(i)) return;
+                ui.bytes(i, blob.size - reported, true);
+                if (--left[i] === 0) finish(i, null);
+            }, err => {
+                if (dropped(i)) return;
+                finish(i, err);
+                fileXhrs[i]?.forEach(x => x.abort());
+            }).finally(() => {
+                run.open--;
+                pending.delete(settled);
+                wakeScheduler(run);
+            });
+            pending.add(settled);
+            await sent;
+            run.sending--;
+            if (run === activeRun && uploadControlState === "paused") showPaused();
+        }
+    };
+
+    await Promise.all([feeder, ...Array.from({ length: MAX_SENDING }, worker)]);
+    while (pending.size) await Promise.all([...pending]);
 }
 
 // ── Init ──────────────────────────────────────────────
@@ -774,7 +882,7 @@ document.addEventListener("DOMContentLoaded", () => {
         Object.keys(filePausedFlags).forEach(k => delete filePausedFlags[k]);
         Object.keys(filePauseResolvers).forEach(k => delete filePauseResolvers[k]);
 
-        Object.assign(uploadStats, { totalBytes, startTime: Date.now(), bytesUploaded: 0, lastSnapshot: null });
+        Object.assign(uploadStats, { totalBytes, bytesUploaded: 0, sentBytes: 0, activeMs: 0, activeSince: Date.now() });
         uploadControlState = "uploading";
         pauseResolvers = [];
         updatePauseButton();
@@ -792,44 +900,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
         let succeeded = 0, failed = 0;
 
-        try {
-            await new Promise(async (resolve, reject) => {
-                cancelReject = reject;
-                for (let i = 0; i < files.length; i++) {
-                    if (uploadControlState === "cancelled") break;
-                    if (fileSkipFlags[i]) {
-                        fileStates[i].status = "skipped";
-                        fileStates[i].skipped = true;
+        const fileBytes = files.map(() => 0);
+        let drawPending = false;
+        const run = newRun();
+        activeRun = run;
+        const ui = {
+            start(i) {
+                if (run.cancelled) return;
+                fileStates[i].status = "uploading";
+                renderFileList();
+            },
+            bytes(i, n, sent) {
+                if (run.cancelled) return;
+                fileBytes[i] += n;
+                uploadStats.bytesUploaded += n;
+                if (sent) uploadStats.sentBytes += n;
+                fileStates[i].progress = files[i].size ? Math.round(fileBytes[i] / files[i].size * 100) : 100;
+                if (!drawPending) {
+                    drawPending = true;
+                    requestAnimationFrame(() => {
+                        drawPending = false;
+                        if (run.cancelled) return;
+                        setUploadProgress(Math.round(uploadStats.bytesUploaded / totalBytes * 100), uploadStats.bytesUploaded, totalBytes);
                         renderFileList();
-                        continue;
-                    }
-
-                    fileStates[i].status = "uploading";
-                    let fileBytesUploaded = 0;
-                    renderFileList();
-
-                    try {
-                        await uploadFileChunked(i, files[i], chunkBase, chunkBytes => {
-                            if (uploadControlState !== "uploading") return; // kein UI-Update nach Cancel
-                            fileBytesUploaded += chunkBytes;
-                            uploadStats.bytesUploaded += chunkBytes;
-                            fileStates[i].progress = Math.round(fileBytesUploaded / files[i].size * 100);
-                            setUploadProgress(Math.round(uploadStats.bytesUploaded / totalBytes * 100), uploadStats.bytesUploaded, totalBytes);
-                            renderFileList();
-                        });
-
-                        if (uploadControlState === "cancelled") break;
-                        if (fileSkipFlags[i]) { fileStates[i].status = "skipped"; fileStates[i].skipped = true; }
-                        else { fileStates[i].status = "done"; fileStates[i].progress = 100; succeeded++; }
-                    } catch (err) {
-                        if (uploadControlState === "cancelled") break;
-                        fileStates[i].status = "error";
-                        fileStates[i].error = err.message;
-                        failed++;
-                    }
-                    renderFileList();
+                    });
                 }
-                resolve();
+            },
+            end(i, err) {
+                if (run.cancelled) return;
+                if (fileSkipFlags[i]) {
+                    fileStates[i].status = "skipped";
+                    fileStates[i].skipped = true;
+                } else if (err) {
+                    fileStates[i].status = "error";
+                    fileStates[i].error = err.message;
+                    failed++;
+                } else {
+                    fileStates[i].status = "done";
+                    fileStates[i].progress = 100;
+                    succeeded++;
+                }
+                renderFileList();
+            },
+        };
+
+        try {
+            await new Promise((resolve, reject) => {
+                cancelReject = reject;
+                runUploads(run, files, chunkBase, ui).then(resolve, reject);
             });
         } catch {
             _finalize("var(--text-faint)");
@@ -846,7 +964,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         cancelReject = null;
-        const durationMs = Date.now() - uploadStats.startTime;
+        stopClock();
+        const durationMs = uploadStats.activeMs;
         if (succeeded === 0 && failed > 0)
             handleUploadError(`All ${failed} file${failed !== 1 ? "s" : ""} failed`);
         else
