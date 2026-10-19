@@ -24,7 +24,7 @@ type configStore interface {
 type shareService interface {
 	Resolve(subpath, rel string, a share.Access) (share.Resolved, error)
 	Unlock(subpath, pw, clientKey string) (string, error)
-	UploadTarget(subpath string) (config.FileData, error)
+	UploadTarget(subpath, token string) (config.FileData, error)
 	Create(subpath string, fd config.FileData) error
 	Patch(subpath string, p share.Patch) ([]string, error)
 	Delete(subpath string) (config.FileData, error)
@@ -42,8 +42,8 @@ type authService interface {
 }
 
 type uploadService interface {
-	Init(uploadID, filename string, totalChunks int, destDir string) ([]int, error)
-	Receive(uploadID string, index int, r io.Reader) (bool, error)
+	Init(uploadID, filename string, size, chunkSize int64, destDir string) ([]int, error)
+	Receive(uploadID, destDir string, index int, r io.Reader) (bool, error)
 }
 
 type throttler interface {

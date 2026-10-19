@@ -137,7 +137,7 @@ func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
 // resolveUploadTarget returns the share in the request URL if it accepts uploads, or writes the HTTP error.
 func (s *Server) resolveUploadTarget(w http.ResponseWriter, r *http.Request) (config.FileData, bool) {
 	subpath := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)[0]
-	fd, err := s.deps.Shares.UploadTarget(subpath)
+	fd, err := s.deps.Shares.UploadTarget(subpath, shareCookie(r, subpath))
 	if err != nil {
 		uploadErr(w, r, err)
 		return config.FileData{}, false
@@ -149,7 +149,7 @@ func uploadErr(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, share.ErrNotFound):
 		http.NotFound(w, r)
-	case errors.Is(err, share.ErrUploadsOff):
+	case errors.Is(err, share.ErrUploadsOff), errors.Is(err, share.ErrLocked):
 		http.Error(w, "Forbidden", http.StatusForbidden)
 	case errors.Is(err, share.ErrExpired):
 		http.Error(w, "File share expired", http.StatusGone)

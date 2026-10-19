@@ -185,8 +185,8 @@ func (s *Service) grant(subpath string) (string, error) {
 	return token, nil
 }
 
-// UploadTarget returns the share at subpath if it accepts uploads.
-func (s *Service) UploadTarget(subpath string) (config.FileData, error) {
+// UploadTarget returns the share at subpath if it accepts uploads from a visitor holding token.
+func (s *Service) UploadTarget(subpath, token string) (config.FileData, error) {
 	fd, ok := s.store.Current().Share(subpath)
 	switch {
 	case !ok:
@@ -195,6 +195,8 @@ func (s *Service) UploadTarget(subpath string) (config.FileData, error) {
 		return fd, ErrUploadsOff
 	case config.IsExpired(fd):
 		return fd, ErrExpired
+	case fd.Password != "" && !s.TokenValid(token, subpath):
+		return fd, ErrLocked
 	}
 	return fd, nil
 }

@@ -1,13 +1,19 @@
 package upload
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -15,16 +21,29 @@ import (
 	"github.com/Wirezat/GoLog"
 )
 
-// MaxTotalChunks caps the client-supplied chunk count a session may declare.
-const MaxTotalChunks = 1_000_000
+const (
+	MaxTotalChunks = 1_000_000
+	MaxChunkSize   = 64 << 20
+	metaVersion    = 2
+	sweepInterval  = 5 * time.Minute
+)
 
-const sweepInterval = 5 * time.Minute
+var minChunkSize int64 = 64 << 10
 
-var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
+var (
+	idPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
+	keyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}(-[0-9a-f]{16})?$`)
+)
 
-var ErrBadID = errors.New("upload: invalid uploadId")
+var (
+	ErrBadID          = errors.New("upload: invalid uploadId")
+	ErrBadSize        = errors.New("upload: invalid file or chunk size")
+	ErrChunkLength    = errors.New("upload: chunk has the wrong length")
+	ErrUnknownSession = errors.New("upload: unknown upload session")
+	ErrBadIndex       = errors.New("upload: chunk index out of range")
+)
 
-// ValidID reports whether a client-supplied upload ID may name a session directory.
+// ValidID reports whether a client-supplied upload ID may name a session.
 func ValidID(id string) bool { return idPattern.MatchString(id) }
 
 var bufPool = sync.Pool{
@@ -35,20 +54,36 @@ var bufPool = sync.Pool{
 }
 
 type sessionMeta struct {
+	Version      int       `json:"version"`
 	UploadID     string    `json:"uploadId"`
 	Filename     string    `json:"filename"`
-	TotalChunks  int       `json:"totalChunks"`
 	DestDir      string    `json:"destDir"`
+	Size         int64     `json:"size"`
+	ChunkSize    int64     `json:"chunkSize"`
+	Part         string    `json:"part"`
 	LastActivity time.Time `json:"lastActivity"`
 }
 
-type chunkSession struct {
-	meta     sessionMeta
-	mu       sync.Mutex
-	received map[int]struct{}
+func (m *sessionMeta) totalChunks() int { return chunkCount(m.Size, m.ChunkSize) }
+
+func (m *sessionMeta) chunkLength(index int) int64 {
+	return min(m.ChunkSize, m.Size-int64(index)*m.ChunkSize)
 }
 
-// Storage keeps chunked upload sessions under a temp directory and assembles finished files in their destination.
+func chunkCount(size, chunkSize int64) int {
+	return max(1, int((size+chunkSize-1)/chunkSize))
+}
+
+type chunkSession struct {
+	meta      sessionMeta
+	dir       string
+	mu        sync.Mutex
+	received  map[int]struct{}
+	gone      bool
+	published bool
+}
+
+// Storage keeps chunked upload sessions: metadata under a temp directory, the data in a hidden file next to its destination.
 type Storage struct {
 	tempBase string
 	timeout  func() time.Duration
@@ -57,7 +92,7 @@ type Storage struct {
 	swept    time.Time
 }
 
-// New returns a Storage with chunks under tempBase; timeout returns how long an idle session survives.
+// New returns a Storage with session metadata under tempBase; timeout returns how long an idle session survives.
 func New(tempBase string, timeout func() time.Duration) *Storage {
 	return &Storage{
 		tempBase: filepath.Clean(tempBase),
@@ -66,217 +101,295 @@ func New(tempBase string, timeout func() time.Duration) *Storage {
 	}
 }
 
-func (s *Storage) dir(uploadID string) (string, error) {
-	if !ValidID(uploadID) {
+// key names the session of uploadID for destDir, so the same file uploaded into two shares gets two sessions.
+func (s *Storage) key(uploadID, destDir string) string {
+	sum := sha256.Sum256([]byte(filepath.Clean(destDir)))
+	return uploadID + "-" + hex.EncodeToString(sum[:8])
+}
+
+func (s *Storage) dir(key string) (string, error) {
+	if !keyPattern.MatchString(key) {
 		return "", ErrBadID
 	}
-	dir := filepath.Join(s.tempBase, uploadID)
+	dir := filepath.Join(s.tempBase, key)
 	if !strings.HasPrefix(dir, s.tempBase+string(filepath.Separator)) {
 		return "", ErrBadID
 	}
 	return dir, nil
 }
 
-// Init registers or resumes a session and returns the chunk indices still missing.
-func (s *Storage) Init(uploadID, filename string, totalChunks int, destDir string) ([]int, error) {
+// Init registers or resumes the upload of a file of size bytes sent in chunks of chunkSize into destDir and returns the chunk indices still missing.
+func (s *Storage) Init(uploadID, filename string, size, chunkSize int64, destDir string) ([]int, error) {
+	if !ValidID(uploadID) {
+		return nil, ErrBadID
+	}
+	if size < 0 || chunkSize < 1 || chunkSize > MaxChunkSize || (size+chunkSize-1)/chunkSize > MaxTotalChunks ||
+		(chunkSize < minChunkSize && size > chunkSize) {
+		return nil, ErrBadSize
+	}
 	s.sweepIfDue(time.Now())
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess, err := s.loadOrCreate(uploadID, filename, totalChunks, destDir)
+	sess, err := s.loadOrCreate(uploadID, filename, size, chunkSize, filepath.Clean(destDir))
 	if err != nil {
 		return nil, err
 	}
 
 	sess.mu.Lock()
-	missing := missingChunks(sess.received, sess.meta.TotalChunks)
+	missing := missingChunks(sess.received, sess.meta.totalChunks())
+	sess.meta.LastActivity = time.Now()
+	if err := writeMeta(sess.dir, sess.meta); err != nil {
+		GoLog.Warnf("chunk upload: failed to persist meta for %q: %v (non-fatal)", uploadID, err)
+	}
 	sess.mu.Unlock()
 
 	GoLog.Debugf("chunk upload init/resume: id=%q missing=%d", uploadID, len(missing))
 	return missing, nil
 }
 
-func (s *Storage) loadOrCreate(uploadID, filename string, totalChunks int, destDir string) (*chunkSession, error) {
-	if sess, ok := s.sessions[uploadID]; ok {
-		return sess, nil
+func (s *Storage) loadOrCreate(uploadID, filename string, size, chunkSize int64, destDir string) (*chunkSession, error) {
+	key := s.key(uploadID, destDir)
+	matches := func(m sessionMeta) bool {
+		return m.Version == metaVersion && m.Size == size && m.ChunkSize == chunkSize && m.DestDir == destDir
+	}
+	if sess, ok := s.sessions[key]; ok {
+		if matches(sess.meta) {
+			return sess, nil
+		}
+		delete(s.sessions, key)
+		sess.mu.Lock()
+		sess.gone = true
+		sess.mu.Unlock()
+		discard(sess.meta)
 	}
 
-	dir, err := s.dir(uploadID)
+	dir, err := s.dir(key)
 	if err != nil {
 		return nil, err
 	}
 
 	if data, err := os.ReadFile(filepath.Join(dir, "meta.json")); err == nil {
 		var meta sessionMeta
-		if err := json.Unmarshal(data, &meta); err != nil {
-			return nil, fmt.Errorf("corrupt meta.json for %q: %w", uploadID, err)
+		if json.Unmarshal(data, &meta) == nil && matches(meta) {
+			if _, err := os.Stat(meta.Part); err == nil {
+				sess := &chunkSession{meta: meta, dir: dir, received: readReceived(dir, meta.totalChunks())}
+				s.sessions[key] = sess
+				return sess, nil
+			}
 		}
-		received, err := scanReceivedChunks(dir, meta.TotalChunks)
-		if err != nil {
-			return nil, fmt.Errorf("scanning chunks for %q: %w", uploadID, err)
-		}
-		sess := &chunkSession{meta: meta, received: received}
-		s.sessions[uploadID] = sess
-		return sess, nil
+		discard(meta)
+		GoLog.Infof("chunk upload: restarting session %q in the current format", uploadID)
 	}
+	os.RemoveAll(dir)
 
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, fmt.Errorf("creating temp dir for %q: %w", uploadID, err)
+		return nil, fmt.Errorf("creating session dir for %q: %w", uploadID, err)
+	}
+	part, err := createPart(destDir, size)
+	if err != nil {
+		os.RemoveAll(dir)
+		return nil, err
 	}
 	meta := sessionMeta{
+		Version:      metaVersion,
 		UploadID:     uploadID,
 		Filename:     sanitizeFilename(filename),
-		TotalChunks:  totalChunks,
 		DestDir:      destDir,
+		Size:         size,
+		ChunkSize:    chunkSize,
+		Part:         part,
 		LastActivity: time.Now(),
 	}
 	if err := writeMeta(dir, meta); err != nil {
+		os.Remove(part)
+		os.RemoveAll(dir)
 		return nil, err
 	}
-	sess := &chunkSession{meta: meta, received: make(map[int]struct{})}
-	s.sessions[uploadID] = sess
+	sess := &chunkSession{meta: meta, dir: dir, received: make(map[int]struct{})}
+	s.sessions[key] = sess
 	return sess, nil
 }
 
-func scanReceivedChunks(dir string, totalChunks int) (map[int]struct{}, error) {
-	received := make(map[int]struct{}, totalChunks)
-	for i := range totalChunks {
-		if _, err := os.Stat(filepath.Join(dir, fmt.Sprintf("%05d", i))); err == nil {
+// readReceived returns the chunk indices listed in dir/received, ignoring a torn last entry and indices out of range.
+func readReceived(dir string, total int) map[int]struct{} {
+	received := map[int]struct{}{}
+	data, _ := os.ReadFile(filepath.Join(dir, "received"))
+	for off := 0; off+4 <= len(data); off += 4 {
+		if i := int(binary.LittleEndian.Uint32(data[off:])); i < total {
 			received[i] = struct{}{}
 		}
 	}
-	return received, nil
+	return received
 }
 
-// Receive stores one chunk and returns true once every chunk has arrived and the file is assembled.
-func (s *Storage) Receive(uploadID string, index int, r io.Reader) (bool, error) {
+func appendReceived(dir string, index int) error {
+	f, err := os.OpenFile(filepath.Join(dir, "received"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(binary.LittleEndian.AppendUint32(nil, uint32(index))); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// createPart creates a hidden, randomly named file of size bytes in destDir and returns its path.
+func createPart(destDir string, size int64) (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	path := filepath.Join(destDir, ".fileshare-upload-"+hex.EncodeToString(b[:])+".part")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return "", fmt.Errorf("creating partial file: %w", err)
+	}
+	if err := f.Truncate(size); err != nil {
+		f.Close()
+		os.Remove(path)
+		return "", fmt.Errorf("sizing partial file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(path)
+		return "", fmt.Errorf("closing partial file: %w", err)
+	}
+	return path, nil
+}
+
+func discard(meta sessionMeta) {
+	if meta.Part != "" && filepath.Dir(meta.Part) == filepath.Clean(meta.DestDir) && strings.HasPrefix(filepath.Base(meta.Part), ".fileshare-upload-") {
+		os.Remove(meta.Part)
+	}
+}
+
+// Receive writes chunk index, read from r, at its place in the file uploaded into destDir and reports whether the file is complete; r must hold exactly the chunk's length.
+func (s *Storage) Receive(uploadID, destDir string, index int, r io.Reader) (bool, error) {
 	s.mu.RLock()
-	sess, ok := s.sessions[uploadID]
+	sess, ok := s.sessions[s.key(uploadID, filepath.Clean(destDir))]
 	s.mu.RUnlock()
 	if !ok {
-		return false, fmt.Errorf("unknown upload session %q", uploadID)
-	}
-	if index < 0 || index >= sess.meta.TotalChunks {
-		return false, fmt.Errorf("chunk index %d out of range [0, %d)", index, sess.meta.TotalChunks)
+		return false, fmt.Errorf("%w: %q", ErrUnknownSession, uploadID)
 	}
 
 	sess.mu.Lock()
+	meta := sess.meta
+	total := meta.totalChunks()
 	_, alreadyReceived := sess.received[index]
-	complete := len(sess.received) == sess.meta.TotalChunks
+	complete := len(sess.received) == total
 	sess.mu.Unlock()
+	if index < 0 || index >= total {
+		return false, fmt.Errorf("%w: %d not in [0, %d)", ErrBadIndex, index, total)
+	}
 	if alreadyReceived {
 		return complete, nil
 	}
 
-	dir, err := s.dir(uploadID)
+	writeErr := writeChunk(meta.Part, int64(index)*meta.ChunkSize, meta.chunkLength(index), r)
+
+	sess.mu.Lock()
+	if sess.gone {
+		published := sess.published
+		sess.mu.Unlock()
+		if published {
+			return true, nil
+		}
+		return false, fmt.Errorf("%w: %q", ErrUnknownSession, uploadID)
+	}
+	if writeErr != nil {
+		sess.mu.Unlock()
+		return false, fmt.Errorf("writing chunk %d: %w", index, writeErr)
+	}
+	sess.received[index] = struct{}{}
+	sess.meta.LastActivity = time.Now()
+	if err := appendReceived(sess.dir, index); err != nil {
+		GoLog.Warnf("chunk upload: failed to record chunk %d of %q: %v (non-fatal)", index, uploadID, err)
+	}
+	done := len(sess.received) == total
+	if !done {
+		sess.mu.Unlock()
+		return false, nil
+	}
+	dest, err := publish(meta.Part, meta.DestDir, meta.Filename)
 	if err != nil {
+		sess.mu.Unlock()
 		return false, err
 	}
-	chunkPath := filepath.Join(dir, fmt.Sprintf("%05d", index))
-	f, err := os.Create(chunkPath)
+	sess.gone, sess.published = true, true
+	sess.mu.Unlock()
+	s.cleanup(sess)
+	GoLog.Infof("chunk upload complete: %q → %q", meta.Filename, dest)
+	return true, nil
+}
+
+func writeChunk(part string, offset, length int64, r io.Reader) error {
+	f, err := os.OpenFile(part, os.O_WRONLY, 0)
 	if err != nil {
-		return false, fmt.Errorf("creating chunk file: %w", err)
+		return err
 	}
 	buf := bufPool.Get().(*[]byte)
-	_, err = io.CopyBuffer(f, r, *buf)
+	n, err := io.CopyBuffer(io.NewOffsetWriter(f, offset), io.LimitReader(r, length), *buf)
 	bufPool.Put(buf)
 	if err != nil {
 		f.Close()
-		os.Remove(chunkPath)
-		return false, fmt.Errorf("writing chunk %d: %w", index, err)
+		return err
 	}
-	if err := f.Close(); err != nil {
-		os.Remove(chunkPath)
-		return false, fmt.Errorf("closing chunk %d: %w", index, err)
+	if n != length {
+		f.Close()
+		return fmt.Errorf("%w: got %d bytes, want %d", ErrChunkLength, n, length)
 	}
-
-	sess.mu.Lock()
-	sess.received[index] = struct{}{}
-	sess.meta.LastActivity = time.Now()
-	metaSnap := sess.meta
-	done := len(sess.received) == sess.meta.TotalChunks
-	sess.mu.Unlock()
-
-	if err := writeMeta(dir, metaSnap); err != nil {
-		GoLog.Warnf("chunk upload: failed to persist meta for %q: %v (non-fatal)", uploadID, err)
+	var extra [1]byte
+	m, err := r.Read(extra[:])
+	if m > 0 {
+		f.Close()
+		return fmt.Errorf("%w: more than %d bytes", ErrChunkLength, length)
 	}
-	if done {
-		if err := assemble(&metaSnap, dir); err != nil {
-			return false, err
-		}
-		s.cleanup(uploadID)
-		GoLog.Infof("chunk upload complete: %q → %q", metaSnap.Filename, metaSnap.DestDir)
+	if err != nil && !errors.Is(err, io.EOF) {
+		f.Close()
+		return err
 	}
-	return done, nil
+	return f.Close()
 }
 
-// assemble writes all chunks in dir into the destination file atomically via a .tmp file.
-func assemble(meta *sessionMeta, dir string) error {
-	dest := resolveDestPath(meta.DestDir, meta.Filename)
-	tmp := dest + ".tmp"
-
-	out, err := os.Create(tmp)
-	if err != nil {
-		return fmt.Errorf("creating target file: %w", err)
-	}
-
-	failed := false
-	defer func() {
-		out.Close()
-		if failed {
-			os.Remove(tmp)
-		}
-	}()
-
-	buf := bufPool.Get().(*[]byte)
-	defer bufPool.Put(buf)
-
-	for i := range meta.TotalChunks {
-		in, err := os.Open(filepath.Join(dir, fmt.Sprintf("%05d", i)))
-		if err != nil {
-			failed = true
-			return fmt.Errorf("missing chunk %d: %w", i, err)
-		}
-		_, err = io.CopyBuffer(out, in, *buf)
-		in.Close()
-		if err != nil {
-			failed = true
-			return fmt.Errorf("assembling chunk %d: %w", i, err)
-		}
-	}
-
-	if err := out.Close(); err != nil {
-		failed = true
-		return fmt.Errorf("closing tmp file: %w", err)
-	}
-	if err := os.Rename(tmp, dest); err != nil {
-		failed = true
-		return fmt.Errorf("renaming assembled file: %w", err)
-	}
-	return nil
-}
-
-// resolveDestPath returns dir/filename, appending a nanosecond suffix on collision.
-func resolveDestPath(dir, filename string) string {
-	dest := filepath.Join(dir, filename)
-	if _, err := os.Stat(dest); err != nil {
-		return dest
-	}
+// publish gives the finished partial file its name in dir without replacing an existing file and returns the final path.
+func publish(part, dir, filename string) (string, error) {
 	ext := filepath.Ext(filename)
 	stem := strings.TrimSuffix(filename, ext)
-	return filepath.Join(dir, fmt.Sprintf("%s_%d%s", stem, time.Now().UnixNano(), ext))
-}
-
-func (s *Storage) cleanup(uploadID string) {
-	s.mu.Lock()
-	delete(s.sessions, uploadID)
-	s.mu.Unlock()
-	if dir, err := s.dir(uploadID); err == nil {
-		os.RemoveAll(dir)
+	for attempt := range 100 {
+		dest := filepath.Join(dir, filename)
+		if attempt > 0 {
+			dest = filepath.Join(dir, fmt.Sprintf("%s_%d%s", stem, time.Now().UnixNano(), ext))
+		}
+		err := os.Link(part, dest)
+		if err == nil {
+			os.Remove(part)
+			return dest, nil
+		}
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if _, statErr := os.Lstat(dest); errors.Is(statErr, fs.ErrNotExist) {
+			if err := os.Rename(part, dest); err != nil {
+				return "", fmt.Errorf("publishing upload: %w", err)
+			}
+			return dest, nil
+		}
 	}
+	return "", fmt.Errorf("publishing upload: no free name for %q", filename)
 }
 
-// Sweep removes sessions idle longer than the timeout and directories without meta.json.
+func (s *Storage) cleanup(sess *chunkSession) {
+	s.mu.Lock()
+	key := filepath.Base(sess.dir)
+	if s.sessions[key] == sess {
+		delete(s.sessions, key)
+	}
+	s.mu.Unlock()
+	os.RemoveAll(sess.dir)
+}
+
+// Sweep removes sessions idle longer than the timeout, with their partial files, and directories without meta.json.
 func (s *Storage) Sweep() {
 	now := time.Now()
 	s.mu.Lock()
@@ -329,10 +442,25 @@ func (s *Storage) sweepEntry(id string, now time.Time, timeout time.Duration) {
 		os.RemoveAll(dir)
 		return
 	}
+	if fi, err := os.Stat(filepath.Join(dir, "received")); err == nil && fi.ModTime().After(meta.LastActivity) {
+		meta.LastActivity = fi.ModTime()
+	}
+	sess, loaded := s.sessions[id]
+	if loaded {
+		sess.mu.Lock()
+		meta.LastActivity = sess.meta.LastActivity
+		sess.mu.Unlock()
+	}
 	if now.Sub(meta.LastActivity) <= timeout {
 		return
 	}
+	if loaded {
+		sess.mu.Lock()
+		sess.gone = true
+		sess.mu.Unlock()
+	}
 	delete(s.sessions, id)
+	discard(meta)
 	os.RemoveAll(dir)
 	GoLog.Infof("chunk upload: removed inactive session %q (%s)", id, meta.Filename)
 }
@@ -350,18 +478,21 @@ func writeMeta(dir string, meta sessionMeta) error {
 		os.Remove(tmp)
 		return fmt.Errorf("encoding meta: %w", err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("closing meta: %w", err)
+	}
 	return os.Rename(tmp, path)
 }
 
 func missingChunks(received map[int]struct{}, total int) []int {
 	missing := make([]int, 0, total-len(received))
-	for i := 0; i < total; i++ {
+	for i := range total {
 		if _, ok := received[i]; !ok {
 			missing = append(missing, i)
 		}
 	}
-	return missing
+	return slices.Clip(missing)
 }
 
 func sanitizeFilename(name string) string {

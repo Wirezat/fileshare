@@ -114,7 +114,9 @@ Entering the correct password sets a session cookie scoped to that subpath. The 
 
 ### Uploads
 
-When a share has uploads enabled, visitors can drag and drop files onto the listing page. Uploads use a chunked protocol with crash-safe resume support.
+When a share has uploads enabled, visitors can drag and drop files onto the listing page. Files are sent in 5 MiB chunks, four at a time across all selected files; each chunk is written straight to its place in a hidden, randomly named `.fileshare-upload-….part` file in the share's folder, which gets the file's name once the last chunk arrives — there is no copy step at the end and no second copy on disk. An interrupted upload, also across a server restart, resumes with the chunks the server already has when the same file is chosen again into the same share; once the chunk inactivity timeout has passed, an unfinished upload and its `.part` file are removed at the next server start or the next upload into any share. A password-protected share accepts uploads only after it has been unlocked, and a chunk may not exceed `maxPostSize` in `data.json`. The browser shows the time remaining from the average speed of the active upload time.
+
+`MAX_UPLOAD_RATE` at the top of `web/js/share.js` caps the upload rate per browser tab in bytes per second (`0`, the default, means no cap).
 
 ### Office documents
 

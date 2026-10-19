@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/office"
+	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/store"
 )
 
@@ -111,18 +112,27 @@ func TestResolveLockedUntilTokenOrDocumentServer(t *testing.T) {
 }
 
 func TestUploadTarget(t *testing.T) {
+	hash, _ := password.Hash("pw")
 	s, _ := newService(t, map[string]config.FileData{
 		"up":     {Path: "/srv/up", AllowPost: true},
 		"closed": {Path: "/srv/closed"},
 		"old":    {Path: "/srv/old", AllowPost: true, Expired: true},
+		"priv":   {Path: "/srv/priv", AllowPost: true, Password: hash},
 	})
-	if fd, err := s.UploadTarget("up"); err != nil || fd.Path != "/srv/up" {
+	if fd, err := s.UploadTarget("up", ""); err != nil || fd.Path != "/srv/up" {
 		t.Errorf("up: %+v, %v", fd, err)
 	}
-	for sub, want := range map[string]error{"nope": ErrNotFound, "closed": ErrUploadsOff, "old": ErrExpired} {
-		if _, err := s.UploadTarget(sub); !errors.Is(err, want) {
+	for sub, want := range map[string]error{"nope": ErrNotFound, "closed": ErrUploadsOff, "old": ErrExpired, "priv": ErrLocked} {
+		if _, err := s.UploadTarget(sub, ""); !errors.Is(err, want) {
 			t.Errorf("%s: err = %v, want %v", sub, err, want)
 		}
+	}
+	token, err := s.Unlock("priv", "pw", "1.2.3.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UploadTarget("priv", token); err != nil {
+		t.Errorf("unlocked password share: %v", err)
 	}
 }
 
