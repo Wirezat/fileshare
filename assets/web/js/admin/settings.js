@@ -332,13 +332,20 @@ async function loadDownloadLimit() {
     try {
         return await (await apiFetch('/admin/api/settings/download_limit')).json()
     } catch {
-        return { enabled: false, mbit: 0 }
+        return null
     }
 }
 
 function bandwidthForm(state) {
     const node = document.createElement('div')
     node.className = 'form-stack settings-form'
+    if (!state) {
+        const alert = document.createElement('div')
+        alert.className = 'alert danger'
+        alert.innerHTML = `<span class="alert-icon">⚠</span><span>${esc(t('settings.bandwidth.load_failed'))}</span>`
+        node.append(description('settings.bandwidth.desc'), alert)
+        return node
+    }
 
     const group = document.createElement('div')
     group.className = 'radio-group'
@@ -367,11 +374,9 @@ function bandwidthForm(state) {
 
     async function save() {
         const body = { enabled }
-        if (rate.value !== '') {
-            const mbit = Number(rate.value)
-            if (!Number.isInteger(mbit) || mbit < 1 || mbit > 100000) {
-                return showToast({ tone: 'danger', messageKey: t('settings.bandwidth.invalid') })
-            }
+        const mbit = Number(rate.value)
+        const valid = rate.value !== '' && Number.isInteger(mbit) && mbit >= 1 && mbit <= 100000
+        if (valid) {
             body.mbit = mbit
         } else if (enabled) {
             return showToast({ tone: 'danger', messageKey: t('settings.bandwidth.invalid') })
@@ -385,6 +390,12 @@ function bandwidthForm(state) {
             ok('settings.bandwidth.done')
         } catch (err) {
             fail(err)
+        }
+        const saved = await loadDownloadLimit()
+        if (saved) {
+            enabled = saved.enabled
+            rate.value = saved.mbit || ''
+            paint()
         }
     }
 

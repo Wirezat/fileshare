@@ -397,3 +397,29 @@ func TestManyConnectionsOfOneClientEachGetOneShare(t *testing.T) {
 		t.Errorf("a 20 KB page beside 20 downloads at 8 Mbit/s took %v, want about one share in 21 (0.42 s)", d)
 	}
 }
+
+func TestHeadIsNotPaced(t *testing.T) {
+	l := New(newSetting(true, 1).get)
+	h := l.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write(make([]byte, 200_000)) }))
+	start := time.Now()
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodHead, "/", nil))
+	if d := time.Since(start); d > 100*time.Millisecond {
+		t.Errorf("HEAD whose handler writes 200 KB took %v at 1 Mbit/s, want no wait", d)
+	}
+	if d := serve(context.Background(), l, httptest.NewRecorder(), writeAll(chunk)); d > 100*time.Millisecond {
+		t.Errorf("a full chunk right after the HEAD waited %v, want the bucket untouched", d)
+	}
+}
+
+func TestStatusAndHeadersAreFixedByTheFirstWrite(t *testing.T) {
+	rec := httptest.NewRecorder()
+	serve(context.Background(), New(newSetting(true, 8).get), rec, func(w http.ResponseWriter) {
+		w.Write([]byte("partial"))
+		w.Header().Set("X-Late", "1")
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	res := rec.Result()
+	if res.StatusCode != http.StatusOK || res.Header.Get("X-Late") != "" {
+		t.Errorf("status %d, X-Late %q after writing first; want 200 and no late header, as without the throttle", res.StatusCode, res.Header.Get("X-Late"))
+	}
+}

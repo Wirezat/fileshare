@@ -125,6 +125,7 @@
   "settings.bandwidth.invalid": "Please enter a whole number from 1 to 100000.",
   "settings.bandwidth.submit": "Save limit",
   "settings.bandwidth.done": "Download limit saved",
+  "settings.bandwidth.load_failed": "The current limit could not be loaded. Reload the page to change it.",
   "settings.danger.title": "Danger zone",
   "settings.danger.prune": "Delete expired shares",
   "settings.danger.prune_warning": "Permanently removes every expired share. This cannot be undone.",

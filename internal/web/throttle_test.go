@@ -47,7 +47,11 @@ func TestOnlyThePublicChainIsThrottled(t *testing.T) {
 			t.Errorf("GET %s not throttled", target)
 		}
 	}
+	ct.n.Store(0)
 	send(e.handler, http.MethodGet, "/docs/a.txt", nil, withHeader("Range", "bytes=1-2"))
+	if ct.n.Load() != 1 {
+		t.Error("Range request not throttled")
+	}
 
 	unthrottled := []func(){
 		func() { send(e.handler, http.MethodGet, "/admin", nil, withCookie(cookie), asNavigation) },

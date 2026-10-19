@@ -31,9 +31,13 @@ func New(source func() (enabled bool, mbit int)) *Limiter {
 	return &Limiter{source: source, tokens: chunk, now: time.Now, sleep: sleep}
 }
 
-// Handler serves next with its response collected into chunks of up to 64 KiB, each let through at the current rate.
+// Handler serves next with its response collected into chunks of up to 64 KiB, each let through at the current rate; HEAD passes unpaced.
 func (l *Limiter) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			next.ServeHTTP(w, r)
+			return
+		}
 		tw := &writer{ResponseWriter: w, l: l, ctx: r.Context()}
 		defer tw.release()
 		next.ServeHTTP(tw, r)
@@ -108,13 +112,24 @@ func capacity(rate float64) float64 {
 
 type writer struct {
 	http.ResponseWriter
-	l   *Limiter
-	ctx context.Context
-	buf *[]byte
-	err error
+	l    *Limiter
+	ctx  context.Context
+	buf  *[]byte
+	err  error
+	sent bool
+}
+
+func (w *writer) WriteHeader(code int) {
+	if !w.sent {
+		w.sent = true
+		w.ResponseWriter.WriteHeader(code)
+	}
 }
 
 func (w *writer) Write(p []byte) (int, error) {
+	if len(p) > 0 {
+		w.WriteHeader(http.StatusOK)
+	}
 	written := 0
 	for len(p) > 0 && w.err == nil {
 		if w.buf == nil {

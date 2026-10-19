@@ -125,6 +125,7 @@
   "settings.bandwidth.invalid": "Bitte eine ganze Zahl von 1 bis 100000 eingeben.",
   "settings.bandwidth.submit": "Limit speichern",
   "settings.bandwidth.done": "Download-Limit gespeichert",
+  "settings.bandwidth.load_failed": "Das aktuelle Limit konnte nicht geladen werden. Seite neu laden, um es zu ändern.",
   "settings.danger.title": "Gefahrenzone",
   "settings.danger.prune": "Abgelaufene Freigaben löschen",
   "settings.danger.prune_warning": "Entfernt alle abgelaufenen Freigaben endgültig. Das lässt sich nicht rückgängig machen.",
