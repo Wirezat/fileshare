@@ -359,13 +359,14 @@ if (_timeLeftEl) {
 // ── Upload toast toggle ───────────────────────────────
 let uploadToastOpen = false;
 
-function toggleUploadToast() {
+function toggleUploadToast(e) {
+    if (e && (!e.target.isConnected || $("upload-toast")?.contains(e.target))) return;
     uploadToastOpen = !uploadToastOpen;
     $("upload-toast")?.classList.toggle("visible", uploadToastOpen);
 }
 
 document.addEventListener("click", e => {
-    if (!$("upload-badge")?.contains(e.target)) {
+    if (e.target.isConnected && !$("upload-badge")?.contains(e.target)) {
         uploadToastOpen = false;
         $("upload-toast")?.classList.remove("visible");
 
@@ -422,6 +423,9 @@ function estimateUpload(sentBytes, remainingBytes, activeMs) {
     return { speed, eta: remainingBytes / speed };
 }
 
+const steadyEta = (shown, next) =>
+    shown == null || next < shown || next - shown >= Math.max(3, shown * 0.05) ? next : shown;
+
 const EXT_MAP = {
     jpg: "JPG", jpeg: "JPG", png: "PNG", gif: "GIF", webp: "WEBP", svg: "SVG",
     mp4: "MP4", mov: "MOV", avi: "AVI", webm: "WEBM", mp3: "MP3", wav: "WAV", ogg: "OGG",
@@ -439,7 +443,7 @@ const _ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 const escapeHtml = s => s.replace(/[&<>"]/g, c => _ESC[c]);
 
 // ── Upload state ──────────────────────────────────────
-const uploadStats = { totalBytes: 0, bytesUploaded: 0, sentBytes: 0, activeMs: 0, activeSince: null };
+const uploadStats = { totalBytes: 0, bytesUploaded: 0, sentBytes: 0, activeMs: 0, activeSince: null, shownEta: null };
 const activeMs = () => uploadStats.activeMs + (uploadStats.activeSince ? Date.now() - uploadStats.activeSince : 0);
 const stopClock = () => { uploadStats.activeMs = activeMs(); uploadStats.activeSince = null; };
 let activeRun = null;
@@ -575,6 +579,18 @@ function renderFileList() {
     });
 }
 
+function updateFileProgress() {
+    const rows = $("upload-toast-file-list")?.children;
+    if (!rows) return;
+    fileStates.forEach((f, i) => {
+        if (f.status !== "uploading" || !rows[i]) return;
+        const fill = rows[i].querySelector(".upload-file-minibar-fill");
+        if (fill) fill.style.width = f.progress + "%";
+        const status = rows[i].querySelector(".upload-file-status");
+        if (status) status.textContent = f.progress + "%";
+    });
+}
+
 // ── Stripe progress bar ───────────────────────────────
 function stripe(pct, done) {
     const s = $("upload-stripe"), f = $("upload-stripe-fill");
@@ -604,7 +620,8 @@ function setUploadProgress(pct, loaded, total) {
 
     const est = estimateUpload(uploadStats.sentBytes, total - loaded, activeMs());
     const ts = $("upload-toast-speed"); if (ts) ts.textContent = est ? formatSpeed(est.speed) : "";
-    const te = $("upload-toast-eta"); if (te) te.textContent = est ? formatEta(est.eta) ?? "" : "";
+    if (est) uploadStats.shownEta = steadyEta(uploadStats.shownEta, Math.ceil(est.eta));
+    const te = $("upload-toast-eta"); if (te) te.textContent = est ? formatEta(uploadStats.shownEta) ?? "" : "";
 }
 
 // ── Shared end-of-upload state reset ─────────────────
@@ -882,7 +899,7 @@ document.addEventListener("DOMContentLoaded", () => {
         Object.keys(filePausedFlags).forEach(k => delete filePausedFlags[k]);
         Object.keys(filePauseResolvers).forEach(k => delete filePauseResolvers[k]);
 
-        Object.assign(uploadStats, { totalBytes, bytesUploaded: 0, sentBytes: 0, activeMs: 0, activeSince: Date.now() });
+        Object.assign(uploadStats, { totalBytes, bytesUploaded: 0, sentBytes: 0, activeMs: 0, activeSince: Date.now(), shownEta: null });
         uploadControlState = "uploading";
         pauseResolvers = [];
         updatePauseButton();
@@ -922,7 +939,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         drawPending = false;
                         if (run.cancelled) return;
                         setUploadProgress(Math.round(uploadStats.bytesUploaded / totalBytes * 100), uploadStats.bytesUploaded, totalBytes);
-                        renderFileList();
+                        updateFileProgress();
                     });
                 }
             },
