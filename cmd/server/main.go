@@ -16,6 +16,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
+	"github.com/Wirezat/fileshare/internal/throttle"
 	"github.com/Wirezat/fileshare/internal/upload"
 	"github.com/Wirezat/fileshare/internal/web"
 )
@@ -106,6 +107,7 @@ func build(st *store.FileStore, logs *logstore.Store, requestLog io.Writer, asse
 		Auth:       admins,
 		Uploads:    uploads,
 		Logs:       logs,
+		Throttle:   throttle.New(func() (bool, int) { return st.Current().DownloadLimit() }),
 		RequestLog: requestLog,
 		Assets:     assets,
 		Started:    time.Now(),

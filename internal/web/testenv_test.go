@@ -16,6 +16,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/store"
+	"github.com/Wirezat/fileshare/internal/throttle"
 	"github.com/Wirezat/fileshare/internal/upload"
 )
 
@@ -73,9 +74,10 @@ func newEnv(t *testing.T, cfg *config.Config) *testEnv {
 		Uploads: upload.New(filepath.Join(dir, "chunks"), func() time.Duration {
 			return time.Duration(e.store.Current().ChunkInactivityTimeout()) * time.Second
 		}),
-		Logs:    logstore.New(),
-		Assets:  "../../assets/web",
-		Started: time.Now(),
+		Logs:     logstore.New(),
+		Throttle: throttle.New(func() (bool, int) { return e.store.Current().DownloadLimit() }),
+		Assets:   "../../assets/web",
+		Started:  time.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)

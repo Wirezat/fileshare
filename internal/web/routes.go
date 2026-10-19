@@ -57,6 +57,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	public := chain(
 		http.HandlerFunc(s.handleRequest),
 		s.loggingMiddleware,
+		s.throttled,
 	)
 	mux.Handle("/", public)
 	mux.HandleFunc("/static/share.css", s.handleShareCSS)
@@ -65,4 +66,10 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.Handle("/static/locales/", http.StripPrefix("/static/locales/", http.FileServer(http.Dir(s.asset("locales")))))
 
 	return mux
+}
+
+func (s *Server) throttled(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.deps.Throttle.Handler(next).ServeHTTP(w, r)
+	})
 }

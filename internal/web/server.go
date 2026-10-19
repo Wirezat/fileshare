@@ -46,6 +46,10 @@ type uploadService interface {
 	Receive(uploadID string, index int, r io.Reader) (bool, error)
 }
 
+type throttler interface {
+	Handler(next http.Handler) http.Handler
+}
+
 type logService interface {
 	Add(entry logstore.Entry)
 	Recent(n int) []logstore.Entry
@@ -60,6 +64,7 @@ type Deps struct {
 	Auth       authService
 	Uploads    uploadService
 	Logs       logService
+	Throttle   throttler
 	RequestLog io.Writer
 	Assets     string
 	Started    time.Time
