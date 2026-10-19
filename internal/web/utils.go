@@ -6,22 +6,36 @@ import (
 	"strings"
 )
 
-// clientIP returns the caller's address, from X-Forwarded-For or CF-Connecting-IP only when the peer is loopback or private.
+// clientIP returns the peer, or behind a loopback/private peer the rightmost public X-Forwarded-For entry.
 func clientIP(r *http.Request) string {
 	peer := peerIP(r)
 	if !isTrustedProxy(peer) {
 		return peer
 	}
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i != -1 {
-			return strings.TrimSpace(xff[:i])
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	client := peer
+	for i := len(hops) - 1; i >= 0; i-- {
+		ip := hopIP(hops[i])
+		if ip == "" {
+			break
 		}
-		return strings.TrimSpace(xff)
+		client = ip
+		if !isTrustedProxy(ip) {
+			break
+		}
 	}
-	if cf := r.Header.Get("Cf-Connecting-Ip"); cf != "" {
-		return strings.TrimSpace(cf)
+	return client
+}
+
+func hopIP(hop string) string {
+	hop = strings.TrimSpace(hop)
+	if host, _, err := net.SplitHostPort(hop); err == nil {
+		hop = host
 	}
-	return peer
+	if ip := net.ParseIP(hop); ip != nil {
+		return ip.String()
+	}
+	return ""
 }
 
 // peerIP is the address of the immediate connection peer.
