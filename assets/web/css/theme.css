@@ -109,6 +109,15 @@ html.dark .header-logo {
 .log-error .log-level { color: var(--danger); }
 
 .log-error { color: var(--text); }
+
+.config-banner {
+    max-width: 1144px;
+    margin: 28px 28px 0;
+    padding: 10px 14px;
+    border: 1px solid var(--danger);
+    border-radius: 6px;
+    color: var(--danger);
+}
 .log-warn  { color: var(--text); }
 
 .log-request { cursor: pointer; }

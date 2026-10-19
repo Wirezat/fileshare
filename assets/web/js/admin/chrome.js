@@ -24,7 +24,6 @@ export async function bootChrome() {
         refreshApi: null,
     })
 
-    // Locale is loaded before init() because the nav labels below call t().
     await loadI18n(getLang())
 
     await init({
@@ -39,6 +38,29 @@ export async function bootChrome() {
 
     wireSignOut()
     startUptimeClock()
+    startConfigWatch()
+}
+
+/* Shows a banner above the page while data.json on disk is not taken over. */
+function startConfigWatch() {
+    const page = document.getElementById('wui-page-content')
+    if (!page) return
+    const banner = document.createElement('div')
+    banner.className = 'config-banner'
+    banner.setAttribute('role', 'alert')
+    banner.hidden = true
+    page.before(banner)
+    const check = async () => {
+        try {
+            const res = await fetch('/admin/api/me')
+            if (!res.ok) return
+            const { config_problem: problem } = await res.json()
+            banner.hidden = !problem
+            banner.textContent = problem ? tf('admin.config_refused', { reason: problem }) : ''
+        } catch { }
+    }
+    check()
+    setInterval(check, 15_000)
 }
 
 /* Routes the sign-out link through the session layer's logout(). */

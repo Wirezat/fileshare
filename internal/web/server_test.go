@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -90,5 +91,33 @@ func TestUIAssetsComeFromTheAssetsDir(t *testing.T) {
 	rec := send(s.Handler(), http.MethodGet, "/static/ui/probe.css", nil)
 	if rec.Code != http.StatusOK || rec.Body.String() != "probe" {
 		t.Errorf("%d %q, want the file from <assets>/ui", rec.Code, rec.Body.String())
+	}
+}
+
+type refusingStore struct{ configStore }
+
+func (refusingStore) Refused() string {
+	return "data.json has revision 1, older than the server's last save (2)"
+}
+
+func TestAdminMeReportsARefusedConfig(t *testing.T) {
+	e := newEnv(t, baseConfig())
+	cookie := e.cookie(t)
+	d := e.srv.deps
+	d.Store = refusingStore{d.Store}
+	s, err := New(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := send(s.Handler(), http.MethodGet, "/admin/api/me", nil, asFetch, withCookie(cookie))
+	var me struct {
+		ConfigProblem string `json:"config_problem"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(me.ConfigProblem, "older than the server's last save") {
+		t.Errorf("config_problem = %q, want the refusal reason", me.ConfigProblem)
 	}
 }

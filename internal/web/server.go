@@ -18,6 +18,7 @@ import (
 type configStore interface {
 	Current() config.View
 	Update(func(*config.Config) error) error
+	Refused() string
 }
 
 type shareService interface {

@@ -13,6 +13,7 @@
   "admin.signout": "Abmelden",
   "admin.toggle_theme": "Design wechseln",
   "admin.session_expired": "Sitzung abgelaufen — bitte erneut anmelden.",
+  "admin.config_refused": "data.json auf dem Server wurde nicht übernommen: {reason}. Der Server arbeitet mit dem letzten gültigen Stand weiter; deine nächste Änderung hier schreibt ihn und hebt die abgelehnte Datei als data.json.rejected-… auf.",
   "shares.title": "Freigaben",
   "shares.new": "Neue Freigabe",
   "shares.overview": "Überblick",

@@ -79,8 +79,9 @@ func (s *Server) handleAdminMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, map[string]any{
-		"username": s.deps.Store.Current().AdminUsername(),
-		"is_admin": true,
+		"username":       s.deps.Store.Current().AdminUsername(),
+		"is_admin":       true,
+		"config_problem": s.deps.Store.Refused(),
 	})
 }
 
