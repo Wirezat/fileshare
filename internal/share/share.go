@@ -37,6 +37,8 @@ func (e RateLimitedError) Error() string {
 type configStore interface {
 	Current() config.View
 	Update(func(*config.Config) error) error
+	UpdateIfAccepted(func(*config.Config) error) error
+	OnOutsideChange(func(old, next config.View))
 }
 
 type Service struct {
@@ -46,7 +48,19 @@ type Service struct {
 }
 
 func New(store configStore) *Service {
-	return &Service{store: store, tokens: ttl.New[string](), limiter: ratelimit.New()}
+	s := &Service{store: store, tokens: ttl.New[string](), limiter: ratelimit.New()}
+	store.OnOutsideChange(s.outsideChange)
+	return s
+}
+
+func (s *Service) outsideChange(old, next config.View) {
+	for subpath, before := range old.Shares() {
+		after, ok := next.Share(subpath)
+		if !ok || after.Password != before.Password || after.Path != before.Path {
+			s.revoke(subpath)
+			GoLog.Infof("share /%s changed in data.json, its unlocks ended", subpath)
+		}
+	}
 }
 
 // Access is what a request presents to open a password-protected share.
@@ -126,13 +140,17 @@ func (s *Service) upgradeHash(subpath, old, pw string) {
 	if err != nil {
 		return
 	}
-	err = s.store.Update(func(c *config.Config) error {
+	err = s.store.UpdateIfAccepted(func(c *config.Config) error {
 		if cur, ok := c.Files[subpath]; ok && cur.Password == old {
 			cur.Password = rehashed
 			c.Files[subpath] = cur
 		}
 		return nil
 	})
+	if errors.Is(err, config.ErrRefused) {
+		GoLog.Infof("share unlock: hash upgrade for /%s postponed while data.json is not taken over", subpath)
+		return
+	}
 	if err != nil {
 		GoLog.Errorf("share unlock: failed to store upgraded hash: %v", err)
 		return

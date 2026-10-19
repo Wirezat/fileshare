@@ -23,7 +23,9 @@ func (s *Service) mintSetupCode() {
 	if _, err := rand.Read(b); err != nil {
 		return
 	}
+	s.mu.Lock()
 	s.setupCode = hex.EncodeToString(b)
+	s.mu.Unlock()
 }
 
 // SetupCode returns the one-shot setup code, or "" when setup is done or no code could be made.

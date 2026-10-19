@@ -34,6 +34,8 @@ func (e RateLimitedError) Error() string {
 type configStore interface {
 	Current() config.View
 	Update(func(*config.Config) error) error
+	UpdateIfAccepted(func(*config.Config) error) error
+	OnOutsideChange(func(old, next config.View))
 }
 
 // Service checks admin credentials and keeps the admin sessions.
@@ -49,7 +51,23 @@ type Service struct {
 func New(store configStore) *Service {
 	s := &Service{store: store, sessions: ttl.New[struct{}](), limiter: ratelimit.New()}
 	s.mintSetupCode()
+	store.OnOutsideChange(s.outsideChange)
 	return s
+}
+
+// outsideChange ends every session when the admin name or hash was edited outside the server and makes a setup code if the password was cleared.
+func (s *Service) outsideChange(old, next config.View) {
+	if old.AdminPassword() == next.AdminPassword() && old.AdminUsername() == next.AdminUsername() {
+		return
+	}
+	n := s.sessions.DeleteExcept("")
+	GoLog.Infof("admin credentials changed in data.json, %d session(s) ended", n)
+	if next.AdminPassword() == "" {
+		s.mintSetupCode()
+		if code := s.SetupCode(); code != "" {
+			GoLog.Infof("no admin password set — open /setup and enter this setup code: %s", code)
+		}
+	}
 }
 
 // NeedsSetup reports whether no admin password is set yet.
@@ -93,13 +111,17 @@ func (s *Service) upgradeHash(old, pass string) string {
 		return old
 	}
 	stored := old
-	err = s.store.Update(func(c *config.Config) error {
+	err = s.store.UpdateIfAccepted(func(c *config.Config) error {
 		if c.AdminPassword == old {
 			c.AdminPassword = rehashed
 			stored = rehashed
 		}
 		return nil
 	})
+	if errors.Is(err, config.ErrRefused) {
+		GoLog.Infof("admin login: hash upgrade postponed while data.json is not taken over")
+		return old
+	}
 	if err != nil {
 		GoLog.Errorf("admin login: failed to store upgraded hash: %v", err)
 		return old
