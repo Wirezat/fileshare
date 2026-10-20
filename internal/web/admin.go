@@ -66,8 +66,8 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			creds.Password = r.FormValue("password")
 		}
 
-		ip := clientIP(r)
-		token, err := s.deps.Auth.Login(creds.Username, creds.Password, ip)
+		key := rateKey(r)
+		token, err := s.deps.Auth.Login(creds.Username, creds.Password, key)
 		var limited auth.RateLimitedError
 		switch {
 		case err == nil:
@@ -76,9 +76,9 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, auth.ErrNotSetUp):
 			http.Redirect(w, r, "/setup", http.StatusFound)
 		case errors.As(err, &limited):
-			tooManyAttempts(w, limited.RetryAfter, ip, "admin login")
+			tooManyAttempts(w, limited.RetryAfter, key, "admin login")
 		case errors.Is(err, auth.ErrWrongCredentials):
-			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", ip)
+			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", clientIP(r))
 			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
 		default:
 			GoLog.Errorf("handleAdminLogin: %v", err)

@@ -32,8 +32,8 @@ func (s *Server) handleSetupInit(w http.ResponseWriter, r *http.Request) {
 	if !decodeOrErr(w, r, &req) {
 		return
 	}
-	ip := clientIP(r)
-	err := s.deps.Auth.Setup(req.SetupToken, req.NewUsername, req.NewPassword, ip)
+	key := rateKey(r)
+	err := s.deps.Auth.Setup(req.SetupToken, req.NewUsername, req.NewPassword, key)
 	var limited auth.RateLimitedError
 	switch {
 	case err == nil:
@@ -42,9 +42,9 @@ func (s *Server) handleSetupInit(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, auth.ErrSetupDone):
 		http.Error(w, "Setup already complete", http.StatusForbidden)
 	case errors.As(err, &limited):
-		tooManyAttempts(w, limited.RetryAfter, "setup|"+ip, "setup")
+		tooManyAttempts(w, limited.RetryAfter, "setup|"+key, "setup")
 	case errors.Is(err, auth.ErrWrongSetupCode):
-		GoLog.Warnf("setup: rejected init with wrong setup code from %s", ip)
+		GoLog.Warnf("setup: rejected init with wrong setup code from %s", clientIP(r))
 		http.Error(w, "Wrong setup code — it is printed in the server log", http.StatusForbidden)
 	case errors.Is(err, auth.ErrEmptyPassword):
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)

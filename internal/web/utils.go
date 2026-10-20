@@ -27,6 +27,18 @@ func clientIP(r *http.Request) string {
 	return client
 }
 
+func rateKey(r *http.Request) string {
+	addr := clientIP(r)
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return addr
+	}
+	if ip.To4() != nil {
+		return ip.String()
+	}
+	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
+}
+
 func hopIP(hop string) string {
 	hop = strings.TrimSpace(hop)
 	if host, _, err := net.SplitHostPort(hop); err == nil {

@@ -1,8 +1,12 @@
 package web
 
 import (
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/Wirezat/fileshare/internal/ratelimit"
 )
 
 func TestClientIP(t *testing.T) {
@@ -45,5 +49,43 @@ func TestClientIPIgnoresCfConnectingIP(t *testing.T) {
 	r.Header.Set("Cf-Connecting-Ip", "1.2.3.4")
 	if got := clientIP(r); got != "127.0.0.1" {
 		t.Errorf("clientIP = %q, want the peer", got)
+	}
+}
+
+func TestRateKey(t *testing.T) {
+	cases := []struct{ peer, want string }{
+		{"203.0.113.9:4000", "203.0.113.9"},
+		{"[2001:db8:1:2:aaaa::1]:4000", "2001:db8:1:2::/64"},
+		{"[2001:db8:1:2:bbbb::9]:4000", "2001:db8:1:2::/64"},
+		{"[2001:db8:1:3::1]:4000", "2001:db8:1:3::/64"},
+		{"[::ffff:203.0.113.9]:4000", "203.0.113.9"},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = c.peer
+		if got := rateKey(r); got != c.want {
+			t.Errorf("rateKey(%s) = %q, want %q", c.peer, got, c.want)
+		}
+	}
+}
+
+func TestLoginLimitCoversTheWholeIPv6Network(t *testing.T) {
+	e := newEnv(t, configWithAdmin(t, "secret"))
+	from := func(peer string) func(*http.Request) {
+		return func(r *http.Request) { r.RemoteAddr = peer }
+	}
+	try := func(peer, pass string) int {
+		body := `{"username":"admin","password":"` + pass + `"}`
+		return send(e.handler, http.MethodPost, "/admin/login", strings.NewReader(body),
+			withHeader("Content-Type", "application/json"), from(peer)).Code
+	}
+	for i := 0; i < ratelimit.MaxFailures; i++ {
+		try("[2001:db8:1:2::"+string(rune('a'+i))+"]:4000", "wrong")
+	}
+	if got := try("[2001:db8:1:2::ff]:4000", "secret"); got != http.StatusTooManyRequests {
+		t.Errorf("same /64: status = %d, want 429", got)
+	}
+	if got := try("[2001:db8:1:3::1]:4000", "secret"); got != http.StatusNoContent {
+		t.Errorf("other /64: status = %d, want 204", got)
 	}
 }

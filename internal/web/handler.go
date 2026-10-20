@@ -207,7 +207,7 @@ func (s *Server) handleUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := s.deps.Shares.Unlock(subpath, r.FormValue("password"), clientIP(r))
+	token, err := s.deps.Shares.Unlock(subpath, r.FormValue("password"), rateKey(r))
 	var limited share.RateLimitedError
 	switch {
 	case err == nil:
@@ -218,7 +218,7 @@ func (s *Server) handleUnlock(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, share.ErrNoPassword):
 		http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
 	case errors.As(err, &limited):
-		tooManyAttempts(w, limited.RetryAfter, clientIP(r)+"|"+subpath, "share unlock")
+		tooManyAttempts(w, limited.RetryAfter, rateKey(r)+"|"+subpath, "share unlock")
 	case errors.Is(err, share.ErrWrongPassword):
 		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, clientIP(r))
 		s.serveGatePage(w, gateData{
