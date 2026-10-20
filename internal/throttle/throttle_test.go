@@ -44,9 +44,15 @@ func (h *hookWriter) Write(p []byte) (int, error) {
 }
 
 func serve(ctx context.Context, l *Limiter, w http.ResponseWriter, body func(http.ResponseWriter)) time.Duration {
+	return serveAs(ctx, l, "", w, body)
+}
+
+func serveAs(ctx context.Context, l *Limiter, client string, w http.ResponseWriter, body func(http.ResponseWriter)) time.Duration {
 	r := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+	r.Header.Set("X-Client", client)
 	start := time.Now()
-	l.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { body(w) })).ServeHTTP(w, r)
+	l.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { body(w) }),
+		func(r *http.Request) string { return r.Header.Get("X-Client") }).ServeHTTP(w, r)
 	return time.Since(start)
 }
 
@@ -363,11 +369,11 @@ func TestAWaiterThatAlwaysWakesSecondGetsItsShare(t *testing.T) {
 		return false
 	}
 
-	go l.take(ctx, 100_000_000)
+	go l.take(ctx, "", 100_000_000)
 	waitAsleep(1, nil)
 	small := make(chan struct{})
 	go func() {
-		l.take(ctx, 60_000)
+		l.take(ctx, "", 60_000)
 		close(small)
 	}()
 	waitAsleep(2, nil)
@@ -400,7 +406,7 @@ func TestManyConnectionsOfOneClientEachGetOneShare(t *testing.T) {
 
 func TestHeadIsNotPaced(t *testing.T) {
 	l := New(newSetting(true, 1).get)
-	h := l.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write(make([]byte, 200_000)) }))
+	h := l.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write(make([]byte, 200_000)) }), nil)
 	start := time.Now()
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodHead, "/", nil))
 	if d := time.Since(start); d > 100*time.Millisecond {
@@ -421,5 +427,46 @@ func TestStatusAndHeadersAreFixedByTheFirstWrite(t *testing.T) {
 	res := rec.Result()
 	if res.StatusCode != http.StatusOK || res.Header.Get("X-Late") != "" {
 		t.Errorf("status %d, X-Late %q after writing first; want 200 and no late header, as without the throttle", res.StatusCode, res.Header.Get("X-Late"))
+	}
+}
+
+func TestASecondClientGetsHalfBesideManyDownloadsOfAnother(t *testing.T) {
+	l := New(newSetting(true, 8).get)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	for range 20 {
+		go serveAs(ctx, l, "a", httptest.NewRecorder(), writeAll(100_000_000))
+	}
+	time.Sleep(500 * time.Millisecond)
+	d := serveAs(context.Background(), l, "b", httptest.NewRecorder(), writeAll(400_000))
+	if d < 600*time.Millisecond || d > 1500*time.Millisecond {
+		t.Errorf("400 KB of client b beside 20 downloads of client a at 8 Mbit/s took %v, want about half the rate (0.8 s)", d)
+	}
+}
+
+func TestTheClientsDownloadsShareItsHalf(t *testing.T) {
+	l := New(newSetting(true, 8).get)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go serveAs(ctx, l, "a", httptest.NewRecorder(), writeAll(100_000_000))
+	go serveAs(ctx, l, "b", httptest.NewRecorder(), writeAll(100_000_000))
+	time.Sleep(500 * time.Millisecond)
+	d := serveAs(context.Background(), l, "b", httptest.NewRecorder(), writeAll(200_000))
+	if d < 600*time.Millisecond || d > 1500*time.Millisecond {
+		t.Errorf("200 KB of client b beside its own and one of client a's downloads at 8 Mbit/s took %v, want a quarter of the rate (0.8 s)", d)
+	}
+}
+
+func TestAFinishedClientNoLongerTakesAShare(t *testing.T) {
+	l := New(newSetting(true, 8).get)
+	serveAs(context.Background(), l, "a", httptest.NewRecorder(), writeAll(200_000))
+	d := serveAs(context.Background(), l, "b", httptest.NewRecorder(), writeAll(400_000))
+	if d > 600*time.Millisecond {
+		t.Errorf("400 KB of client b alone after client a finished took %v at 8 Mbit/s, want the full rate (0.4 s)", d)
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.waiting) != 0 {
+		t.Errorf("waiting = %v after every response finished, want empty", l.waiting)
 	}
 }

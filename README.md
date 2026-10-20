@@ -87,7 +87,7 @@ Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filter
 | Change username | Updates the admin username. Requires the current password, and ends every other session. |
 | Change password | Updates the admin password (stored as an Argon2id hash). Requires the current password, and ends every other session. |
 | Office integration | Address of your document server and the shared secret it signs requests with. See [Office documents](#office-documents). |
-| Bandwidth | Download limit Yes/No and a rate in Mbit/s (1–100000). Caps the combined speed of everything served to share visitors — files, ZIPs, previews and share pages; admin pages, static assets and uploads are not limited. Changes apply at once, also to downloads already running. The rate is kept when the limit is off. The limit is shared evenly per response, not per visitor: a visitor with many parallel downloads gets one share for each, so with a low limit a small page next to *n* running downloads takes about its size × (*n*+1) ÷ rate. |
+| Bandwidth | Download limit Yes/No and a rate in Mbit/s (1–100000). Caps the combined speed of everything served to share visitors — files, ZIPs, previews and share pages; admin pages, static assets and uploads are not limited. Changes apply at once, also to downloads already running. The rate is kept when the limit is off. When several visitors download at once, each gets an equal part of the rate, split between their own downloads; a visitor alone gets all of it. Visitors are told apart by IP address, IPv6 by its /64 network, so behind a proxy the server needs the real client address in `X-Forwarded-For`. |
 | Delete expired shares | Permanently removes all expired shares from `data.json`. |
 
 ### Editing `data.json` by hand

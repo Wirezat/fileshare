@@ -71,6 +71,6 @@ func (s *Server) buildMux() *http.ServeMux {
 
 func (s *Server) throttled(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.deps.Throttle.Handler(next).ServeHTTP(w, r)
+		s.deps.Throttle.Handler(next, rateKey).ServeHTTP(w, r)
 	})
 }

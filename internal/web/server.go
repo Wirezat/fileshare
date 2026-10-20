@@ -47,7 +47,7 @@ type uploadService interface {
 }
 
 type throttler interface {
-	Handler(next http.Handler) http.Handler
+	Handler(next http.Handler, client func(*http.Request) string) http.Handler
 }
 
 type logService interface {

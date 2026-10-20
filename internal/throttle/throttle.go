@@ -21,38 +21,43 @@ type Limiter struct {
 	mu      sync.Mutex
 	tokens  float64
 	last    time.Time
-	waiting int
+	waiting map[string]int
 	now     func() time.Time
 	sleep   func(ctx context.Context, d time.Duration) error
 }
 
 // New returns a limiter that asks source for the current setting whenever a response waits for bytes.
 func New(source func() (enabled bool, mbit int)) *Limiter {
-	return &Limiter{source: source, tokens: chunk, now: time.Now, sleep: sleep}
+	return &Limiter{source: source, tokens: chunk, waiting: map[string]int{}, now: time.Now, sleep: sleep}
 }
 
-// Handler serves next with its response collected into chunks of up to 64 KiB, each let through at the current rate; HEAD passes unpaced.
-func (l *Limiter) Handler(next http.Handler) http.Handler {
+// Handler paces next's response in chunks of up to 64 KiB at the current rate, shared fairly per client(r); HEAD passes unpaced.
+func (l *Limiter) Handler(next http.Handler, client func(*http.Request) string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
 			next.ServeHTTP(w, r)
 			return
 		}
 		tw := &writer{ResponseWriter: w, l: l, ctx: r.Context()}
+		if client != nil {
+			tw.client = client(r)
+		}
 		defer tw.release()
 		next.ServeHTTP(tw, r)
 		tw.emit()
 	})
 }
 
-// take blocks until n bytes may pass or ctx ends, collecting the tokens in parts, beside other waiters at most an equal share of one pace's inflow; every waiter rechecks the setting every pace.
-func (l *Limiter) take(ctx context.Context, n int) error {
+// take blocks until n bytes for client may pass or ctx ends; waiting clients share each pace evenly, then per response.
+func (l *Limiter) take(ctx context.Context, client string, n int) error {
 	missing := float64(n)
 	waiting := false
 	defer func() {
 		if waiting {
 			l.mu.Lock()
-			l.waiting--
+			if l.waiting[client]--; l.waiting[client] == 0 {
+				delete(l.waiting, client)
+			}
 			l.mu.Unlock()
 		}
 	}()
@@ -66,20 +71,23 @@ func (l *Limiter) take(ctx context.Context, n int) error {
 		now := l.now()
 		l.tokens = min(capacity(rate), l.tokens+now.Sub(l.last).Seconds()*rate)
 		l.last = now
-		others := l.waiting
-		if waiting {
-			others--
+		clients, mine := len(l.waiting), l.waiting[client]
+		if !waiting {
+			if mine == 0 {
+				clients++
+			}
+			mine++
 		}
 		share := capacity(rate)
-		if others > 0 {
-			share = rate * pace.Seconds() / float64(others+1)
+		if clients > 1 || mine > 1 {
+			share = rate * pace.Seconds() / float64(clients) / float64(mine)
 		}
 		got := min(l.tokens, missing, share)
 		l.tokens -= got
 		missing -= got
 		if missing > 0 && !waiting {
 			waiting = true
-			l.waiting++
+			l.waiting[client]++
 		}
 		l.mu.Unlock()
 		if missing <= 0 {
@@ -112,11 +120,12 @@ func capacity(rate float64) float64 {
 
 type writer struct {
 	http.ResponseWriter
-	l    *Limiter
-	ctx  context.Context
-	buf  *[]byte
-	err  error
-	sent bool
+	l      *Limiter
+	ctx    context.Context
+	client string
+	buf    *[]byte
+	err    error
+	sent   bool
 }
 
 func (w *writer) WriteHeader(code int) {
@@ -152,7 +161,7 @@ func (w *writer) emit() {
 		return
 	}
 	if len(*w.buf) > 0 && w.err == nil {
-		if w.err = w.l.take(w.ctx, len(*w.buf)); w.err == nil {
+		if w.err = w.l.take(w.ctx, w.client, len(*w.buf)); w.err == nil {
 			_, w.err = w.ResponseWriter.Write(*w.buf)
 		}
 	}

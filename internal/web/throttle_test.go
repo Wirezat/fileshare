@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,11 +16,30 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 )
 
-type countingThrottle struct{ n atomic.Int32 }
+type countingThrottle struct {
+	n      atomic.Int32
+	client func(*http.Request) string
+}
 
-func (c *countingThrottle) Handler(next http.Handler) http.Handler {
+func (c *countingThrottle) Handler(next http.Handler, client func(*http.Request) string) http.Handler {
 	c.n.Add(1)
+	c.client = client
 	return next
+}
+
+func TestThrottleSharesByRateKey(t *testing.T) {
+	e := newEnv(t, baseConfig())
+	ct := &countingThrottle{}
+	e.srv.deps.Throttle = ct
+	send(e.handler, http.MethodGet, "/missing/", nil)
+	if ct.client == nil {
+		t.Fatal("throttle got no client function")
+	}
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.RemoteAddr = "[2001:db8:1:2::5]:4000"
+	if got := ct.client(r); got != "2001:db8:1:2::/64" {
+		t.Errorf("client = %q, want the /64 rate key", got)
+	}
 }
 
 func TestOnlyThePublicChainIsThrottled(t *testing.T) {
