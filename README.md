@@ -1,141 +1,104 @@
 # fileshare
 
-A self-hosted file sharing server written in Go. Serve files and folders over HTTP with optional password protection, upload support, use limits, and expiration — managed through a web-based admin interface.
-This tool was developed because I often wanted to send files to friends, only for my messengers to block them due to file size, since they were on my NAS anyway, so why not give them the direct link to a file or folder?
-Because there were no proper tools that were able to do this in a simple way without being massively overcomplicated, having user instances, etc., etc.
----
+A self-hosted file sharing server written in Go. Share files and folders from your server by link, with optional passwords, uploads and expiry, all managed in a web admin UI.
+
+I built it because messengers kept rejecting large files that were already on my NAS. Sending a direct link was simpler, and the existing tools were far more than I needed.
 
 ## Features
 
-- **Web admin UI** — manage all shares from a browser, no terminal required
-- **Password-protected shares** — per-share passwords with token-based sessions
-- **Upload support** — allow others to upload files into a share via chunked upload
-- **Office documents** — view or edit Word, Excel and PowerPoint files in the browser through an ONLYOFFICE-compatible document server
-- **Expiration** — time-based share limits
-- **Directory listing** — browse folders, filter by name, preview media, PDFs, text and Markdown, download the folder or a selection as ZIP (per share switchable)
-- **Link previews** — pasting a share link into a messenger shows a proper preview instead of a bare URL
-- **Live log viewer** — stream server logs in real time from the admin UI
-- **Dark mode** — persisted per browser
-
----
+- **Web admin UI** to create, edit, disable and delete shares
+- **Passwords** per share
+- **Uploads** into a share: chunked and resumable
+- **Expiry** date per share
+- **Directory listing** with name filter, previews for media, PDF, text and Markdown, and ZIP download of a folder or a selection
+- **Office documents** viewed or edited through an ONLYOFFICE-compatible document server
+- **Link previews** in messengers
+- **Download limit** shared fairly between visitors
+- **Live log viewer**, dark mode
 
 ## Getting Started
 
 ### 1. Install
 
-Just use the installer provided in the release. If you want to build it yourself, the install script is the same I've used in the development process, you can find it in the same place in the code itself.
-
-```sh
-sudo bash scripts/fileshare-installer.sh              # menu: install / update / uninstall
-bash scripts/fileshare-installer.sh --remote user@host # same, but on another machine over ssh
-```
-
-Install builds the server, deploys to `/opt/fileshare`, sets up the systemd unit and prints the setup code you need next. Update rebuilds and redeploys without touching `data.json`. Uninstall offers to keep a copy of `data.json` before removing everything.
-
-The web UI lives in a submodule ([wirezatUI](https://github.com/Wirezat/wirezatui)), so clone with it:
-
 ```sh
 git clone --recursive https://github.com/Wirezat/fileshare
-# already cloned without it:
-git submodule update --init
+sudo bash scripts/fileshare-installer.sh               # menu: install / update / uninstall
+bash scripts/fileshare-installer.sh --remote user@host # same, on another machine over ssh
 ```
 
-Without the submodule `assets/web/ui` stays empty and every page renders unstyled. `go.sum` is not tracked, so run `go mod tidy` before the first build.
+Install builds the server, deploys it to `/opt/fileshare` and sets up a systemd unit. Update redeploys without touching `data.json`. Uninstall offers to keep a copy of `data.json`.
+
+The web UI is the [wirezatUI](https://github.com/Wirezat/wirezatui) submodule. If you cloned without `--recursive`, run `git submodule update --init`, or every page renders unstyled.
 
 ### 2. First-time setup
 
-Open `http://localhost:<port>/setup` or `http://localhost:<port>/admin` in your browser — `/admin` redirects there while no password is set.
-
-The page asks for a **setup code** on top of the username and password. It is generated on every start that finds no admin password and written to the server log:
+Open `/admin`. It redirects to `/setup`, which asks for a username, a password and a **setup code**. The server writes the code to its log on every start that finds no admin password:
 
 ```
 [INFO] no admin password set — open /setup and enter this setup code: 3f1c…
 ```
 
-Without it the endpoint answers 403. This keeps a fresh instance from being claimed by whoever reaches it first — only someone who can read the server's own log can create the account. After setup, `/setup` is permanently disabled and you are redirected to the admin panel.
+Only someone who can read the log can create the account. After setup, `/setup` is disabled.
 
----
+**Forgotten password:** set `"admin_password": ""` in `/opt/fileshare/data.json`. Within two seconds every admin session ends and a new setup code appears in the log. Shares are not touched.
 
 ## Admin UI
 
-The admin interface is available at `/admin` and is split across three pages: `/admin` (shares), `/admin/logs` and `/admin/settings`.
-
 ### Shares
 
-Create and manage all shares from the shares tab. Each share maps a public URL subpath to a file or folder on the server.
+Each share maps a URL path to a file or folder on the server.
 
 | Field | Description |
 |---|---|
-| Subpath | The URL path, e.g., `docs` → `http://host/docs`. Leave empty for a random value. |
-| Path | Absolute path to the file or folder on the server. |
-| Expires | Optional expiration date and time. |
-| Allow uploads | Let visitors upload files into this share's directory. |
-| ZIP download | Offer the folder as a single ZIP. On by default; switch it off for very large folders. |
-| Office | `off`, `view` or `edit` — how office documents in this share open. Greyed out until a document server is configured under Settings. |
-| Password | Optionally protect the share with a password. |
-
-Shares can be edited, disabled, re-enabled, and deleted inline from the table. A disabled share remains in the list but is inaccessible until re-enabled.
-
-### Logs
-
-Live server log stream at `/admin/logs`, with DEBUG / INFO / WARN / ERROR filters and a full-text search over the visible lines. Request log lines expand to their full JSON on click. The viewer loads the server's recent buffer over REST and then follows along via SSE. Clearing the view does not affect the log file on disk.
+| Subpath | URL path, e.g. `docs` → `http://host/docs`. Empty for a random one. |
+| Path | Absolute path on the server. |
+| Expires | Optional date and time. |
+| Allow uploads | Visitors may upload into the folder. |
+| ZIP download | Offer the folder as ZIP. On by default. |
+| Office | `off`, `view` or `edit`. Available once a document server is set up. |
+| Password | Optional. |
 
 ### Settings
 
 | Setting | Description |
 |---|---|
-| Change username | Updates the admin username. Requires the current password, and ends every other session. |
-| Change password | Updates the admin password (stored as an Argon2id hash). Requires the current password, and ends every other session. |
-| Office integration | Address of your document server and the shared secret it signs requests with. See [Office documents](#office-documents). |
-| Bandwidth | Download limit Yes/No and a rate in Mbit/s (1–100000). Caps the combined speed of everything served to share visitors — files, ZIPs, previews and share pages; admin pages, static assets and uploads are not limited. Changes apply at once, also to downloads already running. The rate is kept when the limit is off. When several visitors download at once, each gets an equal part of the rate, split between their own downloads; a visitor alone gets all of it. Visitors are told apart by IP address, IPv6 by its /64 network, so behind a proxy the server needs the real client address in `X-Forwarded-For`. |
-| Delete expired shares | Permanently removes all expired shares from `data.json`. |
+| Username, password | Need the current password and end every other admin session. |
+| Office integration | Document server address and its `JWT_SECRET`. |
+| Bandwidth | Download limit on/off and a rate in Mbit/s. Applies to everything visitors download, including pages and previews. It does not apply to admin pages, static assets or uploads. Changes reach running downloads at once. Visitors downloading at the same time split the rate evenly. |
+| Delete expired shares | Removes them from `data.json`. |
+
+The log page streams the server log live, with level filters and search.
 
 ### Editing `data.json` by hand
 
-Changes to `/opt/fileshare/data.json` take effect within two seconds, without a restart, except `port`, which needs a restart. Editing the admin username or password there ends every admin session; editing a share's password or path, or removing the share, ends its unlocks — the same as changing them in the admin UI. The server counts `"revision"` up on every save of its own (admin UI changes, upgrades of old password hashes); leave it as it is. If the file is not valid JSON, or carries a lower revision than the server's last save (for example an editor that kept an old copy open and saved it), the server keeps serving the last valid state, logs the reason once and shows it as a banner on every admin page. The next change in the admin UI still goes through (saving an unchanged value does not count): it moves the rejected file to `data.json.rejected-<time>` next to it and writes the server's state.
+Changes take effect within two seconds, except `port`, which needs a restart. Leave `"revision"` as it is; the server counts it up on every save.
 
-To restore an older backup while the server runs, set its `"revision"` to at least the value the log names, or restart the service. On a restart the server always takes the file on disk as it is.
+If the file is invalid, or older than the server's last save, the server keeps the last valid state and shows a banner in the admin UI. The next change in the admin UI moves the rejected file to `data.json.rejected-<time>`. To restore a backup while the server runs, set its `"revision"` to at least the value named in the log, or restart.
 
----
+## Sharing
 
-## Share Behavior
-
-### Accessing a share
-
-- `http://host/<subpath>` — serves the file directly or shows a directory listing.
-- Images, video and audio preview in place; PDFs open in the browser's own viewer. Text files (`.txt`, `.log`, `.json`, `.csv`, config and source files) open in an overlay, Markdown rendered; `?view=text` on a file URL returns that rendering as an HTML fragment for files up to 1 MB. Every card and table row has a download control, and `?dl=1` on any file URL always returns the raw file.
-- Directories can be downloaded as a ZIP via the `?download=zip` query parameter, unless the share has ZIP switched off. Dot-files and dot-folders are treated like any other entry: they are listed, included in ZIPs and served by URL, so keep things like `.env` or `.git` out of shared folders. The hidden part files of unfinished uploads are the only entries left out. Tick entries in the listing and the ZIP button downloads only those; on the URL that is a repeated `f=<name>` parameter per entry, folders included recursively.
-- A filter field above the listing narrows it by name; Escape clears it. The filter hides entries but keeps their selection.
-- If the share has a password, visitors are shown a password gate before accessing the content.
-
-### Password-protected shares
-
-Entering the correct password sets a session cookie scoped to that subpath. The session is valid for 24 hours. Each share's password is stored as an Argon2id hash; bcrypt hashes written by older versions are still accepted and upgraded on the next successful unlock.
+- `http://host/<subpath>` serves the file or a folder listing.
+- `?dl=1` always returns the raw file.
+- `?download=zip` returns the folder as ZIP. Selected entries add `f=<name>` per entry.
+- Dot-files and dot-folders are listed, zipped and served like any other entry. Keep things like `.env` or `.git` out of shared folders.
+- A correct password unlocks the share for 24 hours in that browser.
 
 ### Uploads
 
-When a share has uploads enabled, visitors can drag and drop files onto the listing page. Files are sent in 5 MiB chunks, four at a time across all selected files; each chunk is written straight to its place in a hidden, randomly named `.fileshare-upload-….part` file in the share's folder, which gets the file's name once the last chunk arrives — there is no copy step at the end and no second copy on disk. An interrupted upload, also across a server restart, resumes with the chunks the server already has when the same file is chosen again into the same share; once the chunk inactivity timeout has passed, an unfinished upload and its `.part` file are removed at the next server start or the next upload into any share. A password-protected share accepts uploads only after it has been unlocked, and a chunk may not exceed `maxPostSize` in `data.json`. The browser shows the time remaining from the average speed of the active upload time.
+Visitors drag files onto the listing. Uploads are sent in chunks and written straight into a hidden `.fileshare-upload-….part` file in the share's folder, which is renamed once complete. Choosing the same file again resumes an interrupted upload, also after a server restart.
 
-`MAX_UPLOAD_RATE` at the top of `web/js/share.js` caps the upload rate per browser tab in bytes per second (`0`, the default, means no cap).
+Unfinished uploads are removed after the chunk inactivity timeout. This happens at the next server start or the next upload. A password-protected share accepts uploads only after it is unlocked. One chunk may not exceed `maxPostSize`.
+
+`MAX_UPLOAD_RATE` at the top of `web/js/share.js` caps the upload rate per browser tab in bytes per second. `0` means no cap.
 
 ### Office documents
 
-fileshare can hand `.docx`, `.xlsx`, `.pptx` (and their `.doc`/`.xls`/`.ppt` and OpenDocument cousins) to an ONLYOFFICE-compatible document server — ONLYOFFICE Docs, EuroOffice or any fork that keeps the API — and embed the editor in its own page. Nothing is installed on the fileshare side; you point it at a server you already run.
+fileshare embeds the editor of an ONLYOFFICE-compatible document server (ONLYOFFICE Docs, EuroOffice and similar). Under Settings, enter the server's public address and its `JWT_SECRET`, then choose `view` or `edit` per share.
 
-**Setup.** Under `/admin/settings` enter the server's public address (the one browsers can reach) and the secret it signs requests with — the `JWT_SECRET` of the document server. Both must be set before the Office switch on a share does anything.
+Anyone who can open an `edit` share can overwrite its documents. Password-protected shares work as usual.
 
-**Per share.** `view` opens documents read-only, `edit` lets visitors change and save them. `off` downloads them like any other file. A share with a password works the same way: visitors unlock it as usual, and the document server authenticates itself with its own signed token, so it needs no password.
+The document server must reach fileshare's public address. Behind a router without NAT hairpinning, give its container an `extra_hosts` entry for fileshare's hostname pointing at the host gateway, and set `ALLOW_PRIVATE_IP_ADDRESS=true`.
 
-**How saving works.** The document server fetches the file from fileshare, and when an editor closes with changes it posts a callback. fileshare checks the signature, only ever downloads the saved version from the configured server address, and swaps it in atomically. Anyone who can reach an `edit` share can overwrite its documents — that is the point of `edit`, so hand those links out accordingly. If a file is replaced by upload while someone has it open, the last save wins.
+### Behind a proxy
 
-**Networking.** The document server must be able to reach fileshare's public address from inside its own network. Behind a NAT router that does not hairpin, a container typically cannot — for a Podman or Docker setup, add fileshare's hostname to the container's `extra_hosts` pointing at the host gateway, the same way you would for Nextcloud. `ALLOW_PRIVATE_IP_ADDRESS=true` on the document server is needed for that route.
-
-### Link previews
-
-Pasting a share link into a messenger (Telegram, Discord, WhatsApp, Slack, Signal, Threema, iMessage) shows a proper preview instead of a bare URL. A file share shows its name, type, size and expiry, with an inline image or video where the file is one; a folder share shows how many files and folders it holds and their total size; a password-protected share shows only that it is protected, nothing about its contents. This only changes what the crawler that fetches the link sees — visitors still get the normal page or file.
-
----
-
-## Forgotten admin password
-
-Set `"admin_password": ""` in `/opt/fileshare/data.json`. Within two seconds the server ends every admin session and prints a new setup code to its log; `/setup` then works as on a fresh install (see [First-time setup](#2-first-time-setup)). No restart is needed. Shares are not touched.
+Rate limits and the download limit tell visitors apart by IP address, IPv6 by its /64 network. Behind a reverse proxy, fileshare uses the rightmost public address in `X-Forwarded-For`. The proxy must pass the real client address on. If it does not, all visitors count as one.
