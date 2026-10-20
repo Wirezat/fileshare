@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -23,13 +24,24 @@ const (
 
 var errInvalidHash = errors.New("password: unrecognised hash")
 
+var (
+	argonSlots = make(chan struct{}, max(runtime.NumCPU()/2, 1))
+	argonKey   = argon2.IDKey
+)
+
+func idKey(pw, salt []byte, time, memory uint32, threads uint8, keyLen uint32) []byte {
+	argonSlots <- struct{}{}
+	defer func() { <-argonSlots }()
+	return argonKey(pw, salt, time, memory, threads, keyLen)
+}
+
 // Hash returns an Argon2id hash of pw in PHC string format.
 func Hash(pw string) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("password: generating salt: %w", err)
 	}
-	hash := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	hash := idKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt),
@@ -55,7 +67,7 @@ func checkArgon2(pw, encoded string) error {
 	if err != nil {
 		return err
 	}
-	got := argon2.IDKey([]byte(pw), salt, params.time, params.memory, params.threads, uint32(len(want)))
+	got := idKey([]byte(pw), salt, params.time, params.memory, params.threads, uint32(len(want)))
 	if subtle.ConstantTimeCompare(got, want) != 1 {
 		return errors.New("password: does not match")
 	}

@@ -2,7 +2,10 @@ package password
 
 import (
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -62,5 +65,40 @@ func TestCheckRejectsMalformedHashes(t *testing.T) {
 		if Check("x", h) {
 			t.Errorf("Check accepted %q", h)
 		}
+	}
+}
+
+func TestConcurrentChecksStayWithinTheLimit(t *testing.T) {
+	h, err := Hash("geheim")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var running, peak atomic.Int32
+	orig := argonKey
+	argonKey = func(pw, salt []byte, tm, memory uint32, threads uint8, keyLen uint32) []byte {
+		n := running.Add(1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		running.Add(-1)
+		return orig(pw, salt, 1, 8, 1, keyLen)
+	}
+	t.Cleanup(func() { argonKey = orig })
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Check("falsch", h)
+		}()
+	}
+	wg.Wait()
+	if got, limit := peak.Load(), int32(cap(argonSlots)); got > limit || got < 1 {
+		t.Errorf("peak concurrent checks = %d, want 1..%d", got, limit)
 	}
 }
