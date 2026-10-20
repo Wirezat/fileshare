@@ -10,6 +10,7 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/media"
+	"github.com/Wirezat/fileshare/internal/upload"
 )
 
 // serveDirectory renders the directory listing, or streams a ZIP if ?download=zip.
@@ -66,13 +67,12 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 	}
 }
 
-// zipSelection cleans the requested entry names and reports false when one
-// escapes the directory or is hidden.
+// zipSelection cleans the requested entry names and reports false when one escapes the directory.
 func zipSelection(raw []string) ([]string, bool) {
 	roots := make([]string, 0, len(raw))
 	for _, f := range raw {
 		clean := filepath.Clean(f)
-		if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".") {
+		if clean == "." || clean == ".." || filepath.IsAbs(clean) || strings.HasPrefix(clean, "../") {
 			return nil, false
 		}
 		roots = append(roots, clean)
@@ -117,9 +117,6 @@ func subdirLinks(dirPath, baseHref, current string) []CrumbLink {
 	links := make([]CrumbLink, 0, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, ".") {
-			continue
-		}
 		isDir := entry.IsDir()
 		if entry.Type()&fs.ModeSymlink != 0 {
 			info, err := os.Stat(filepath.Join(dirPath, name))
@@ -143,7 +140,7 @@ func subdirLinks(dirPath, baseHref, current string) []CrumbLink {
 	return links
 }
 
-// getFileInfos returns FileInfo entries for a directory, skipping hidden files.
+// getFileInfos returns FileInfo entries for a directory, skipping the part files of unfinished uploads.
 func getFileInfos(dirPath, basePath string) ([]media.FileInfo, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -152,7 +149,7 @@ func getFileInfos(dirPath, basePath string) ([]media.FileInfo, error) {
 
 	infos := make([]media.FileInfo, 0, len(entries))
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".") {
+		if upload.IsPart(entry.Name()) {
 			continue
 		}
 		fullPath := filepath.Join(dirPath, entry.Name())

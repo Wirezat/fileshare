@@ -32,6 +32,7 @@ func selectionShare(t *testing.T) (*testEnv, *requestContext, string) {
 	must(os.WriteFile(filepath.Join(dir, "sub", ".hidden"), []byte("h"), 0o644))
 	must(os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
 	must(os.WriteFile(filepath.Join(dir, ".git", "HEAD"), []byte("ref"), 0o644))
+	must(os.WriteFile(filepath.Join(dir, ".fileshare-upload-0123abcd.part"), []byte("p"), 0o644))
 	return e, &requestContext{
 		subpath:  "docs",
 		diskPath: dir,
@@ -64,7 +65,7 @@ func TestSelectionZipContainsOnlyChosenEntries(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	got := zipNames(t, rec.Body.Bytes())
-	want := []string{"a.txt", "sub/c.txt", "sub/deep/d.txt"}
+	want := []string{"a.txt", "sub/.hidden", "sub/c.txt", "sub/deep/d.txt"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("entries = %v, want %v", got, want)
 	}
@@ -75,7 +76,7 @@ func TestSelectionZipContainsOnlyChosenEntries(t *testing.T) {
 
 func TestSelectionZipRejectsPathsOutsideTheDirectory(t *testing.T) {
 	e, ctx, _ := selectionShare(t)
-	for _, f := range []string{"../x", "/etc/passwd", ".secret", "sub/../../x"} {
+	for _, f := range []string{"../x", "..", "/etc/passwd", "sub/../../x"} {
 		req := httptest.NewRequest(http.MethodGet, "/docs?download=zip&f="+f, nil)
 		rec := httptest.NewRecorder()
 
@@ -100,7 +101,41 @@ func TestSelectionZipDeniedWhenNoZip(t *testing.T) {
 	}
 }
 
-func TestWholeFolderZipSkipsHiddenEntries(t *testing.T) {
+func TestSelectionZipTakesHiddenEntries(t *testing.T) {
+	e, ctx, _ := selectionShare(t)
+	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip&f=.secret&f=.git", nil)
+	rec := httptest.NewRecorder()
+
+	e.srv.serveDirectory(rec, req, ctx)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	got := zipNames(t, rec.Body.Bytes())
+	want := []string{".git/HEAD", ".secret"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("entries = %v, want %v", got, want)
+	}
+}
+
+func TestListingShowsHiddenEntriesButNoUploadParts(t *testing.T) {
+	_, ctx, dir := selectionShare(t)
+	infos, err := getFileInfos(dir, ctx.subpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, f := range infos {
+		names = append(names, f.Name)
+	}
+	sort.Strings(names)
+	want := []string{".git", ".secret", "a.txt", "b.txt", "sub"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("listing = %v, want %v", names, want)
+	}
+}
+
+func TestWholeFolderZipIncludesHiddenButNoUploadParts(t *testing.T) {
 	e, ctx, _ := selectionShare(t)
 	req := httptest.NewRequest(http.MethodGet, "/docs?download=zip", nil)
 	rec := httptest.NewRecorder()
@@ -108,8 +143,20 @@ func TestWholeFolderZipSkipsHiddenEntries(t *testing.T) {
 	e.srv.serveDirectory(rec, req, ctx)
 
 	got := zipNames(t, rec.Body.Bytes())
-	want := []string{"a.txt", "b.txt", "sub/c.txt", "sub/deep/d.txt"}
+	want := []string{".git/HEAD", ".secret", "a.txt", "b.txt", "sub/.hidden", "sub/c.txt", "sub/deep/d.txt"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("entries = %v, want %v", got, want)
+	}
+}
+
+func TestFolderSwitcherListsHiddenFolders(t *testing.T) {
+	_, _, dir := selectionShare(t)
+	var names []string
+	for _, l := range subdirLinks(dir, "/docs", "sub") {
+		names = append(names, l.Name)
+	}
+	sort.Strings(names)
+	if want := []string{".git", "sub"}; strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("folders = %v, want %v", names, want)
 	}
 }

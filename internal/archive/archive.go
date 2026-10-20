@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/Wirezat/GoLog"
@@ -110,9 +109,9 @@ func compressSmall(job fileJob) (*fileResult, error) {
 	}, nil
 }
 
-// Write streams a ZIP of dir to w, skipping hidden entries; non-empty roots
+// Write streams a ZIP of dir to w, leaving out entries whose name skip reports; non-empty roots
 // limit it to those paths relative to dir. It returns the error from finishing the archive.
-func Write(w io.Writer, dir string, roots []string) error {
+func Write(w io.Writer, dir string, roots []string, skip func(name string) bool) error {
 	numWorkers := max(runtime.NumCPU(), 1)
 
 	jobs := make(chan fileJob, numWorkers*8)
@@ -160,7 +159,7 @@ func Write(w io.Writer, dir string, roots []string) error {
 				GoLog.Warnf("walk %s: %v", path, err)
 				return nil
 			}
-			if strings.HasPrefix(info.Name(), ".") && path != dir {
+			if skip != nil && skip(info.Name()) && path != dir {
 				if info.IsDir() {
 					return filepath.SkipDir
 				}

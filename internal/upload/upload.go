@@ -241,7 +241,7 @@ func createPart(destDir string, size int64) (string, error) {
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
-	path := filepath.Join(destDir, ".fileshare-upload-"+hex.EncodeToString(b[:])+".part")
+	path := filepath.Join(destDir, partPrefix+hex.EncodeToString(b[:])+partSuffix)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return "", fmt.Errorf("creating partial file: %w", err)
@@ -259,7 +259,7 @@ func createPart(destDir string, size int64) (string, error) {
 }
 
 func discard(meta sessionMeta) {
-	if meta.Part != "" && filepath.Dir(meta.Part) == filepath.Clean(meta.DestDir) && strings.HasPrefix(filepath.Base(meta.Part), ".fileshare-upload-") {
+	if meta.Part != "" && filepath.Dir(meta.Part) == filepath.Clean(meta.DestDir) && IsPart(filepath.Base(meta.Part)) {
 		os.Remove(meta.Part)
 	}
 }
@@ -493,6 +493,15 @@ func missingChunks(received map[int]struct{}, total int) []int {
 		}
 	}
 	return slices.Clip(missing)
+}
+
+const (
+	partPrefix = ".fileshare-upload-"
+	partSuffix = ".part"
+)
+
+func IsPart(name string) bool {
+	return strings.HasPrefix(name, partPrefix) && strings.HasSuffix(name, partSuffix)
 }
 
 func sanitizeFilename(name string) string {

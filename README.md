@@ -104,7 +104,7 @@ To restore an older backup while the server runs, set its `"revision"` to at lea
 
 - `http://host/<subpath>` — serves the file directly or shows a directory listing.
 - Images, video and audio preview in place; PDFs open in the browser's own viewer. Text files (`.txt`, `.log`, `.json`, `.csv`, config and source files) open in an overlay, Markdown rendered; `?view=text` on a file URL returns that rendering as an HTML fragment for files up to 1 MB. Every card and table row has a download control, and `?dl=1` on any file URL always returns the raw file.
-- Directories can be downloaded as a ZIP via the `?download=zip` query parameter, unless the share has ZIP switched off. Hidden entries (dot-files and dot-folders) stay out of the archive, as they do out of the listing. Tick entries in the listing and the ZIP button downloads only those; on the URL that is a repeated `f=<name>` parameter per entry, folders included recursively.
+- Directories can be downloaded as a ZIP via the `?download=zip` query parameter, unless the share has ZIP switched off. Dot-files and dot-folders are treated like any other entry: they are listed, included in ZIPs and served by URL, so keep things like `.env` or `.git` out of shared folders. The hidden part files of unfinished uploads are the only entries left out. Tick entries in the listing and the ZIP button downloads only those; on the URL that is a repeated `f=<name>` parameter per entry, folders included recursively.
 - A filter field above the listing narrows it by name; Escape clears it. The filter hides entries but keeps their selection.
 - If the share has a password, visitors are shown a password gate before accessing the content.
 

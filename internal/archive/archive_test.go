@@ -54,19 +54,20 @@ func unzip(t *testing.T, data []byte) (map[string]string, []*zip.File) {
 func write(t *testing.T, dir string, roots []string) map[string]string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Write(&buf, dir, roots); err != nil {
+	if err := Write(&buf, dir, roots, func(name string) bool { return name == "skip.me" }); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	got, _ := unzip(t, buf.Bytes())
 	return got
 }
 
-func TestWriteWholeDirectorySkipsHidden(t *testing.T) {
+func TestWriteIncludesHiddenAndLeavesOutSkipped(t *testing.T) {
 	dir := tree(t, map[string]string{
 		"a.txt": "a", "sub/b.txt": "b",
 		".secret": "s", "sub/.hidden": "h", ".git/HEAD": "ref",
+		"skip.me": "x", "sub/skip.me": "y",
 	})
-	want := map[string]string{"a.txt": "a", "sub/b.txt": "b"}
+	want := map[string]string{"a.txt": "a", "sub/b.txt": "b", ".secret": "s", "sub/.hidden": "h", ".git/HEAD": "ref"}
 	if got := write(t, dir, nil); !maps.Equal(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -94,7 +95,7 @@ func TestWriteStoresIncompressibleSmallFile(t *testing.T) {
 	rand.Read(noise)
 	dir := tree(t, map[string]string{"noise.bin": string(noise)})
 	var buf bytes.Buffer
-	if err := Write(&buf, dir, nil); err != nil {
+	if err := Write(&buf, dir, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	got, files := unzip(t, buf.Bytes())
@@ -123,7 +124,7 @@ func TestWriteReportsWriterFailureWithoutHanging(t *testing.T) {
 	}
 	dir := tree(t, files)
 	done := make(chan error, 1)
-	go func() { done <- Write(failingWriter{}, dir, nil) }()
+	go func() { done <- Write(failingWriter{}, dir, nil, nil) }()
 	select {
 	case err := <-done:
 		if err == nil {
