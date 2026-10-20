@@ -1,10 +1,8 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,20 +12,14 @@ import (
 	"github.com/Wirezat/fileshare/internal/logstore"
 )
 
-const (
-	maxBodyBytes = 1 << 20 // 1 MB
-	logmaxLen    = 4096
-)
+const logmaxLen = 4096
 
 // requestLog is the structured log entry for an HTTP request.
 type requestLog struct {
-	Method     string            `json:"method"`
-	URL        string            `json:"url"`
-	ClientIP   string            `json:"client_ip"`
-	Headers    map[string]string `json:"headers"`
-	Body       any               `json:"body,omitempty"`
-	BodyError  string            `json:"body_error,omitempty"`
-	FormFields map[string]string `json:"form_fields,omitempty"`
+	Method    string `json:"method"`
+	URL       string `json:"url"`
+	ClientIP  string `json:"client_ip"`
+	UserAgent string `json:"user_agent,omitempty"`
 }
 
 // loggingMiddleware records every request in the admin log store.
@@ -79,82 +71,12 @@ func buildRequestLog(r *http.Request) *requestLog {
 		decodedURL = r.URL.RequestURI()
 	}
 
-	entry := &requestLog{
-		Method:   r.Method,
-		URL:      decodedURL,
-		ClientIP: clientIP(r),
-		Headers:  safeHeaders(r),
+	return &requestLog{
+		Method:    r.Method,
+		URL:       decodedURL,
+		ClientIP:  GoLog.IP(clientIP(r)).String(),
+		UserAgent: r.UserAgent(),
 	}
-
-	if r.Method != http.MethodPost && r.Method != http.MethodPut {
-		return entry
-	}
-
-	ct := r.Header.Get("Content-Type")
-	switch {
-
-	case strings.HasPrefix(ct, "application/json"):
-		body, err := readAndRestoreBody(r)
-		if err != nil {
-			entry.BodyError = err.Error()
-			break
-		}
-		var parsed any
-		if json.Unmarshal(body, &parsed) == nil {
-			entry.Body = parsed
-		} else {
-			entry.Body = string(body)
-		}
-
-	case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
-		body, err := readAndRestoreBody(r)
-		if err != nil {
-			entry.BodyError = err.Error()
-			break
-		}
-		if form, err := url.ParseQuery(string(body)); err == nil {
-			entry.FormFields = flattenValues(form)
-		}
-	}
-
-	return entry
-}
-
-// Headers excluded from request logs.
-var sensitiveHeaders = map[string]bool{
-	http.CanonicalHeaderKey("authorization"): true,
-	http.CanonicalHeaderKey("cookie"):        true,
-	http.CanonicalHeaderKey("x-auth-token"):  true,
-}
-
-// safeHeaders returns request headers with sensitive fields stripped.
-func safeHeaders(r *http.Request) map[string]string {
-	headers := make(map[string]string, len(r.Header))
-	for name, values := range r.Header {
-		if sensitiveHeaders[name] || len(values) == 0 {
-			continue
-		}
-		headers[name] = values[0]
-	}
-	return headers
-}
-
-// readAndRestoreBody reads up to maxBodyBytes and resets r.Body for downstream handlers.
-func readAndRestoreBody(r *http.Request) ([]byte, error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	return body, err
-}
-
-// flattenValues collapses a string-slice map to a string map (first value wins).
-func flattenValues(m map[string][]string) map[string]string {
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		if len(v) > 0 {
-			out[k] = v[0]
-		}
-	}
-	return out
 }
 
 func preventClientLogInjection(input string) string {

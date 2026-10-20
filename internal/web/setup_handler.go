@@ -37,14 +37,14 @@ func (s *Server) handleSetupInit(w http.ResponseWriter, r *http.Request) {
 	var limited auth.RateLimitedError
 	switch {
 	case err == nil:
-		GoLog.Infof("initial credentials set via setup page (username: %s)", s.deps.Store.Current().AdminUsername())
+		GoLog.Infof("initial credentials set via setup page (username: %s)", GoLog.Personal(s.deps.Store.Current().AdminUsername()))
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, auth.ErrSetupDone):
 		http.Error(w, "Setup already complete", http.StatusForbidden)
 	case errors.As(err, &limited):
-		tooManyAttempts(w, limited.RetryAfter, "setup|"+key, "setup")
+		tooManyAttempts(w, limited.RetryAfter, key, "setup")
 	case errors.Is(err, auth.ErrWrongSetupCode):
-		GoLog.Warnf("setup: rejected init with wrong setup code from %s", clientIP(r))
+		GoLog.Warnf("setup: rejected init with wrong setup code from %s", GoLog.IP(clientIP(r)))
 		http.Error(w, "Wrong setup code — it is printed in the server log", http.StatusForbidden)
 	case errors.Is(err, auth.ErrEmptyPassword):
 		http.Error(w, "Password cannot be empty", http.StatusBadRequest)

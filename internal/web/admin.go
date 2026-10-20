@@ -78,7 +78,7 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		case errors.As(err, &limited):
 			tooManyAttempts(w, limited.RetryAfter, key, "admin login")
 		case errors.Is(err, auth.ErrWrongCredentials):
-			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", clientIP(r))
+			GoLog.Warnf("handleAdminLogin: failed login attempt from %s", GoLog.IP(clientIP(r)))
 			http.Error(w, "Wrong username or password", http.StatusUnauthorized)
 		default:
 			GoLog.Errorf("handleAdminLogin: %v", err)

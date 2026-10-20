@@ -218,9 +218,9 @@ func (s *Server) handleUnlock(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, share.ErrNoPassword):
 		http.Redirect(w, r, "/"+subpath, http.StatusSeeOther)
 	case errors.As(err, &limited):
-		tooManyAttempts(w, limited.RetryAfter, rateKey(r)+"|"+subpath, "share unlock")
+		tooManyAttempts(w, limited.RetryAfter, rateKey(r), "share unlock /"+subpath)
 	case errors.Is(err, share.ErrWrongPassword):
-		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, clientIP(r))
+		GoLog.Warnf("failed unlock attempt for share /%s from %s", subpath, GoLog.IP(clientIP(r)))
 		s.serveGatePage(w, gateData{
 			Subpath:          subpath,
 			FormAction:       "/" + subpath + "/unlock",

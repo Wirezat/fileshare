@@ -25,6 +25,7 @@ const (
 	configPath      = "./data.json"
 	chunkTempBase   = "/tmp/fileshare-chunks"
 	shutdownTimeout = 10 * time.Second
+	logRetention    = 30 * 24 * time.Hour
 )
 
 func chunkTimeout(st *store.FileStore) func() time.Duration {
@@ -33,20 +34,8 @@ func chunkTimeout(st *store.FileStore) func() time.Duration {
 	}
 }
 
-func openRequestLog() io.Writer {
-	path := GoLog.LogPath()
-	if path == "" {
-		return nil
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		GoLog.Warnf("openRequestLog: %v", err)
-		return nil
-	}
-	return f
-}
-
 func main() {
+	GoLog.SetPrivacy(true)
 	logs := logstore.New()
 	GoLog.OnRecord = func(r GoLog.Record) {
 		logs.Add(logstore.Entry{Level: r.Level, Time: r.Time, Message: r.Message})
@@ -56,7 +45,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	requestLog := openRequestLog()
+	if err := GoLog.SetRetention(logRetention); err != nil {
+		GoLog.Errorf("failed to delete old logs: %v", err)
+	}
 
 	if path := GoLog.LogPath(); path != "" {
 		if err := logs.Load(path); err != nil {
@@ -69,7 +60,7 @@ func main() {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
-	srv, admins, err := build(st, logs, requestLog, "./web", chunkTempBase)
+	srv, admins, err := build(st, logs, GoLog.Writer(), "./web", chunkTempBase)
 	if err != nil {
 		GoLog.Errorf("failed to load web templates: %v", err)
 		os.Exit(1)
@@ -121,7 +112,6 @@ func build(st *store.FileStore, logs *logstore.Store, requestLog io.Writer, asse
 	return srv, admins, err
 }
 
-// serve runs hs on ln until ctx ends, then gives open requests timeout to finish before closing them; it returns any other serve error.
 func serve(ctx context.Context, hs *http.Server, ln net.Listener, timeout time.Duration) error {
 	errc := make(chan error, 1)
 	go func() { errc <- hs.Serve(ln) }()

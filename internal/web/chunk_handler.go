@@ -29,7 +29,7 @@ func (s *Server) handleChunkInit(w http.ResponseWriter, r *http.Request) {
 
 	uploadID := r.FormValue("uploadId")
 	if !upload.ValidID(uploadID) {
-		GoLog.Warnf("handleChunkInit: rejected uploadId %q from %s", uploadID, clientIP(r))
+		GoLog.Warnf("handleChunkInit: rejected uploadId %q from %s", uploadID, GoLog.IP(clientIP(r)))
 		http.Error(w, "Bad Request: invalid uploadId", http.StatusBadRequest)
 		return
 	}
@@ -66,7 +66,7 @@ func (s *Server) handleChunkInit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChunkReceive(w http.ResponseWriter, r *http.Request) {
 	uploadID := r.URL.Query().Get("uploadId")
 	if !upload.ValidID(uploadID) {
-		GoLog.Warnf("handleChunkReceive: rejected uploadId %q from %s", uploadID, clientIP(r))
+		GoLog.Warnf("handleChunkReceive: rejected uploadId %q from %s", uploadID, GoLog.IP(clientIP(r)))
 		http.Error(w, "Bad Request: invalid uploadId", http.StatusBadRequest)
 		return
 	}

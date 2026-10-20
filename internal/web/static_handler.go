@@ -33,6 +33,6 @@ func handleLogEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	GoLog.Infof("%s: Client: %s", clientIP(r), preventClientLogInjection(payload.Message))
+	GoLog.Infof("%s: Client: %s", GoLog.IP(clientIP(r)), preventClientLogInjection(payload.Message))
 	w.WriteHeader(http.StatusNoContent)
 }
