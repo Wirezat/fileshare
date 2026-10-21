@@ -83,10 +83,27 @@ type chunkSession struct {
 	published bool
 }
 
+type Observer interface {
+	UploadStarted(key string)
+	ChunkStarted(key string)
+	ChunkFinished(key string, n int64)
+	UploadPublished(key string)
+	UploadAbandoned(key string)
+}
+
+type noObserver struct{}
+
+func (noObserver) UploadStarted(string)        {}
+func (noObserver) ChunkStarted(string)         {}
+func (noObserver) ChunkFinished(string, int64) {}
+func (noObserver) UploadPublished(string)      {}
+func (noObserver) UploadAbandoned(string)      {}
+
 // Storage keeps chunked upload sessions: metadata under a temp directory, the data in a hidden file next to its destination.
 type Storage struct {
 	tempBase string
 	timeout  func() time.Duration
+	observer Observer
 	mu       sync.RWMutex
 	sessions map[string]*chunkSession
 	swept    time.Time
@@ -97,8 +114,13 @@ func New(tempBase string, timeout func() time.Duration) *Storage {
 	return &Storage{
 		tempBase: filepath.Clean(tempBase),
 		timeout:  timeout,
+		observer: noObserver{},
 		sessions: map[string]*chunkSession{},
 	}
+}
+
+func (s *Storage) Observe(o Observer) {
+	s.observer = o
 }
 
 // key names the session of uploadID for destDir, so the same file uploaded into two shares gets two sessions.
@@ -153,6 +175,7 @@ func (s *Storage) loadOrCreate(uploadID, filename string, size, chunkSize int64,
 	matches := func(m sessionMeta) bool {
 		return m.Version == metaVersion && m.Size == size && m.ChunkSize == chunkSize && m.DestDir == destDir
 	}
+	abandoned := false
 	if sess, ok := s.sessions[key]; ok {
 		if matches(sess.meta) {
 			return sess, nil
@@ -162,6 +185,8 @@ func (s *Storage) loadOrCreate(uploadID, filename string, size, chunkSize int64,
 		sess.gone = true
 		sess.mu.Unlock()
 		discard(sess.meta)
+		s.observer.UploadAbandoned(key)
+		abandoned = true
 	}
 
 	dir, err := s.dir(key)
@@ -179,6 +204,9 @@ func (s *Storage) loadOrCreate(uploadID, filename string, size, chunkSize int64,
 			}
 		}
 		discard(meta)
+		if meta.UploadID != "" && !abandoned {
+			s.observer.UploadAbandoned(key)
+		}
 		GoLog.Infof("chunk upload: restarting session %q in the current format", uploadID)
 	}
 	os.RemoveAll(dir)
@@ -208,6 +236,7 @@ func (s *Storage) loadOrCreate(uploadID, filename string, size, chunkSize int64,
 	}
 	sess := &chunkSession{meta: meta, dir: dir, received: make(map[int]struct{})}
 	s.sessions[key] = sess
+	s.observer.UploadStarted(key)
 	return sess, nil
 }
 
@@ -266,8 +295,9 @@ func discard(meta sessionMeta) {
 
 // Receive writes chunk index, read from r, at its place in the file uploaded into destDir and reports whether the file is complete; r must hold exactly the chunk's length.
 func (s *Storage) Receive(uploadID, destDir string, index int, r io.Reader) (bool, error) {
+	key := s.key(uploadID, filepath.Clean(destDir))
 	s.mu.RLock()
-	sess, ok := s.sessions[s.key(uploadID, filepath.Clean(destDir))]
+	sess, ok := s.sessions[key]
 	s.mu.RUnlock()
 	if !ok {
 		return false, fmt.Errorf("%w: %q", ErrUnknownSession, uploadID)
@@ -286,7 +316,9 @@ func (s *Storage) Receive(uploadID, destDir string, index int, r io.Reader) (boo
 		return complete, nil
 	}
 
-	writeErr := writeChunk(meta.Part, int64(index)*meta.ChunkSize, meta.chunkLength(index), r)
+	s.observer.ChunkStarted(key)
+	n, writeErr := writeChunk(meta.Part, int64(index)*meta.ChunkSize, meta.chunkLength(index), r)
+	s.observer.ChunkFinished(key, n)
 
 	sess.mu.Lock()
 	if sess.gone {
@@ -318,38 +350,39 @@ func (s *Storage) Receive(uploadID, destDir string, index int, r io.Reader) (boo
 	}
 	sess.gone, sess.published = true, true
 	sess.mu.Unlock()
+	s.observer.UploadPublished(key)
 	s.cleanup(sess)
 	GoLog.Infof("chunk upload complete: %q → %q", meta.Filename, dest)
 	return true, nil
 }
 
-func writeChunk(part string, offset, length int64, r io.Reader) error {
+func writeChunk(part string, offset, length int64, r io.Reader) (int64, error) {
 	f, err := os.OpenFile(part, os.O_WRONLY, 0)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	buf := bufPool.Get().(*[]byte)
 	n, err := io.CopyBuffer(io.NewOffsetWriter(f, offset), io.LimitReader(r, length), *buf)
 	bufPool.Put(buf)
 	if err != nil {
 		f.Close()
-		return err
+		return n, err
 	}
 	if n != length {
 		f.Close()
-		return fmt.Errorf("%w: got %d bytes, want %d", ErrChunkLength, n, length)
+		return n, fmt.Errorf("%w: got %d bytes, want %d", ErrChunkLength, n, length)
 	}
 	var extra [1]byte
 	m, err := r.Read(extra[:])
 	if m > 0 {
 		f.Close()
-		return fmt.Errorf("%w: more than %d bytes", ErrChunkLength, length)
+		return n + int64(m), fmt.Errorf("%w: more than %d bytes", ErrChunkLength, length)
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
 		f.Close()
-		return err
+		return n, err
 	}
-	return f.Close()
+	return n, f.Close()
 }
 
 // publish gives the finished partial file its name in dir without replacing an existing file and returns the final path.
@@ -431,15 +464,14 @@ func (s *Storage) sweepEntry(id string, now time.Time, timeout time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	data, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	var meta sessionMeta
+	if err == nil {
+		err = json.Unmarshal(data, &meta)
+	}
 	if err != nil {
 		delete(s.sessions, id)
 		os.RemoveAll(dir)
-		return
-	}
-	var meta sessionMeta
-	if err := json.Unmarshal(data, &meta); err != nil {
-		delete(s.sessions, id)
-		os.RemoveAll(dir)
+		s.observer.UploadAbandoned(id)
 		return
 	}
 	if fi, err := os.Stat(filepath.Join(dir, "received")); err == nil && fi.ModTime().After(meta.LastActivity) {
@@ -462,6 +494,7 @@ func (s *Storage) sweepEntry(id string, now time.Time, timeout time.Duration) {
 	delete(s.sessions, id)
 	discard(meta)
 	os.RemoveAll(dir)
+	s.observer.UploadAbandoned(id)
 	GoLog.Infof("chunk upload: removed inactive session %q (%s)", id, meta.Filename)
 }
 
