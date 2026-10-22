@@ -12,6 +12,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/share"
+	"github.com/Wirezat/fileshare/internal/stats"
 )
 
 // handleRequest is the main entry point for public share routes.
@@ -33,6 +34,10 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	ctx, ok := s.prepareRequest(w, r)
 	if !ok {
 		return
+	}
+	ctx.machine = fromDocServer(r, ctx)
+	if !ctx.machine {
+		s.stats().Visit(ctx.subpath, rateKey(r), r.UserAgent())
 	}
 
 	switch r.Method {
@@ -110,6 +115,9 @@ func (s *Server) resolveErr(w http.ResponseWriter, r *http.Request, subpath stri
 
 // handleGet serves a file or directory.
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	if opensFileShare(r, ctx) {
+		s.stats().PageView(r.UserAgent())
+	}
 	switch {
 	case ctx.fileInfo.IsDir():
 		s.serveDirectory(w, r, ctx)
@@ -122,8 +130,29 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, ctx *requestC
 	case textWanted(r, ctx):
 		serveTextView(w, r, ctx)
 	default:
-		serveShareFile(w, r, ctx.diskPath)
+		s.serveFile(w, r, ctx)
 	}
+}
+
+// opensFileShare reports whether the request opens a file share's own page, not a thumbnail or text view of it.
+func opensFileShare(r *http.Request, ctx *requestContext) bool {
+	return !ctx.fileInfo.IsDir() && ctx.diskPath == ctx.fileData.Path && !ctx.machine &&
+		r.Method == http.MethodGet && isPageLoad(r) && !wantsPreviewImage(r, ctx) && !textWanted(r, ctx)
+}
+
+func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	if ctx.machine || !isFileDownload(r, ctx) {
+		serveShareFile(w, r, ctx.diskPath)
+		return
+	}
+	dw := s.countDownload(w, stats.Download{
+		Share:     ctx.subpath,
+		File:      sharePath(ctx),
+		Resumed:   resumes(r),
+		UserAgent: r.UserAgent(),
+	})
+	defer dw.finish(true)
+	serveShareFile(dw, r, ctx.diskPath)
 }
 
 // serveShareFile hands out the shared file inside a CSP sandbox.

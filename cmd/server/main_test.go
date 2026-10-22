@@ -15,6 +15,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/password"
+	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/store"
 )
 
@@ -123,7 +124,7 @@ func TestBuildWiresRequestLogAndAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	var log bytes.Buffer
-	srv, _, err := build(buildTestStore(t, dir), logstore.New(), &log, "../../assets/web", t.TempDir())
+	srv, _, err := build(buildTestStore(t, dir), stats.Open(filepath.Join(t.TempDir(), "stats.json")), logstore.New(), &log, "../../assets/web", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +170,7 @@ func TestServeReturnsAListenerError(t *testing.T) {
 
 func TestShutdownEndsAdminLogStreamsAtOnce(t *testing.T) {
 	st := buildTestStore(t, t.TempDir())
-	srv, admins, err := build(st, logstore.New(), nil, "../../assets/web", t.TempDir())
+	srv, admins, err := build(st, stats.Open(filepath.Join(t.TempDir(), "stats.json")), logstore.New(), nil, "../../assets/web", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,5 +211,40 @@ func TestShutdownEndsAdminLogStreamsAtOnce(t *testing.T) {
 	}
 	if took := time.Since(begin); took > time.Second {
 		t.Errorf("shutdown took %s with an open log stream", took)
+	}
+}
+
+func TestBuildWiresStats(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.bin"), []byte("alpha"), 0o600)
+	path := filepath.Join(t.TempDir(), "data.json")
+	cfg := `{"admin_username":"admin","admin_password":"x","files":{"up":{"path":"` + dir + `","allow_post":true}}}`
+	if err := os.WriteFile(path, []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := stats.Open(filepath.Join(t.TempDir(), "stats.json"))
+	srv, _, err := build(st, counts, logstore.New(), nil, "../../assets/web", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Handler()
+	ua := "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0"
+	req := httptest.NewRequest(http.MethodPost, "/up/chunk?uploadId=wired-0001&chunkIndex=0&filename=b.txt&size=3&chunkSize=65536", strings.NewReader("abc"))
+	req.Header.Set("User-Agent", ua)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/up/a.bin?dl=1", nil)
+	req.Header.Set("User-Agent", ua)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	p := counts.Report(func(string) bool { return true }).Total
+	if p.Uploads != 1 || p.BytesUp != 3 || p.Downloads != 1 || p.Visitors != 1 {
+		t.Errorf("uploads %d bytes up %d downloads %d visitors %d, want 1 3 1 1", p.Uploads, p.BytesUp, p.Downloads, p.Visitors)
 	}
 }

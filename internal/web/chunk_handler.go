@@ -99,6 +99,7 @@ func (s *Server) handleChunkReceive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.stats().Visit(r.PathValue("subpath"), rateKey(r), r.UserAgent())
 	if done {
 		w.WriteHeader(http.StatusNoContent)
 	} else {

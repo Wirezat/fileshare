@@ -15,6 +15,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/share"
+	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/throttle"
 	"github.com/Wirezat/fileshare/internal/upload"
@@ -45,6 +46,7 @@ type testEnv struct {
 	store   *store.FileStore
 	auth    *auth.Service
 	srv     *Server
+	stats   *stats.Stats
 	handler http.Handler
 }
 
@@ -67,15 +69,20 @@ func newEnv(t *testing.T, cfg *config.Config) *testEnv {
 		t.Fatalf("seed config: %v", err)
 	}
 	e.auth = auth.New(e.store)
+	e.stats = stats.Open(filepath.Join(dir, "stats.json"))
+	t.Cleanup(func() { e.stats.Close() })
+	uploads := upload.New(filepath.Join(dir, "chunks"), func() time.Duration {
+		return time.Duration(e.store.Current().ChunkInactivityTimeout()) * time.Second
+	})
+	uploads.Observe(e.stats)
 	e.srv, err = New(Deps{
-		Store:  e.store,
-		Shares: share.New(e.store),
-		Auth:   e.auth,
-		Uploads: upload.New(filepath.Join(dir, "chunks"), func() time.Duration {
-			return time.Duration(e.store.Current().ChunkInactivityTimeout()) * time.Second
-		}),
+		Store:    e.store,
+		Shares:   share.New(e.store),
+		Auth:     e.auth,
+		Uploads:  uploads,
 		Logs:     logstore.New(),
 		Throttle: throttle.New(func() (bool, int) { return e.store.Current().DownloadLimit() }),
+		Stats:    e.stats,
 		Assets:   "../../assets/web",
 		Started:  time.Now(),
 	})

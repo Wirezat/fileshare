@@ -57,7 +57,7 @@ type logService interface {
 	Unsubscribe(ch chan logstore.Entry)
 }
 
-// Deps are the services and settings a server is built from; RequestLog may be nil.
+// Deps are the services and settings a server is built from; RequestLog and Stats may be nil.
 type Deps struct {
 	Store      configStore
 	Shares     shareService
@@ -65,6 +65,7 @@ type Deps struct {
 	Uploads    uploadService
 	Logs       logService
 	Throttle   throttler
+	Stats      statsService
 	RequestLog io.Writer
 	Assets     string
 	Started    time.Time

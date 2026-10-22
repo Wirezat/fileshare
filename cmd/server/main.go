@@ -15,6 +15,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/share"
+	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/store"
 	"github.com/Wirezat/fileshare/internal/throttle"
 	"github.com/Wirezat/fileshare/internal/upload"
@@ -23,6 +24,7 @@ import (
 
 const (
 	configPath      = "./data.json"
+	statsPath       = "./stats.json"
 	chunkTempBase   = "/tmp/fileshare-chunks"
 	shutdownTimeout = 10 * time.Second
 	logRetention    = 30 * 24 * time.Hour
@@ -60,7 +62,8 @@ func main() {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
-	srv, admins, err := build(st, logs, GoLog.Writer(), "./web", chunkTempBase)
+	counts := stats.Open(statsPath)
+	srv, admins, err := build(st, counts, logs, GoLog.Writer(), "./web", chunkTempBase)
 	if err != nil {
 		GoLog.Errorf("failed to load web templates: %v", err)
 		os.Exit(1)
@@ -82,7 +85,11 @@ func main() {
 	defer stop()
 	context.AfterFunc(ctx, stop)
 	GoLog.Infof("Server running at http://localhost%s", addr)
-	if err := serve(ctx, httpServer(srv), ln, shutdownTimeout); err != nil {
+	err = serve(ctx, httpServer(srv), ln, shutdownTimeout)
+	if cerr := counts.Close(); cerr != nil {
+		GoLog.Errorf("failed to save stats: %v", cerr)
+	}
+	if err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
 		os.Exit(1)
 	}
@@ -94,9 +101,10 @@ func httpServer(srv *web.Server) *http.Server {
 	return hs
 }
 
-func build(st *store.FileStore, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string) (*web.Server, *auth.Service, error) {
+func build(st *store.FileStore, counts *stats.Stats, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string) (*web.Server, *auth.Service, error) {
 	admins := auth.New(st)
 	uploads := upload.New(chunkBase, chunkTimeout(st))
+	uploads.Observe(counts)
 	uploads.Sweep()
 	srv, err := web.New(web.Deps{
 		Store:      st,
@@ -105,6 +113,7 @@ func build(st *store.FileStore, logs *logstore.Store, requestLog io.Writer, asse
 		Uploads:    uploads,
 		Logs:       logs,
 		Throttle:   throttle.New(func() (bool, int) { return st.Current().DownloadLimit() }),
+		Stats:      counts,
 		RequestLog: requestLog,
 		Assets:     assets,
 		Started:    time.Now(),

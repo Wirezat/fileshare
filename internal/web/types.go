@@ -14,6 +14,7 @@ type requestContext struct {
 	subpath  string
 	diskPath string
 	fileInfo os.FileInfo
+	machine  bool
 }
 
 // PageData contains all fields required to render the directory listing template.

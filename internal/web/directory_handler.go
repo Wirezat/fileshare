@@ -10,6 +10,7 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/media"
+	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/upload"
 )
 
@@ -26,8 +27,19 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
-		zipAndServe(w, ctx.diskPath, roots)
+		if r.Method != http.MethodGet {
+			zipAndServe(w, ctx.diskPath, roots)
+			return
+		}
+		dw := s.countDownload(w, stats.Download{Share: ctx.subpath, Zip: true, UserAgent: r.UserAgent()})
+		served := false
+		defer func() { dw.finish(served) }()
+		zipAndServe(dw, ctx.diskPath, roots)
+		served = true
 		return
+	}
+	if r.Method == http.MethodGet && isPageLoad(r) {
+		s.stats().PageView(r.UserAgent())
 	}
 
 	tmpl := s.tpl.directory

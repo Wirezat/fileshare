@@ -142,16 +142,16 @@
                 </div>
                 <div class="container-body container-body-flush" id="file-list">
             <ul class="file-grid"{{if .Office}} data-office{{end}}>
-                {{range .Files}}
+                {{range .Files}}{{$dl := and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}}
                 <li class="file-card" data-name="{{.Name}}" data-size="{{.Size}}"
                     data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}{{if and (not .IsDir) (isText .Name)}} data-text{{end}}>
                     <input type="checkbox" class="select-box card-select" aria-label="Select {{.Name}}" />
-                    <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}} download{{end}}>
+                    <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>
                         <span class="card-icon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
                         <span class="card-ext"></span>
                     </a>
                     <div class="card-name" title="{{.Name}}">
-                        <a href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
+                        <a href="/{{$.Subpath}}{{.Path}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
                         <span class="card-size"></span>
                     </div>
                 </li>
@@ -165,12 +165,12 @@
                     <tr><th class="col-narrow"><input type="checkbox" id="select-all" aria-label="Select all" /></th><th></th><th>Name</th><th>Type</th><th class="col-narrow">Size</th><th class="col-narrow"></th></tr>
                 </thead>
                 <tbody>
-                    {{range .Files}}
+                    {{range .Files}}{{$dl := and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}}
                     <tr class="file-row" data-name="{{.Name}}" data-size="{{.Size}}"
                         data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}{{if and (not .IsDir) (isText .Name)}} data-text{{end}}>
                         <td class="row-select col-narrow"><input type="checkbox" class="select-box" aria-label="Select {{.Name}}" /></td>
                         <td class="row-icon">{{if .IsDir}}📁{{else}}📄{{end}}</td>
-                        <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}"{{if and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
+                        <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
                         <td class="row-type"></td>
                         <td class="row-size col-narrow"></td>
                         <td class="row-dl col-narrow"></td>
