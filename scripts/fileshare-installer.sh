@@ -94,10 +94,8 @@ build() {
         local GO
         GO="$(find_go)" || error "Source found but Go is not installed (looked in /usr/local/go/bin and PATH)."
         cd "$REPO_ROOT"
-        log "Resolving Go modules..."
-        "$GO" mod tidy
         log "Building fileshare-backend..."
-        "$GO" build -o fileshare-backend ./cmd/server/
+        CGO_ENABLED=0 "$GO" build -trimpath -ldflags='-s -w' -o fileshare-backend ./cmd/server/
         log "Build complete."
     elif [ -f "$BACKEND_BIN" ]; then
         info "No source found – using pre-built binary."
