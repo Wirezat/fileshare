@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test -race -count=1 ./...
+
+      - name: Version from tag
+        id: version
+        run: |
+          version="$(echo "$GITHUB_REF_NAME" | sed -nE 's/^v\.?([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')"
+          [ -n "$version" ] || { echo "tag $GITHUB_REF_NAME has no x.y.z version" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build tarball
+        run: bash scripts/build-release.sh "${{ steps.version.outputs.version }}" dist
+
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz \
+            --draft \
+            --title "Linux, v${{ steps.version.outputs.version }}" \
+            --notes ""
