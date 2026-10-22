@@ -13,6 +13,7 @@ var adminRouteTable = []struct {
 }{
 	{http.MethodGet, "/admin", http.StatusOK},
 	{http.MethodGet, "/admin/logs", http.StatusOK},
+	{http.MethodGet, "/admin/stats", http.StatusOK},
 	{http.MethodGet, "/admin/settings", http.StatusOK},
 	{http.MethodGet, "/admin/static/js/settings.js", http.StatusOK},
 	{http.MethodGet, "/admin/api/shares", http.StatusOK},
@@ -21,6 +22,7 @@ var adminRouteTable = []struct {
 	{http.MethodGet, "/admin/api/logs", http.StatusOK},
 	{http.MethodGet, "/admin/api/me", http.StatusOK},
 	{http.MethodGet, "/admin/api/uptime", http.StatusOK},
+	{http.MethodGet, "/admin/api/stats", http.StatusOK},
 	{http.MethodGet, "/admin/api/settings/office", http.StatusOK},
 	{http.MethodGet, "/admin/api/settings/download_limit", http.StatusOK},
 	{http.MethodPost, "/admin/api/settings/username", http.StatusBadRequest},

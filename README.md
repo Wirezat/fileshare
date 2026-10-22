@@ -14,6 +14,7 @@ I built it because messengers kept rejecting large files that were already on my
 - **Office documents** viewed or edited through an ONLYOFFICE-compatible document server
 - **Link previews** in messengers
 - **Download limit** shared fairly between visitors
+- **Statistics** on downloads, uploads and unique visitors, all time and the last 30 days, kept in `stats.json`
 - **Live log viewer**, dark mode
 
 ## Getting Started

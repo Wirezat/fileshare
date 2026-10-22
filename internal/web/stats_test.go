@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -296,5 +297,36 @@ func TestShownInline(t *testing.T) {
 		if got := shownInline(name); got != want {
 			t.Errorf("shownInline(%q) = %v, want %v", name, got, want)
 		}
+	}
+}
+
+func TestAdminStatsReport(t *testing.T) {
+	e, _ := statsShares(t, nil)
+	send(e.handler, http.MethodGet, "/docs/data.bin", nil, asBrowser)
+	send(e.handler, http.MethodGet, "/single", nil, asBrowser)
+	e.store.Update(func(c *config.Config) error {
+		delete(c.Files, "single")
+		return nil
+	})
+	rec := send(e.handler, http.MethodGet, "/admin/api/stats", nil, asFetch, withCookie(e.cookie(t)))
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("status %d, type %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	var r stats.Report
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	deleted := map[string]bool{}
+	for _, row := range r.Total.TopShares {
+		deleted[row.Name] = row.Deleted
+	}
+	if len(deleted) != 2 || deleted["docs"] || !deleted["single"] {
+		t.Errorf("deleted flags %v, want single only", deleted)
+	}
+	if r.Total.Downloads != 2 || r.Recent.Downloads != 2 || len(r.Days) != 30 {
+		t.Errorf("downloads %d/%d, %d days", r.Total.Downloads, r.Recent.Downloads, len(r.Days))
+	}
+	if rec := send(e.handler, http.MethodPost, "/admin/api/stats", nil, asFetch, withCookie(e.cookie(t))); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST: %d, want 405", rec.Code)
 	}
 }

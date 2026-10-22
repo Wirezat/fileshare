@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fileshare — Admin</title>
+
+  <link rel="stylesheet" href="/static/ui/index.css" />
+  <link rel="stylesheet" href="/static/theme.css" />
+
+  <script>
+    (function () {
+      const s = localStorage.getItem('theme');
+      if (s === 'dark' || (!s && matchMedia('(prefers-color-scheme: dark)').matches))
+        document.documentElement.classList.add('dark');
+    })();
+  </script>
+</head>
+
+<body class="app-shell">
+
+  <header class="header">
+    <a class="header-brand" href="/admin">
+      <div class="header-logo">📂</div>
+      <span>Fileshare</span>
+      <span class="header-sub">/ admin</span>
+    </a>
+    <div class="header-right">
+      <span class="header-sub" id="uptime-label">↑ …</span>
+      <button data-wui-theme data-i18n-title="admin.toggle_theme"></button>
+
+      <div class="dropdown-wrap" data-wui-lang>
+        <button data-dropdown-trigger></button>
+        <div class="dropdown-panel">
+          <button class="dropdown-item" data-lang="en">🇬🇧 English</button>
+          <button class="dropdown-item" data-lang="de">🇩🇪 Deutsch</button>
+        </div>
+      </div>
+
+      <a class="btn btn-ghost btn-sm" href="/admin/logout" data-wui-logout data-i18n="admin.signout"></a>
+    </div>
+  </header>
+
+  <div class="app-body">
+
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page" id="wui-page-content"></div>
+    </main>
+
+  </div>
+
+  <script type="module" src="/admin/static/js/stats.js"></script>
+</body>
+
+</html>

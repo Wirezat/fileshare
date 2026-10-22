@@ -66,6 +66,9 @@ func (s *Server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminLogsPage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, s.asset("html/admin-logs.html"))
 }
+func (s *Server) handleAdminStatsPage(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, s.asset("html/admin-stats.html"))
+}
 func (s *Server) handleAdminSettingsPage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, s.asset("html/admin-settings.html"))
 }
@@ -92,6 +95,17 @@ func (s *Server) handleAdminUptime(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]any{
 		"uptime_seconds": int(time.Since(s.deps.Started).Seconds()),
 	})
+}
+
+func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
+	if !methodOnly(w, r, http.MethodGet) {
+		return
+	}
+	cfg := s.deps.Store.Current()
+	jsonResponse(w, s.stats().Report(func(name string) bool {
+		_, ok := cfg.Share(name)
+		return ok
+	}))
 }
 
 func shareErr(w http.ResponseWriter, err error) {

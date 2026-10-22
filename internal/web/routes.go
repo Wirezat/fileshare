@@ -27,8 +27,10 @@ func (s *Server) buildMux() *http.ServeMux {
 		"/admin/api/settings/download_limit":           s.handleAdminSettingsDownloadLimit,
 		"/admin/api/settings/prune_expired":            s.handleAdminFunctionPruneExpired,
 		"/admin/api/uptime":                            s.handleAdminUptime,
+		"/admin/api/stats":                             s.handleAdminStats,
 
 		"/admin":          s.handleAdminUI,
+		"/admin/stats":    s.handleAdminStatsPage,
 		"/admin/logs":     s.handleAdminLogsPage,
 		"/admin/settings": s.handleAdminSettingsPage,
 		"/admin/api/me":   s.handleAdminMe,

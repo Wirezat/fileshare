@@ -6,6 +6,7 @@ import { load as loadI18n, getLang, t } from '/static/ui/js/i18n.js'
 
 export const PATHS = {
     shares:   '/admin',
+    stats:    '/admin/stats',
     logs:     '/admin/logs',
     settings: '/admin/settings',
 }
@@ -27,6 +28,7 @@ export async function bootChrome() {
         nav: [
             { section: t('nav.manage') },
             { href: PATHS.shares, icon: '📋', label: t('nav.shares') },
+            { href: PATHS.stats,  icon: '📊', label: t('nav.stats') },
             { href: PATHS.logs,   icon: '🗒', label: t('nav.logs') },
             { section: t('nav.system') },
             { href: PATHS.settings, icon: '⚙️', label: t('nav.settings') },
