@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Wirezat/GoLog"
@@ -357,7 +358,7 @@ func (s *Storage) Receive(uploadID, destDir string, index int, r io.Reader) (boo
 }
 
 func writeChunk(part string, offset, length int64, r io.Reader) (int64, error) {
-	f, err := os.OpenFile(part, os.O_WRONLY, 0)
+	f, err := os.OpenFile(part, os.O_WRONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return 0, err
 	}

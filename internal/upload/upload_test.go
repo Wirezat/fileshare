@@ -522,3 +522,26 @@ func TestInitKeepsAResumedSessionAlive(t *testing.T) {
 		t.Errorf("missing after resume and sweep = %v, want [1]", missing)
 	}
 }
+
+func TestChunkIsNotWrittenThroughAPartFileSwappedForASymlink(t *testing.T) {
+	s, dest := newStorage(t)
+	victim := filepath.Join(t.TempDir(), "victim.txt")
+	if err := os.WriteFile(victim, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	initSession(t, s, "a.txt", 4, 4, dest)
+	parts := hiddenFiles(t, dest)
+	if len(parts) != 1 {
+		t.Fatalf("part files = %v", parts)
+	}
+	if err := os.Remove(parts[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, parts[0]); err != nil {
+		t.Fatal(err)
+	}
+	s.Receive(id, dest, 0, strings.NewReader("evil"))
+	if got, _ := os.ReadFile(victim); string(got) != "keep" {
+		t.Errorf("chunk written through the swapped part file: %q", got)
+	}
+}

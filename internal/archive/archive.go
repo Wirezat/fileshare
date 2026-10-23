@@ -198,14 +198,15 @@ func Write(w io.Writer, dir string, roots []string, skip func(name string) bool)
 
 		if r.compressed == nil && r.rawBytes == nil {
 			hdr.Method = zip.Deflate
-			fw, err := zw.CreateHeader(hdr)
-			if err != nil {
-				GoLog.Errorf("create header %s: %v", r.job.relPath, err)
-				continue
-			}
 			f, err := os.Open(r.job.absPath)
 			if err != nil {
 				GoLog.Errorf("open %s: %v", r.job.absPath, err)
+				continue
+			}
+			fw, err := zw.CreateHeader(hdr)
+			if err != nil {
+				GoLog.Errorf("create header %s: %v", r.job.relPath, err)
+				f.Close()
 				continue
 			}
 			if _, err := io.Copy(fw, f); err != nil {

@@ -166,3 +166,16 @@ func TestByteBudgetBlocksUntilRelease(t *testing.T) {
 		t.Fatal("acquire still blocked after release")
 	}
 }
+
+func TestWriteLeavesOutWhatItCannotRead(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	dir := tree(t, map[string]string{"ok.txt": "ok", "big.bin": strings.Repeat("x", smallFileThreshold+1)})
+	if err := os.Chmod(filepath.Join(dir, "big.bin"), 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := write(t, dir, nil); len(got) != 1 || got["ok.txt"] != "ok" {
+		t.Errorf("entries = %v, want only ok.txt", len(got))
+	}
+}
