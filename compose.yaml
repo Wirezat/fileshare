@@ -1,0 +1,10 @@
+services:
+  fileshare:
+    build: .
+    # user: "1000:1000"
+    restart: unless-stopped
+    ports:
+      - "27182:27182"
+    volumes:
+      - ./data:/data:Z
+      - ./share:/share:Z

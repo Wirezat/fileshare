@@ -25,3 +25,52 @@ jobs:
 
       - name: Test
         run: go test -race -count=1 ./...
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Share folder with root-only content
+        run: |
+          sudo mkdir -p share/locked
+          echo secret | sudo tee share/secret.txt > /dev/null
+          sudo chown root:root share/secret.txt share/locked
+          sudo chmod 0600 share/secret.txt
+          sudo chmod 0755 share/locked
+
+      - name: Start
+        run: docker compose -f compose.yaml up -d --build
+
+      - name: Admin answers
+        run: |
+          for i in $(seq 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:27182/admin || true)
+            if [ "$code" = 303 ] || [ "$code" = 401 ]; then exit 0; fi
+            sleep 1
+          done
+          echo "last status: $code"
+          docker compose -f compose.yaml logs
+          exit 1
+
+      - name: Setup code in logs
+        run: docker compose -f compose.yaml logs | grep 'setup code'
+
+      - name: Check reads and writes root-only files
+        run: |
+          fixture=$(mktemp -d)
+          cat > "$fixture/data.json" <<'JSON'
+          {"files": {
+            "secret": {"path": "/share/secret.txt"},
+            "locked": {"path": "/share/locked", "allow_post": true}
+          }}
+          JSON
+          out=$(docker compose -f compose.yaml run -T --rm -v "$fixture:/fixture" -e FS_DATA_DIR=/fixture fileshare check)
+          printf '%s\n' "$out"
+          [ -z "$out" ]
+
+      - name: Stop
+        if: always()
+        run: docker compose -f compose.yaml down -v

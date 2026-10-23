@@ -1,0 +1,9 @@
+.git
+docs
+.court
+.superpowers
+.claude
+*.log
+data.json
+data
+share
