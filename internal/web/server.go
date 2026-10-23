@@ -69,6 +69,8 @@ type Deps struct {
 	RequestLog io.Writer
 	Assets     string
 	Started    time.Time
+
+	AccessBroken bool
 }
 
 type templates struct {

@@ -2,18 +2,23 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/logstore"
+	"github.com/Wirezat/fileshare/internal/settings"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/store"
@@ -23,12 +28,46 @@ import (
 )
 
 const (
-	configPath      = "./data.json"
-	statsPath       = "./stats.json"
-	chunkTempBase   = "/tmp/fileshare-chunks"
 	shutdownTimeout = 10 * time.Second
 	logRetention    = 30 * 24 * time.Hour
 )
+
+func paths(s settings.Settings) (config, stats, chunks string) {
+	return filepath.Join(s.DataDir, "data.json"), filepath.Join(s.DataDir, "stats.json"), filepath.Join(s.DataDir, "chunks")
+}
+
+const initialConfig = `{
+  "port": 27182,
+  "maxPostSize": 107374182400,
+  "chunkInactivityTimeout": 3600,
+  "admin_username": "",
+  "admin_password": "",
+  "files": {}
+}
+`
+
+// ensureConfig creates the parent directory and writes the initial config at path when no file exists there; an existing file is left alone.
+func ensureConfig(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(initialConfig)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
+func listenAddr(s settings.Settings, port int) string {
+	return net.JoinHostPort(s.Bind, strconv.Itoa(port))
+}
 
 func chunkTimeout(st *store.FileStore) func() time.Duration {
 	return func() time.Duration {
@@ -37,13 +76,22 @@ func chunkTimeout(st *store.FileStore) func() time.Duration {
 }
 
 func main() {
+	cfg, err := settings.Load(os.Getenv)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid settings: %v\n", err)
+		os.Exit(1)
+	}
 	GoLog.SetPrivacy(true)
 	logs := logstore.New()
 	GoLog.OnRecord = func(r GoLog.Record) {
 		logs.Add(logstore.Entry{Level: r.Level, Time: r.Time, Message: r.Message})
 	}
 
-	if err := GoLog.ToFile(); err != nil {
+	initLog := GoLog.ToFile
+	if cfg.LogDir != "" {
+		initLog = func() error { return GoLog.ToDir(cfg.LogDir) }
+	}
+	if err := initLog(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
@@ -57,13 +105,29 @@ func main() {
 		}
 	}
 
+	configPath, statsPath, chunkBase := paths(cfg)
+	if err := ensureConfig(configPath); err != nil {
+		GoLog.Errorf("failed to create initial config: %v", err)
+		os.Exit(1)
+	}
+	accessBroken := false
+	if err := access.SelfTest(cfg.DataDir); err != nil {
+		GoLog.Errorf("permission checks unavailable (%v), every folder is shown as locked", err)
+		accessBroken = true
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		GoLog.Errorf("failed to locate executable: %v", err)
+		os.Exit(1)
+	}
+
 	st, err := store.Open(configPath)
 	if err != nil {
 		GoLog.Errorf("failed to load config: %v", err)
 		os.Exit(1)
 	}
 	counts := stats.Open(statsPath)
-	srv, admins, err := build(st, counts, logs, GoLog.Writer(), "./web", chunkTempBase)
+	srv, admins, err := build(st, counts, logs, GoLog.Writer(), filepath.Join(filepath.Dir(exe), "web"), chunkBase, accessBroken)
 	if err != nil {
 		GoLog.Errorf("failed to load web templates: %v", err)
 		os.Exit(1)
@@ -75,7 +139,7 @@ func main() {
 		GoLog.Errorf("setup: failed to generate setup code")
 	}
 
-	addr := fmt.Sprintf(":%d", st.Current().Port())
+	addr := listenAddr(cfg, cfg.ResolvePort(st.Current().Port()))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		GoLog.Errorf("server stopped unexpectedly: %v", err)
@@ -84,7 +148,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	context.AfterFunc(ctx, stop)
-	GoLog.Infof("Server running at http://localhost%s", addr)
+	GoLog.Infof("Server running at http://%s", addr)
 	err = serve(ctx, httpServer(srv), ln, shutdownTimeout)
 	if cerr := counts.Close(); cerr != nil {
 		GoLog.Errorf("failed to save stats: %v", cerr)
@@ -101,7 +165,7 @@ func httpServer(srv *web.Server) *http.Server {
 	return hs
 }
 
-func build(st *store.FileStore, counts *stats.Stats, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string) (*web.Server, *auth.Service, error) {
+func build(st *store.FileStore, counts *stats.Stats, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string, accessBroken bool) (*web.Server, *auth.Service, error) {
 	admins := auth.New(st)
 	uploads := upload.New(chunkBase, chunkTimeout(st))
 	uploads.Observe(counts)
@@ -117,6 +181,8 @@ func build(st *store.FileStore, counts *stats.Stats, logs *logstore.Store, reque
 		RequestLog: requestLog,
 		Assets:     assets,
 		Started:    time.Now(),
+
+		AccessBroken: accessBroken,
 	})
 	return srv, admins, err
 }

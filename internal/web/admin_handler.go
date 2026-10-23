@@ -85,6 +85,7 @@ func (s *Server) handleAdminMe(w http.ResponseWriter, r *http.Request) {
 		"username":       s.deps.Store.Current().AdminUsername(),
 		"is_admin":       true,
 		"config_problem": s.deps.Store.Refused(),
+		"access_broken":  s.deps.AccessBroken,
 	})
 }
 
