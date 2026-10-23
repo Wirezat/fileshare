@@ -78,9 +78,15 @@ function renderActions(_val, row) {
         + ` data-act="delete" data-sub="${esc(row.sub)}" title="${esc(t('common.delete'))}">🗑</button>`
 }
 
-function editableCell(row, act, text) {
-    return `<span class="field-editable" data-act="${esc(act)}" data-sub="${esc(row.sub)}"`
-        + ` title="${esc(t('shares.hint.edit'))}">${esc(text)}</span>`
+const PROBLEM_KEYS = {
+    'path is not readable by the service user': 'shares.problem.unreadable',
+    'uploads need write access for the service user': 'shares.problem.unwritable',
+}
+
+function editableCell(row, act, text, problem = '') {
+    const key = PROBLEM_KEYS[problem]
+    return `<span class="field-editable${key ? ' locked' : ''}" data-act="${esc(act)}" data-sub="${esc(row.sub)}"`
+        + ` title="${esc(t(key || 'shares.hint.edit'))}">${esc(text)}</span>`
 }
 
 function renderExpires(_val, row) {
@@ -98,15 +104,16 @@ function renderExpires(_val, row) {
         + ` data-sub="${esc(row.sub)}" title="${esc(d.toLocaleString())}">${esc(label)}</span>`
 }
 
-function toggleBadge(row, act, on, onKey, offKey, hintKey) {
-    return `<button class="badge ${on ? 'badge-success' : ''}" data-act="${act}"`
+function toggleBadge(row, act, on, onKey, offKey, hintKey, locked = false) {
+    return `<button class="badge ${on ? 'badge-success' : ''}${locked ? ' locked' : ''}" data-act="${act}"`
         + ` data-sub="${esc(row.sub)}" title="${esc(t(hintKey))}">`
         + `${esc(t(on ? onKey : offKey))}</button>`
 }
 
 function renderUpload(_val, row) {
     return toggleBadge(row, 'upload', row.s.allow_post,
-        'shares.value.on', 'shares.value.off', 'shares.hint.toggle_upload')
+        'shares.value.on', 'shares.value.off', 'shares.hint.toggle_upload',
+        !row.s.writable && !row.s.allow_post)
 }
 
 function renderZip(_val, row) {
@@ -152,7 +159,7 @@ const COLUMNS = [
     { key: 'qr',       labelKey: 'shares.col.qr',      cls: 'col-narrow', render: renderQr },
     { key: 'password', labelKey: 'shares.col.password', cls: 'col-narrow', render: renderPassword },
     { key: 'path',     labelKey: 'shares.col.path',    grow: true, cls: 'cell-editable td-mono',
-      render: (_v, row) => editableCell(row, 'path', row.s.path) },
+      render: (_v, row) => editableCell(row, 'path', row.s.path, row.s.problem) },
     { key: 'expires', labelKey: 'shares.col.expires', cls: 'cell-editable col-narrow', render: renderExpires },
     { key: 'upload',  labelKey: 'shares.col.upload',  render: renderUpload },
     { key: 'zip',     labelKey: 'shares.col.zip',     render: renderZip },
@@ -477,7 +484,13 @@ function wireTable(el) {
         const sub = target.dataset.sub
         switch (target.dataset.act) {
             case 'password': openPasswordModal(sub); break
-            case 'upload':   patchShare(sub, { allow_post: !shares[sub].allow_post }, true); break
+            case 'upload':
+                if (target.classList.contains('locked')) {
+                    showToast({ tone: 'danger', messageKey: t('shares.upload.locked') })
+                    break
+                }
+                patchShare(sub, { allow_post: !shares[sub].allow_post }, true)
+                break
             case 'zip':      patchShare(sub, { no_zip: !shares[sub].no_zip }, true); break
             case 'office':   patchShare(sub, { office: OFFICE_CYCLE[shares[sub].office || ''] }, true); break
             case 'status':   patchShare(sub, { expired: !shares[sub].expired }, true); break

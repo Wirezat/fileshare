@@ -203,5 +203,10 @@
   "stats.browser.safari": "Safari",
   "stats.browser.firefox": "Firefox",
   "stats.browser.edge": "Edge",
-  "stats.browser.other": "Andere"
+  "stats.browser.other": "Andere",
+  "picker.locked": "Kein Zugriff: fileshare darf diesen Ordner nicht öffnen",
+  "shares.upload.locked": "Kein Schreibrecht für fileshare",
+  "shares.problem.unreadable": "fileshare kann diesen Pfad nicht lesen",
+  "shares.problem.unwritable": "Upload an, aber kein Schreibrecht",
+  "settings.access_broken": "Rechteprüfung nicht verfügbar – alle Ordner erscheinen gesperrt. Siehe Log."
 }

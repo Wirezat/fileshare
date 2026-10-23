@@ -203,5 +203,10 @@
   "stats.browser.safari": "Safari",
   "stats.browser.firefox": "Firefox",
   "stats.browser.edge": "Edge",
-  "stats.browser.other": "Other"
+  "stats.browser.other": "Other",
+  "picker.locked": "No access: fileshare cannot open this folder",
+  "shares.upload.locked": "fileshare has no write access here",
+  "shares.problem.unreadable": "fileshare cannot read this path",
+  "shares.problem.unwritable": "Uploads on, but no write access",
+  "settings.access_broken": "Permission checks unavailable – every folder shows as locked. See the log."
 }

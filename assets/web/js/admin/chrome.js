@@ -53,9 +53,12 @@ function startConfigWatch() {
         try {
             const res = await fetch('/admin/api/me')
             if (!res.ok) return
-            const { config_problem: problem } = await res.json()
-            banner.hidden = !problem
-            banner.textContent = problem ? tf('admin.config_refused', { reason: problem }) : ''
+            const { config_problem: problem, access_broken: broken } = await res.json()
+            const lines = []
+            if (problem) lines.push(tf('admin.config_refused', { reason: problem }))
+            if (broken) lines.push(t('settings.access_broken'))
+            banner.hidden = !lines.length
+            banner.textContent = lines.join(' ')
         } catch { }
     }
     check()

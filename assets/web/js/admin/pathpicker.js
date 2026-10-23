@@ -1,6 +1,8 @@
 /* fileshare / admin/pathpicker.js — VS Code "Open Folder"-style browsing on a path input. */
 
 import { WuiAutocomplete } from '/static/ui/js/autocomplete.js'
+import { t } from '/static/ui/js/i18n.js'
+import { showToast } from '/static/ui/js/components/toast.js'
 import { apiFetch } from './chrome.js'
 
 const PAGE = 50
@@ -55,6 +57,7 @@ export function attachPathPicker(input) {
         preselect: false,
         primary: row => row.up ? '..' : row.dir ? `${row.name}/` : row.name,
         icon: row => row.dir ? '📁' : '📄',
+        variant: row => row.dir && row.readable === false ? 'locked' : '',
         fetch: async (q, offset) => {
             if (!input.isConnected) return { rows: [], hasMore: false }
             const { dir, filter } = splitPath(q)
@@ -66,6 +69,10 @@ export function attachPathPicker(input) {
             return { rows: rows.slice(offset, offset + PAGE), hasMore: offset + PAGE < rows.length }
         },
         onSelect: row => {
+            if (row.dir && row.readable === false) {
+                showToast({ tone: 'danger', messageKey: t('picker.locked') })
+                return true
+            }
             if (row.up) return descend(parentOf(row.base))
             if (row.dir) return descend(`${row.base}${row.name}/`)
             input.value = row.base + row.name
