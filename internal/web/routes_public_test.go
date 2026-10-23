@@ -445,3 +445,47 @@ func TestDateExpiredPasswordShareIs410NotTheGate(t *testing.T) {
 		t.Errorf("status = %d, want 410 before any password prompt", rec.Code)
 	}
 }
+
+func lockedPair(t *testing.T) string {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "ok.txt"), []byte("ok"), 0o644)
+	os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("no"), 0o000)
+	locked := filepath.Join(dir, "locked")
+	os.Mkdir(locked, 0o755)
+	os.WriteFile(filepath.Join(locked, "in.txt"), []byte("in"), 0o644)
+	os.Chmod(locked, 0o000)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	return dir
+}
+
+func TestUnreadableShareIs404NotAnError(t *testing.T) {
+	dir := lockedPair(t)
+	h := publicServer(t, map[string]config.FileData{
+		"dir":  {Path: filepath.Join(dir, "locked")},
+		"file": {Path: filepath.Join(dir, "secret.txt")},
+	})
+	for _, target := range []string{"/dir", "/file", "/dir/in.txt"} {
+		if rec := send(h, http.MethodGet, target, nil); rec.Code != http.StatusNotFound {
+			t.Errorf("%s: status = %d, want 404", target, rec.Code)
+		}
+	}
+}
+
+func TestListingAndZipLeaveOutUnreadableEntries(t *testing.T) {
+	dir := lockedPair(t)
+	h := publicServer(t, map[string]config.FileData{"docs": {Path: dir}})
+
+	body := send(h, http.MethodGet, "/docs", nil).Body.String()
+	if !strings.Contains(body, "ok.txt") || strings.Contains(body, "secret.txt") || strings.Contains(body, "locked") {
+		t.Errorf("listing shows unreadable entries: %s", body)
+	}
+
+	rec := send(h, http.MethodGet, "/docs?download=zip", nil)
+	if names := zipNames(t, rec.Body.Bytes()); strings.Join(names, ",") != "ok.txt" {
+		t.Errorf("zip = %v, want only ok.txt", names)
+	}
+}

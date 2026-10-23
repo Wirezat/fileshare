@@ -240,3 +240,33 @@ func TestSharePatchCleansTrailingSlash(t *testing.T) {
 		t.Errorf("Path = %q, want %q", got, dir)
 	}
 }
+
+func TestShareListShowsAccessAndProblem(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	locked := filepath.Join(t.TempDir(), "locked")
+	os.Mkdir(locked, 0o000)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	e := withShare(t, "docs", config.FileData{Path: locked, NoZip: true})
+	cfg := e.stored(t)
+	cfg.Files["fine"] = config.FileData{Path: t.TempDir(), AllowPost: true}
+	e = newEnv(t, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/shares", nil)
+	rec := httptest.NewRecorder()
+	e.srv.handleAdminShares(rec, req)
+
+	var got map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	d := got["docs"]
+	if d["readable"] != false || d["problem"] != "path is not readable by the service user" || d["no_zip"] != true || d["path"] != locked {
+		t.Errorf("docs = %v", d)
+	}
+	f := got["fine"]
+	if f["readable"] != true || f["writable"] != true || f["problem"] != "" {
+		t.Errorf("fine = %v", f)
+	}
+}

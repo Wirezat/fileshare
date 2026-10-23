@@ -11,16 +11,20 @@ import (
 	"syscall"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 )
 
 type browseEntry struct {
-	Name string `json:"name"`
-	Dir  bool   `json:"dir"`
+	Name     string `json:"name"`
+	Dir      bool   `json:"dir"`
+	Readable bool   `json:"readable"`
+	Writable bool   `json:"writable"`
 }
 
 type browseResult struct {
-	Path    string        `json:"path"`
-	Entries []browseEntry `json:"entries"`
+	Path     string        `json:"path"`
+	Writable bool          `json:"writable"`
+	Entries  []browseEntry `json:"entries"`
 }
 
 // handleAdminBrowse lists the immediate children of an absolute directory,
@@ -58,7 +62,13 @@ func handleAdminBrowse(w http.ResponseWriter, r *http.Request) {
 			target, err := os.Stat(filepath.Join(dir, d.Name()))
 			isDir = err == nil && target.IsDir()
 		}
-		entries = append(entries, browseEntry{Name: d.Name(), Dir: isDir})
+		full := filepath.Join(dir, d.Name())
+		entries = append(entries, browseEntry{
+			Name:     d.Name(),
+			Dir:      isDir,
+			Readable: access.Readable(full),
+			Writable: access.Writable(access.UploadDir(full)),
+		})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Dir != entries[j].Dir {
@@ -70,7 +80,7 @@ func handleAdminBrowse(w http.ResponseWriter, r *http.Request) {
 		}
 		return entries[i].Name < entries[j].Name
 	})
-	jsonResponse(w, browseResult{Path: dir, Entries: entries})
+	jsonResponse(w, browseResult{Path: dir, Writable: access.Writable(dir), Entries: entries})
 }
 
 func browseError(w http.ResponseWriter, dir string, err error) {

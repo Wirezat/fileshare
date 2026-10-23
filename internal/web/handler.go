@@ -2,12 +2,14 @@ package web
 
 import (
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"strings"
 	"syscall"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
@@ -75,7 +77,16 @@ func (s *Server) prepareRequest(w http.ResponseWriter, r *http.Request) (*reques
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return nil, false
 		}
-		GoLog.Errorf("failed to stat %s: %v", diskPath, err)
+		if errors.Is(err, fs.ErrPermission) {
+			GoLog.Warnf("share /%s: %s is not readable by the service user", subpath, diskPath)
+		} else {
+			GoLog.Errorf("failed to stat %s: %v", diskPath, err)
+		}
+		s.serveNotFoundPage(w)
+		return nil, false
+	}
+	if !access.Readable(diskPath) {
+		GoLog.Warnf("share /%s: %s is not readable by the service user", subpath, diskPath)
 		s.serveNotFoundPage(w)
 		return nil, false
 	}

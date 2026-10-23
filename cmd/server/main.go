@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"syscall"
 	"time"
@@ -75,7 +77,35 @@ func chunkTimeout(st *store.FileStore) func() time.Duration {
 	}
 }
 
+// runCheck writes one "<subpath>\t<problem>" line per broken share, sorted by subpath, without creating or changing any file.
+// It returns an error when the settings or data.json cannot be read.
+func runCheck(w io.Writer, getenv func(string) string) error {
+	cfg, err := settings.Load(getenv)
+	if err != nil {
+		return fmt.Errorf("invalid settings: %w", err)
+	}
+	configPath, _, _ := paths(cfg)
+	st, err := store.Open(configPath)
+	if err != nil {
+		return err
+	}
+	problems := share.New(st).Problems()
+	for _, subpath := range slices.Sorted(maps.Keys(problems)) {
+		if _, err := fmt.Fprintf(w, "%s\t%s\n", subpath, problems[subpath]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "check" {
+		if err := runCheck(os.Stdout, os.Getenv); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	cfg, err := settings.Load(os.Getenv)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid settings: %v\n", err)
@@ -167,12 +197,17 @@ func httpServer(srv *web.Server) *http.Server {
 
 func build(st *store.FileStore, counts *stats.Stats, logs *logstore.Store, requestLog io.Writer, assets, chunkBase string, accessBroken bool) (*web.Server, *auth.Service, error) {
 	admins := auth.New(st)
+	shares := share.New(st)
+	problems := shares.Problems()
+	for _, subpath := range slices.Sorted(maps.Keys(problems)) {
+		GoLog.Warnf("share /%s: %s", subpath, problems[subpath])
+	}
 	uploads := upload.New(chunkBase, chunkTimeout(st))
 	uploads.Observe(counts)
 	uploads.Sweep()
 	srv, err := web.New(web.Deps{
 		Store:      st,
-		Shares:     share.New(st),
+		Shares:     shares,
 		Auth:       admins,
 		Uploads:    uploads,
 		Logs:       logs,

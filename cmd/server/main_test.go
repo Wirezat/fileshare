@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/logstore"
 	"github.com/Wirezat/fileshare/internal/password"
 	"github.com/Wirezat/fileshare/internal/settings"
+	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/store"
 )
@@ -285,5 +289,86 @@ func TestEnsureConfigCreatesMissingFileOnly(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "keep" {
 		t.Errorf("existing file changed to %q", got)
+	}
+}
+
+func modeDir(t *testing.T, name string, mode os.FileMode) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), name)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, mode); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	return dir
+}
+
+func TestCheckMatchesProblems(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	dataDir := t.TempDir()
+	ro := modeDir(t, "ro", 0o755)
+	file := filepath.Join(ro, "f.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(ro, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{AdminUsername: "admin", Files: map[string]config.FileData{
+		"fine":           {Path: t.TempDir(), AllowPost: true},
+		"wx":             {Path: modeDir(t, "wx", 0o300)},
+		"filepost":       {Path: file, AllowPost: true},
+		"upload":         {Path: ro, AllowPost: true},
+		`say "hi" there`: {Path: modeDir(t, `q"uote d`, 0o000)},
+	}}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "data.json"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(filepath.Join(dataDir, "data.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	problems := share.New(st).Problems()
+	var want []string
+	for sub, problem := range problems {
+		want = append(want, sub+"\t"+problem)
+	}
+	sort.Strings(want)
+
+	var out bytes.Buffer
+	if err := runCheck(&out, func(k string) string { return map[string]string{"FS_DATA_DIR": dataDir}[k] }); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
+	if len(problems) != 4 || strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("check printed %q, want %q (4 problems)", got, want)
+	}
+}
+
+func TestCheckTouchesNothingAndNeedsDataJSON(t *testing.T) {
+	dataDir := t.TempDir()
+	getenv := func(k string) string { return map[string]string{"FS_DATA_DIR": dataDir}[k] }
+
+	if err := runCheck(io.Discard, getenv); err == nil {
+		t.Error("missing data.json: err = nil, want an error")
+	}
+	if err := runCheck(io.Discard, func(k string) string { return map[string]string{"FS_PORT": "x"}[k] }); err == nil {
+		t.Error("invalid settings: err = nil, want an error")
+	}
+	os.WriteFile(filepath.Join(dataDir, "data.json"), []byte(`{"files":{}}`), 0o600)
+	if err := runCheck(io.Discard, getenv); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(dataDir)
+	if len(entries) != 1 || entries[0].Name() != "data.json" {
+		t.Errorf("data dir holds %v, want only data.json", entries)
 	}
 }

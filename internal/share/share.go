@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/password"
@@ -61,6 +62,32 @@ func (s *Service) outsideChange(old, next config.View) {
 			GoLog.Infof("share /%s changed in data.json, its unlocks ended", subpath)
 		}
 	}
+}
+
+const (
+	problemUnreadable = "path is not readable by the service user"
+	problemNoWrite    = "uploads need write access for the service user"
+)
+
+func problemOf(path string, allowPost bool) string {
+	switch {
+	case !access.Readable(path):
+		return problemUnreadable
+	case allowPost && !access.Writable(access.UploadDir(path)):
+		return problemNoWrite
+	}
+	return ""
+}
+
+// Problems returns the first rule each share breaks, keyed by subpath; intact shares are absent.
+func (s *Service) Problems() map[string]string {
+	out := map[string]string{}
+	for subpath, fd := range s.store.Current().Shares() {
+		if p := problemOf(fd.Path, fd.AllowPost); p != "" {
+			out[subpath] = p
+		}
+	}
+	return out
 }
 
 // Access is what a request presents to open a password-protected share.

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/auth"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/logstore"
@@ -124,11 +124,28 @@ func shareErr(w http.ResponseWriter, err error) {
 	}
 }
 
+type shareView struct {
+	config.FileData
+	Readable bool   `json:"readable"`
+	Writable bool   `json:"writable"`
+	Problem  string `json:"problem"`
+}
+
 func (s *Server) handleAdminShares(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case http.MethodGet:
-		jsonResponse(w, maps.Collect(s.deps.Store.Current().Shares()))
+		problems := s.deps.Shares.Problems()
+		out := map[string]shareView{}
+		for subpath, fd := range s.deps.Store.Current().Shares() {
+			out[subpath] = shareView{
+				FileData: fd,
+				Readable: access.Readable(fd.Path),
+				Writable: access.Writable(access.UploadDir(fd.Path)),
+				Problem:  problems[subpath],
+			}
+		}
+		jsonResponse(w, out)
 
 	case http.MethodPost:
 		var req struct {

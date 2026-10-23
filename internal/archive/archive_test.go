@@ -10,8 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/Wirezat/GoLog"
 )
 
 func tree(t *testing.T, files map[string]string) string {
@@ -177,5 +180,38 @@ func TestWriteLeavesOutWhatItCannotRead(t *testing.T) {
 	}
 	if got := write(t, dir, nil); len(got) != 1 || got["ok.txt"] != "ok" {
 		t.Errorf("entries = %v, want only ok.txt", len(got))
+	}
+}
+
+func TestWriteSkipsUnreadableEntriesQuietly(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	dir := tree(t, map[string]string{"ok.txt": "ok", "secret.txt": "no", "locked/in.txt": "in"})
+	os.Chmod(filepath.Join(dir, "secret.txt"), 0o000)
+	locked := filepath.Join(dir, "locked")
+	os.Chmod(locked, 0o000)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+
+	var mu sync.Mutex
+	var noisy []string
+	GoLog.OnRecord = func(r GoLog.Record) {
+		if r.Level == "WARN" || r.Level == "ERROR" {
+			mu.Lock()
+			noisy = append(noisy, r.Level+" "+r.Message)
+			mu.Unlock()
+		}
+	}
+	t.Cleanup(func() { GoLog.OnRecord = nil })
+
+	got := write(t, dir, nil)
+
+	if want := map[string]string{"ok.txt": "ok"}; !maps.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(noisy) != 0 {
+		t.Errorf("zip logged warnings or errors: %q", noisy)
 	}
 }

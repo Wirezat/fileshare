@@ -45,7 +45,7 @@ func TestBrowseListsFoldersFirstThenByName(t *testing.T) {
 	if res.Path != dir {
 		t.Errorf("Path = %q, want %q", res.Path, dir)
 	}
-	want := []browseEntry{{"Alpha", true}, {"zeta", true}, {".hidden", false}, {"beta.txt", false}}
+	want := []browseEntry{{"Alpha", true, true, true}, {"zeta", true, true, true}, {".hidden", false, true, true}, {"beta.txt", false, true, true}}
 	if !reflect.DeepEqual(res.Entries, want) {
 		t.Errorf("Entries = %v, want %v", res.Entries, want)
 	}
@@ -66,7 +66,7 @@ func TestBrowseFollowsSymlinks(t *testing.T) {
 
 	res := browseOK(t, dir)
 
-	want := []browseEntry{{"link", true}, {"real", true}, {"broken", false}}
+	want := []browseEntry{{"link", true, true, true}, {"real", true, true, true}, {"broken", false, false, true}}
 	if !reflect.DeepEqual(res.Entries, want) {
 		t.Errorf("Entries = %v, want %v", res.Entries, want)
 	}
@@ -146,5 +146,26 @@ func TestBrowseRequiresAdmin(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestBrowseMarksWhatTheServiceUserMayDo(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	dir := t.TempDir()
+	os.Mkdir(filepath.Join(dir, "open"), 0o755)
+	locked := filepath.Join(dir, "locked")
+	os.Mkdir(locked, 0o000)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+
+	res := browseOK(t, dir)
+
+	if !res.Writable {
+		t.Error("Writable = false for a folder the test owns")
+	}
+	want := []browseEntry{{"locked", true, false, false}, {"open", true, true, true}}
+	if !reflect.DeepEqual(res.Entries, want) {
+		t.Errorf("Entries = %v, want %v", res.Entries, want)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/config"
 	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/stats"
@@ -137,7 +138,7 @@ func subdirLinks(dirPath, baseHref, current string) []CrumbLink {
 			}
 			isDir = info.IsDir()
 		}
-		if !isDir {
+		if !isDir || !access.Readable(filepath.Join(dirPath, name)) {
 			continue
 		}
 		links = append(links, CrumbLink{
@@ -165,6 +166,9 @@ func getFileInfos(dirPath, basePath string) ([]media.FileInfo, error) {
 			continue
 		}
 		fullPath := filepath.Join(dirPath, entry.Name())
+		if !access.Readable(fullPath) {
+			continue
+		}
 
 		isDir := entry.IsDir()
 		var size int64

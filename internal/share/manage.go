@@ -33,6 +33,9 @@ func (s *Service) Create(subpath string, fd config.FileData) error {
 		fd.Password = hashed
 	}
 	fd.Path = filepath.Clean(fd.Path)
+	if p := problemOf(fd.Path, fd.AllowPost); p != "" {
+		return InvalidError(p)
+	}
 	fd.UploadTime = time.Now().Unix()
 	return s.store.Update(func(c *config.Config) error {
 		if _, exists := c.Files[subpath]; exists {
@@ -56,7 +59,8 @@ type Patch struct {
 
 // Patch applies the set fields of p to the share at subpath and returns one "field -> value" line per change.
 func (s *Service) Patch(subpath string, p Patch) ([]string, error) {
-	if _, ok := s.store.Current().Share(subpath); !ok {
+	cur, ok := s.store.Current().Share(subpath)
+	if !ok {
 		return nil, ErrNotFound
 	}
 
@@ -105,6 +109,18 @@ func (s *Service) Patch(subpath string, p Patch) ([]string, error) {
 	}
 	if len(changes) == 0 {
 		return nil, InvalidError("no fields to update")
+	}
+	if p.Path != nil || (p.AllowPost != nil && *p.AllowPost) {
+		path, allowPost := cur.Path, cur.AllowPost
+		if p.Path != nil {
+			path = filepath.Clean(*p.Path)
+		}
+		if p.AllowPost != nil {
+			allowPost = *p.AllowPost
+		}
+		if problem := problemOf(path, allowPost); problem != "" {
+			return nil, InvalidError(problem)
+		}
 	}
 
 	err := s.store.Update(func(c *config.Config) error {

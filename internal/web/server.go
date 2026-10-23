@@ -29,6 +29,7 @@ type shareService interface {
 	Patch(subpath string, p share.Patch) ([]string, error)
 	Delete(subpath string) (config.FileData, error)
 	Prune() (int, error)
+	Problems() map[string]string
 }
 
 type authService interface {

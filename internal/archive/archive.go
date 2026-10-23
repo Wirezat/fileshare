@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/access"
 )
 
 const (
@@ -155,6 +156,12 @@ func Write(w io.Writer, dir string, roots []string, skip func(name string) bool)
 
 	go func() {
 		walk := func(path string, info os.FileInfo, err error) error {
+			if info != nil && path != dir && !access.Readable(path) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			if err != nil {
 				GoLog.Warnf("walk %s: %v", path, err)
 				return nil

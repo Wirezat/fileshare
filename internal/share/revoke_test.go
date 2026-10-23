@@ -37,7 +37,7 @@ func TestPasswordChangeEndsExistingAccess(t *testing.T) {
 
 func TestOtherPatchesKeepAccess(t *testing.T) {
 	s, priv, _ := unlocked(t)
-	if _, err := s.Patch("priv", Patch{AllowPost: ptr(true)}); err != nil {
+	if _, err := s.Patch("priv", Patch{NoZip: ptr(true)}); err != nil {
 		t.Fatal(err)
 	}
 	if !s.TokenValid(priv, "priv") {
@@ -50,7 +50,7 @@ func TestDeleteEndsAccessForARecreatedShare(t *testing.T) {
 	if _, err := s.Delete("priv"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Create("priv", config.FileData{Path: "/srv/new", Password: "pw"}); err != nil {
+	if err := s.Create("priv", config.FileData{Path: t.TempDir(), Password: "pw"}); err != nil {
 		t.Fatal(err)
 	}
 	if s.TokenValid(priv, "priv") {
