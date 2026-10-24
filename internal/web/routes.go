@@ -57,6 +57,11 @@ func (s *Server) buildMux() *http.ServeMux {
 
 	mux.HandleFunc("POST /{subpath}/unlock", s.handleUnlock)
 
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte("ok"))
+	})
+
 	public := chain(
 		http.HandlerFunc(s.handleRequest),
 		s.loggingMiddleware,

@@ -22,6 +22,9 @@ func (s *Service) Create(subpath string, fd config.FileData) error {
 	if subpath == "" || fd.Path == "" {
 		return InvalidError("subpath and path are required")
 	}
+	if Reserved(subpath) {
+		return InvalidError("subpath is reserved")
+	}
 	if !config.ValidOffice(fd.Office) {
 		return InvalidError("office must be empty, view or edit")
 	}

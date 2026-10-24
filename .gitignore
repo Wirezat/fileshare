@@ -7,8 +7,8 @@ fileshare-interface
 
 # Runtime config
 data.json
-data/
-share/
+/data/
+/share/
 
 # Dev-data
 fileshare-architektur.md

@@ -233,3 +233,18 @@ func TestProblemsListsOnlyBrokenShares(t *testing.T) {
 		t.Errorf("Problems = %v, want %v", got, want)
 	}
 }
+
+func TestCreateRejectsReservedSubpath(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := newService(t, nil)
+	var invalid InvalidError
+	for _, name := range []string{"healthz", "admin", "static", "setup"} {
+		err := s.Create(name, config.FileData{Path: dir})
+		if !errors.As(err, &invalid) || invalid != "subpath is reserved" {
+			t.Errorf("%s: err = %v, want subpath is reserved", name, err)
+		}
+	}
+	if err := s.Create("healthzx", config.FileData{Path: dir}); err != nil {
+		t.Errorf("healthzx: %v", err)
+	}
+}
