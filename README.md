@@ -30,9 +30,9 @@ bash scripts/fileshare-installer.sh                    # without sudo, for your 
 Or from a release, without Git:
 
 ```sh
-v=X.Y.Z
-curl -LO https://github.com/Wirezat/fileshare/releases/download/v$v/fileshare-v$v-linux.tar.gz
-curl -LO https://github.com/Wirezat/fileshare/releases/download/v$v/SHA256SUMS
+tag=vX.Y.Z.name v=X.Y.Z    # from the release page
+curl -LO https://github.com/Wirezat/fileshare/releases/download/$tag/fileshare-v$v-linux.tar.gz
+curl -LO https://github.com/Wirezat/fileshare/releases/download/$tag/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing    # catches broken downloads, does not prove authenticity
 tar -xzf fileshare-v$v-linux.tar.gz && cd fileshare-v$v-linux
 sudo bash scripts/fileshare-installer.sh

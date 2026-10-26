@@ -25,8 +25,8 @@ jobs:
       - name: Version from tag
         id: version
         run: |
-          bash scripts/release-tag.sh check "$GITHUB_REF_NAME"
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          version="$(bash scripts/release-tag.sh check "$GITHUB_REF_NAME")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build tarball
         run: |
