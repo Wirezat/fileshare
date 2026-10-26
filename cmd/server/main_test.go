@@ -372,3 +372,84 @@ func TestCheckTouchesNothingAndNeedsDataJSON(t *testing.T) {
 		t.Errorf("data dir holds %v, want only data.json", entries)
 	}
 }
+
+func TestHealthAddr(t *testing.T) {
+	cases := []struct {
+		bind, want string
+	}{
+		{"0.0.0.0", "127.0.0.1:8080"},
+		{"127.0.0.1", "127.0.0.1:8080"},
+		{"::", "127.0.0.1:8080"},
+		{"", "127.0.0.1:8080"},
+		{"::1", "[::1]:8080"},
+	}
+	for _, c := range cases {
+		if got := healthAddr(settings.Settings{Bind: c.bind}, 8080); got != c.want {
+			t.Errorf("bind %q: got %q, want %q", c.bind, got, c.want)
+		}
+	}
+}
+
+func envOf(m map[string]string) func(string) string {
+	return func(k string) string { return m[k] }
+}
+
+func TestRunHealthcheck(t *testing.T) {
+	status := http.StatusOK
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/healthz" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(status)
+		io.WriteString(w, "ok")
+	}))
+	defer ts.Close()
+	host, port, _ := net.SplitHostPort(ts.Listener.Addr().String())
+	env := envOf(map[string]string{"FS_PORT": port, "FS_BIND": host, "FS_DATA_DIR": t.TempDir()})
+
+	if err := runHealthcheck(env, ts.Client()); err != nil {
+		t.Fatalf("healthy server: %v", err)
+	}
+	status = http.StatusInternalServerError
+	if err := runHealthcheck(env, ts.Client()); err == nil {
+		t.Fatal("500 must fail")
+	}
+
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	_, free, _ := net.SplitHostPort(ln.Addr().String())
+	ln.Close()
+	env = envOf(map[string]string{"FS_PORT": free, "FS_BIND": "127.0.0.1", "FS_DATA_DIR": t.TempDir()})
+	start := time.Now()
+	if err := runHealthcheck(env, &http.Client{Timeout: healthTimeout}); err == nil {
+		t.Fatal("closed port must fail")
+	}
+	if d := time.Since(start); d > 4*time.Second {
+		t.Fatalf("took %s", d)
+	}
+}
+
+func TestRunHealthcheckReadsPortFromConfigAndCreatesNothing(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok") }))
+	defer ts.Close()
+	host, port, _ := net.SplitHostPort(ts.Listener.Addr().String())
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "data.json"), []byte(`{"port": `+port+`, "files": {}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env := envOf(map[string]string{"FS_BIND": host, "FS_DATA_DIR": dir})
+	if err := runHealthcheck(env, ts.Client()); err != nil {
+		t.Fatal(err)
+	}
+	empty := t.TempDir()
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	_, free, _ := net.SplitHostPort(ln.Addr().String())
+	ln.Close()
+	err := runHealthcheck(envOf(map[string]string{"FS_PORT": free, "FS_BIND": host, "FS_DATA_DIR": empty}), &http.Client{Timeout: 200 * time.Millisecond})
+	if err == nil {
+		t.Fatal("closed port must fail")
+	}
+	if entries, _ := os.ReadDir(empty); len(entries) != 0 {
+		t.Fatalf("created %v", entries)
+	}
+}

@@ -41,8 +41,23 @@ jobs:
           sudo chmod 0600 share/secret.txt
           sudo chmod 0755 share/locked
 
+      - name: Build image
+        run: docker build -t ghcr.io/wirezat/fileshare:latest .
+
       - name: Start
-        run: docker compose -f compose.yaml up -d --build
+        run: docker compose -f compose.yaml up -d
+
+      - name: Container becomes healthy
+        run: |
+          id=$(docker compose -f compose.yaml ps -q fileshare || true)
+          for i in $(seq 60); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' "$id" 2>/dev/null || true)
+            if [ "$status" = healthy ]; then exit 0; fi
+            sleep 1
+          done
+          echo "last health status: $status"
+          docker compose -f compose.yaml logs
+          exit 1
 
       - name: Admin answers
         run: |

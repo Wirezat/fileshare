@@ -31,6 +31,7 @@ import (
 
 const (
 	shutdownTimeout = 10 * time.Second
+	healthTimeout   = 3 * time.Second
 	logRetention    = 30 * 24 * time.Hour
 )
 
@@ -71,6 +72,14 @@ func listenAddr(s settings.Settings, port int) string {
 	return net.JoinHostPort(s.Bind, strconv.Itoa(port))
 }
 
+func healthAddr(s settings.Settings, port int) string {
+	host := s.Bind
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
 func chunkTimeout(st *store.FileStore) func() time.Duration {
 	return func() time.Duration {
 		return time.Duration(st.Current().ChunkInactivityTimeout()) * time.Second
@@ -98,7 +107,38 @@ func runCheck(w io.Writer, getenv func(string) string) error {
 	return nil
 }
 
+// runHealthcheck requests /healthz on the address the server listens on and returns an error unless it answers 200.
+// The port comes from FS_PORT, else from data.json when readable, else the default; nothing is created or logged.
+func runHealthcheck(getenv func(string) string, client *http.Client) error {
+	cfg, err := settings.Load(getenv)
+	if err != nil {
+		return fmt.Errorf("invalid settings: %w", err)
+	}
+	fromConfig := 0
+	if cfg.Port == 0 {
+		configPath, _, _ := paths(cfg)
+		if st, err := store.Open(configPath); err == nil {
+			fromConfig = st.Current().Port()
+		}
+	}
+	resp, err := client.Get("http://" + healthAddr(cfg, cfg.ResolvePort(fromConfig)) + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz answered %s", resp.Status)
+	}
+	return nil
+}
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := runHealthcheck(os.Getenv, &http.Client{Timeout: healthTimeout}); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "check" {
 		if err := runCheck(os.Stdout, os.Getenv); err != nil {
 			fmt.Fprintln(os.Stderr, err)
