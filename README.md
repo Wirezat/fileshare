@@ -2,79 +2,18 @@
 
 A self-hosted file sharing server written in Go. Share files and folders from your server by link, with optional passwords, uploads and expiry, all managed in a web admin UI.
 
-I built it because messengers kept rejecting large files that were already on my NAS. Sending a direct link was simpler, and the existing tools were far more than I needed.
-
 ## Features
 
 - **Web admin UI** to create, edit, disable and delete shares
-- **Passwords** per share
+- **Passwords** and **expiry** per share
 - **Uploads** into a share: chunked and resumable
-- **Expiry** date per share
-- **Directory listing** with name filter, previews for media, PDF, text and Markdown, and ZIP download of a folder or a selection
+- **Directory listing** with previews for media, PDF, text and Markdown, and ZIP download
 - **Office documents** viewed or edited through an ONLYOFFICE-compatible document server
-- **Link previews** in messengers
-- **Download limit** shared fairly between visitors
-- **Statistics** on downloads, uploads and unique visitors, all time and the last 30 days, kept in `stats.json`
-- **Live log viewer**, dark mode
+- **Link previews** in messengers, a fair **download limit** per visitor, **statistics**, live log viewer, dark mode
 
-## Getting Started
+## Install
 
-### 1. Install
-
-```sh
-git clone --recursive https://github.com/Wirezat/fileshare && cd fileshare
-sudo bash scripts/fileshare-installer.sh               # as a system service
-bash scripts/fileshare-installer.sh                    # without sudo, for your user only
-```
-
-Or from a release, without Git:
-
-```sh
-tag=vX.Y.Z.name v=X.Y.Z    # from the release page
-curl -LO https://github.com/Wirezat/fileshare/releases/download/$tag/fileshare-v$v-linux.tar.gz
-curl -LO https://github.com/Wirezat/fileshare/releases/download/$tag/SHA256SUMS
-sha256sum -c SHA256SUMS --ignore-missing    # catches broken downloads, does not prove authenticity
-tar -xzf fileshare-v$v-linux.tar.gz && cd fileshare-v$v-linux
-sudo bash scripts/fileshare-installer.sh
-```
-
-The installer asks for port, folders and whether a reverse proxy sits in front, each with a default. Flags skip the questions, e.g. `--install --port 8080 --proxy --yes`. It builds from source if Go is installed, otherwise it uses the release binary. The same script updates and uninstalls.
-
-| | with `sudo` | without `sudo` |
-|---|---|---|
-| Runs as | system user `fileshare`, or one you name | you |
-| Can read and write | reads everything except `/etc/shadow`, `/etc/gshadow`, `/root/.ssh`; writes everything except `/etc`, `/usr`, `/boot` | what you may |
-| Installed to | `/opt/fileshare` | `~/.local/share/fileshare` |
-
-fileshare never runs as root. Ports below 1024 are refused: put a reverse proxy in front, or open the port in your firewall.
-
-**Before you share anything:**
-
-- Symlinks are always followed. Whoever can write into a shared folder can reach any file fileshare can read or write.
-- With `sudo`, the service user can read and write every file through fileshare. Don't make your login user the service user.
-
-Port, listen address, data and log folder can also be set with `FS_PORT`, `FS_BIND`, `FS_DATA_DIR` and `FS_LOG_DIR`. Everything else lives in the admin UI.
-
-The web UI is the [wirezatUI](https://github.com/Wirezat/wirezatui) submodule. If you cloned without `--recursive`, run `git submodule update --init`, or every page renders unstyled.
-
-### 2. First-time setup
-
-Open `/admin` and create the admin account. It asks for a **setup code**, which the server writes to its log on start:
-
-```
-[INFO] no admin password set — open /setup and enter this setup code: 3f1c…
-```
-
-**Forgotten password:** set `"admin_password": ""` in `data.json` in the data folder. A new setup code appears in the log within two seconds; shares are kept.
-
-## Good to know
-
-- **Dot-files are shared too.** Keep `.env`, `.git` and the like out of shared folders.
-- **Reverse proxy:** it must pass the client address in `X-Forwarded-For`, or all visitors share one download limit.
-- **Office documents:** under Settings, enter an ONLYOFFICE-compatible document server and its `JWT_SECRET`, then pick `view` or `edit` per share. Anyone who can open an `edit` share can overwrite its documents. The document server must reach fileshare's public address.
-- **`data.json`** can be edited by hand; changes apply within two seconds. An invalid file is ignored and the admin UI shows a banner.
-
-## Docker
+### Docker / Podman
 
 Save this as `compose.yaml`:
 
@@ -95,10 +34,41 @@ services:
 docker compose up -d    # or: podman compose up -d
 ```
 
-To build from source instead, clone the repository and add `build: .` under `fileshare:`.
+fileshare runs with the rights of whoever starts it. `./share` appears as `/share`; mount other folders at the same path as on the host, e.g. `/srv/share:/srv/share:Z`.
 
-- fileshare runs as whoever starts it and has exactly their rights: rootful as root, rootless as you. Rootful, uncomment `user:` with a host user's UID and GID to run as that user; create `./data` and `./share` as that user first.
-- `./share` appears as `/share`. Mount other folders at the same path as on the host, e.g. `/srv/share:/srv/share:Z`.
-- SELinux: for host folders other services use too, add `security_opt: [label=disable]` instead of relabelling them with `:Z`.
-- The setup code is in `docker compose logs`.
-- `:latest` is the highest release. To stay on a version, use `ghcr.io/wirezat/fileshare:<x.y.z>`. Maintainers roll `:latest` back with `docker buildx imagetools create --prefer-index=false -t ghcr.io/wirezat/fileshare:latest ghcr.io/wirezat/fileshare:<previous x.y.z>`. An older fileshare reads the data of a newer one, but drops the fields it does not know the next time it saves.
+### Linux service
+
+Download the tarball and `SHA256SUMS` from the [latest release](https://github.com/Wirezat/fileshare/releases/latest), then:
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing
+tar -xzf fileshare-v*-linux.tar.gz && cd fileshare-v*-linux
+sudo bash scripts/fileshare-installer.sh    # system service with its own user
+bash scripts/fileshare-installer.sh         # or: just for your user, without sudo
+```
+
+The installer asks for port and folders, and also updates and uninstalls. fileshare never runs as root; ports below 1024 need a reverse proxy in front.
+
+## First login
+
+Open `/admin`. It asks for a **setup code**, which the installer prints and the server writes to its log (`docker compose logs`).
+
+Forgot the password? Set `"admin_password": ""` in `data.json`; a new setup code appears in the log within two seconds.
+
+## Before you share anything
+
+- **Symlinks are followed** and **dot-files are shared.** Keep `.env`, `.git` and the like out of shared folders, and don't let untrusted people write into them.
+- **Installed with `sudo`**, the service user can read and write nearly every file on the system through fileshare. Don't make your login user the service user.
+- **Behind a reverse proxy**, pass the client address in `X-Forwarded-For`, or all visitors share one download limit.
+- **`edit` shares** let anyone with the link overwrite the documents in them.
+
+## Updates and backups
+
+- **Back up the data folder** (`./data`, `/opt/fileshare` with `sudo`, `~/.local/share/fileshare` without). `data.json` holds all settings and shares, `stats.json` the statistics. It contains password hashes and the document server secret, so keep the backup private.
+- **Update:** `docker compose pull && docker compose up -d`, or run the installer of the new release and pick Update.
+- **Newer versions read the data of older ones. Going back does not work cleanly**: an older version drops settings it does not know. Back up before updating and restore the backup to go back.
+- Changes, especially breaking ones, are in the [CHANGELOG](CHANGELOG.md). To report a security issue, see [SECURITY.md](SECURITY.md).
+
+## Configuration
+
+Everything is set in the admin UI. Port, listen address, data and log folder can also be set with `FS_PORT`, `FS_BIND`, `FS_DATA_DIR` and `FS_LOG_DIR`. `data.json` can be edited by hand; changes apply within two seconds.
