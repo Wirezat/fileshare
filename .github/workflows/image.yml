@@ -1,0 +1,97 @@
+name: Image
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: image-release
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/wirezat/fileshare
+  TAG: ${{ github.event.release.tag_name }}
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  image:
+    if: github.event.release.prerelease != true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          submodules: true
+
+      - name: Version from tag
+        id: version
+        run: |
+          bash scripts/release-tag.sh check "$TAG"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+          outputs: type=image,oci-mediatypes=false
+
+      - name: Digest in release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          body="$(gh release view "$TAG" --json body --jq .body)"
+          grep -qF "$IMAGE@$DIGEST" <<< "$body" || gh release edit "$TAG" --notes "$(printf '%s\n\nImage: %s@%s' "$body" "$IMAGE" "$DIGEST")"
+
+      - name: Container becomes healthy
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker pull "$IMAGE:$VERSION"
+          docker run -d --name smoke "$IMAGE:$VERSION"
+          trap 'docker rm -f smoke > /dev/null' EXIT
+          for _ in $(seq 60); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' smoke || true)" = healthy ] && exit 0
+            sleep 1
+          done
+          docker logs smoke
+          exit 1
+
+      - name: Move latest to the highest version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          tags="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName --jq '.[].tagName')"
+          status=0
+          printf '%s\n' "$tags" | bash scripts/release-tag.sh is-latest "$VERSION" || status=$?
+          case "$status" in
+            0)
+              docker buildx imagetools create --prefer-index=false -t "$IMAGE:latest" "$IMAGE:$VERSION"
+              latest="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}')"
+              [ "$latest" = "$DIGEST" ] || { echo ":latest is $latest, want $DIGEST" >&2; exit 1; }
+              ;;
+            1) echo "v$VERSION is not the highest version, :latest stays" ;;
+            *) exit "$status" ;;
+          esac

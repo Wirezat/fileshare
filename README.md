@@ -27,6 +27,17 @@ sudo bash scripts/fileshare-installer.sh               # as a system service
 bash scripts/fileshare-installer.sh                    # without sudo, for your user only
 ```
 
+Or from a release, without Git:
+
+```sh
+v=X.Y.Z
+curl -LO https://github.com/Wirezat/fileshare/releases/download/v$v/fileshare-v$v-linux.tar.gz
+curl -LO https://github.com/Wirezat/fileshare/releases/download/v$v/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing    # catches broken downloads, does not prove authenticity
+tar -xzf fileshare-v$v-linux.tar.gz && cd fileshare-v$v-linux
+sudo bash scripts/fileshare-installer.sh
+```
+
 The installer asks for port, folders and whether a reverse proxy sits in front, each with a default. Flags skip the questions, e.g. `--install --port 8080 --proxy --yes`. It builds from source if Go is installed, otherwise it uses the release binary. The same script updates and uninstalls.
 
 | | with `sudo` | without `sudo` |
@@ -65,11 +76,29 @@ Open `/admin` and create the admin account. It asks for a **setup code**, which 
 
 ## Docker
 
-```sh
-docker compose up -d --build    # or: podman compose up -d --build
+Save this as `compose.yaml`:
+
+```yaml
+services:
+  fileshare:
+    image: ghcr.io/wirezat/fileshare:latest
+    # user: "1000:1000"
+    restart: unless-stopped
+    ports:
+      - "27182:27182"
+    volumes:
+      - ./data:/data:Z
+      - ./share:/share:Z
 ```
+
+```sh
+docker compose up -d    # or: podman compose up -d
+```
+
+To build from source instead, clone the repository and add `build: .` under `fileshare:`.
 
 - fileshare runs as whoever starts it and has exactly their rights: rootful as root, rootless as you. Rootful, uncomment `user:` with a host user's UID and GID to run as that user; create `./data` and `./share` as that user first.
 - `./share` appears as `/share`. Mount other folders at the same path as on the host, e.g. `/srv/share:/srv/share:Z`.
 - SELinux: for host folders other services use too, add `security_opt: [label=disable]` instead of relabelling them with `:Z`.
 - The setup code is in `docker compose logs`.
+- `:latest` is the highest release. To stay on a version, use `ghcr.io/wirezat/fileshare:<x.y.z>`. Maintainers roll `:latest` back with `docker buildx imagetools create --prefer-index=false -t ghcr.io/wirezat/fileshare:latest ghcr.io/wirezat/fileshare:<previous x.y.z>`. An older fileshare reads the data of a newer one, but drops the fields it does not know the next time it saves.
