@@ -10,6 +10,12 @@ Every version reads the `data.json` of all earlier versions. Going back to an ol
 
 Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions are described on the [releases page](https://github.com/Wirezat/fileshare/releases).
 
+## Unreleased
+
+### Added
+
+- The Docker/Podman image also runs on arm64 (Raspberry Pi 4/5 and other 64-bit ARM boards).
+
 ## 5.1.0 (exodus)
 
 ### Breaking
