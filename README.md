@@ -38,11 +38,11 @@ fileshare runs with the rights of whoever starts it. `./share` appears as `/shar
 
 ### Linux service
 
-Download the tarball and `SHA256SUMS` from the [latest release](https://github.com/Wirezat/fileshare/releases/latest), then:
+Download the tarball for your machine (`-amd64` for most servers, `-arm64` for Raspberry Pi and other 64-bit ARM boards) and `SHA256SUMS` from the [latest release](https://github.com/Wirezat/fileshare/releases/latest), then:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-tar -xzf fileshare-v*-linux.tar.gz && cd fileshare-v*-linux
+tar -xzf fileshare-v*-linux-*.tar.gz && cd fileshare-v*-linux-*/
 sudo bash scripts/fileshare-installer.sh    # system service with its own user
 bash scripts/fileshare-installer.sh         # or: just for your user, without sudo
 ```

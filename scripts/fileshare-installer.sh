@@ -105,6 +105,9 @@ build() {
         log "Build complete."
     elif [ -f "$BACKEND_BIN" ]; then
         info "No source found – using pre-built binary."
+        local rc=0
+        "$BACKEND_BIN" healthcheck >/dev/null 2>&1 || rc=$?
+        [ "$rc" -le 1 ] || error "The pre-built binary does not run on this machine ($(uname -m)). Download the tarball for your architecture: -amd64 for most servers, -arm64 for Raspberry Pi and other 64-bit ARM boards."
     else
         error "Neither source code nor a pre-built binary found in $REPO_ROOT."
     fi
@@ -302,9 +305,9 @@ show_setup_hint() {
 do_install() {
     legacy_root_unit_check
     ask_settings
-    ensure_service_user
     ensure_ui
     build
+    ensure_service_user
 
     log "Creating $INSTALL_DIR..."
     mkdir -p "$INSTALL_DIR" "$DATA_DIR" "$LOG_DIR"
