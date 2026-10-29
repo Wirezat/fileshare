@@ -4,10 +4,6 @@ on:
   release:
     types: [released]
 
-permissions:
-  contents: write
-  packages: write
-
 concurrency:
   group: image-release
   cancel-in-progress: false
@@ -21,11 +17,22 @@ defaults:
     shell: bash --noprofile --norc -euo pipefail {0}
 
 jobs:
-  image:
+  smoke:
     if: github.event.release.prerelease != true
-    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.release.tag_name }}
           submodules: true
@@ -36,9 +43,57 @@ jobs:
           version="$(bash scripts/release-tag.sh check "$TAG")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
-      - uses: docker/login-action@v4
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          tags: fileshare:smoke
+
+      - name: Binary reports the release version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: '[ "$(docker run --rm fileshare:smoke version)" = "$VERSION" ]'
+
+      - name: Container becomes healthy
+        run: |
+          docker run -d --name smoke fileshare:smoke
+          trap 'docker rm -f smoke > /dev/null' EXIT
+          for _ in $(seq 60); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' smoke || true)" = healthy ] && exit 0
+            sleep 1
+          done
+          docker logs smoke
+          exit 1
+
+  image:
+    needs: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          submodules: true
+
+      - name: Version from tag
+        id: version
+        run: |
+          version="$(bash scripts/release-tag.sh check "$TAG")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -46,14 +101,37 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ steps.version.outputs.version }}
           push: true
           provenance: false
           tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
           outputs: type=image,oci-mediatypes=false
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
 
       - name: Digest in release notes
         env:
@@ -62,20 +140,6 @@ jobs:
         run: |
           body="$(gh release view "$TAG" --json body --jq .body)"
           grep -qF "$IMAGE@$DIGEST" <<< "$body" || gh release edit "$TAG" --notes "$(printf '%s\n\nImage: %s@%s' "$body" "$IMAGE" "$DIGEST")"
-
-      - name: Container becomes healthy
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          docker pull "$IMAGE:$VERSION"
-          docker run -d --name smoke "$IMAGE:$VERSION"
-          trap 'docker rm -f smoke > /dev/null' EXIT
-          for _ in $(seq 60); do
-            [ "$(docker inspect --format '{{.State.Health.Status}}' smoke || true)" = healthy ] && exit 0
-            sleep 1
-          done
-          docker logs smoke
-          exit 1
 
       - name: Move latest to the highest version
         env:

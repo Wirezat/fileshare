@@ -5,17 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           submodules: true
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
+
+      - name: Dockerfile and go.mod use the same Go version
+        run: |
+          want="$(sed -nE 's/^go ([0-9]+\.[0-9]+).*/\1/p' go.mod)"
+          grep -q "^FROM .*golang:$want-" Dockerfile
 
       - name: Module files are tidy
         run: go mod tidy -diff
@@ -27,17 +36,46 @@ jobs:
         run: go test -race -count=1 ./...
 
   release-tag:
-    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Tag rules
         run: bash scripts/release-tag_test.sh
 
-  compose-smoke:
-    runs-on: ubuntu-latest
+  tarball:
+    timeout-minutes: 20
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: true
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build tarballs
+        run: bash scripts/build-release.sh 0.0.0 dist
+
+      - name: Tarballs hold binary, UI and installer
+        run: |
+          for arch in amd64 arm64; do
+            list="$(tar -tzf dist/fileshare-v0.0.0-linux-$arch.tar.gz)"
+            for f in fileshare-backend assets/web/ui/index.css scripts/fileshare-installer.sh; do
+              grep -q "/$f$" <<< "$list" || { echo "$arch tarball misses $f" >&2; exit 1; }
+            done
+          done
+
+  compose-smoke:
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           submodules: true
 

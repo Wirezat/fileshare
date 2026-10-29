@@ -4,23 +4,24 @@ on:
   push:
     tags: ['v*']
 
-permissions:
-  contents: write
-
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          fetch-depth: 0
           submodules: true
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
-
-      - name: Test
-        run: go test -race -count=1 ./...
 
       - name: Version from tag
         id: version
@@ -28,16 +29,53 @@ jobs:
           version="$(bash scripts/release-tag.sh check "$GITHUB_REF_NAME")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build tarball
+      - name: Tag is on main
         run: |
-          bash scripts/build-release.sh "${{ steps.version.outputs.version }}" dist
-          (cd dist && sha256sum -- *.tar.gz > SHA256SUMS)
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: CI passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          passed="$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq length)"
+          [ "$passed" -ge 1 ] || { echo "no successful CI run for $GITHUB_SHA" >&2; exit 1; }
+
+      - name: Release notes from CHANGELOG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '/^## /{on = index($0, "## " v " ") == 1 || $0 == "## " v; next} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "CHANGELOG.md has no section '## $VERSION'" >&2; exit 1; }
+
+      - name: Build tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bash scripts/build-release.sh "$VERSION" dist
+
+      - name: SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/fileshare-v${{ steps.version.outputs.version }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Checksums
+        run: (cd dist && sha256sum -- *.tar.gz *.spdx.json > SHA256SUMS)
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
 
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS \
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.spdx.json dist/SHA256SUMS \
             --draft \
-            --title "Linux, v${{ steps.version.outputs.version }}" \
-            --notes ""
+            --title "Linux, v$VERSION" \
+            --notes-file notes.md
