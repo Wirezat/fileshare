@@ -233,11 +233,14 @@ function initViewPicker() {
 // checkbox in either view marks the entry in both.
 const selected = new Set();
 
+let showDotfiles = localStorage.getItem("fileshare-show-dotfiles") === "1";
+
 function applyFilter(query) {
     const q = query.trim().toLowerCase();
     let shown = 0;
     document.querySelectorAll(".file-card, .file-row").forEach(el => {
-        const hit = !q || (el.dataset.name ?? "").toLowerCase().includes(q);
+        const name = el.dataset.name ?? "";
+        const hit = (!q || name.toLowerCase().includes(q)) && (showDotfiles || !name.startsWith("."));
         el.hidden = !hit;
         if (hit) shown++;
     });
@@ -249,6 +252,20 @@ function initFilter() {
     const input = $("file-filter");
     if (!input) return;
     input.addEventListener("input", () => applyFilter(input.value));
+    const toggle = $("hidden-toggle");
+    const sync = () => {
+        toggle.classList.toggle("active", showDotfiles);
+        toggle.setAttribute("aria-pressed", String(showDotfiles));
+        applyFilter(input.value);
+        updateZipButton();
+    };
+    toggle.addEventListener("click", () => {
+        showDotfiles = !showDotfiles;
+        localStorage.setItem("fileshare-show-dotfiles", showDotfiles ? "1" : "0");
+        if (!showDotfiles) [...selected].filter(n => n.startsWith(".")).forEach(n => setSelected(n, false));
+        sync();
+    });
+    sync();
     input.addEventListener("keydown", e => {
         if (e.key === "Escape") { input.value = ""; applyFilter(""); }
     });
