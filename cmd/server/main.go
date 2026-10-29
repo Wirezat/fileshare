@@ -30,6 +30,8 @@ import (
 	"github.com/Wirezat/fileshare/internal/webhook"
 )
 
+var version = "dev"
+
 const (
 	shutdownTimeout = 10 * time.Second
 	healthTimeout   = 3 * time.Second
@@ -138,6 +140,10 @@ func main() {
 		if err := runHealthcheck(os.Getenv, &http.Client{Timeout: healthTimeout}); err != nil {
 			os.Exit(1)
 		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Println(version)
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "check" {

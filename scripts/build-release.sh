@@ -19,7 +19,7 @@ cd "$REPO_ROOT"
 for ARCH in amd64 arm64; do
     NAME="fileshare-v$VERSION-linux-$ARCH"
     mkdir -p "$STAGE/$NAME"
-    CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath -ldflags='-s -w' -o "$STAGE/$NAME/fileshare-backend" ./cmd/server/
+    CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o "$STAGE/$NAME/fileshare-backend" ./cmd/server/
     git ls-files --recurse-submodules assets scripts configs README.md LICENSE \
         | grep -v '/\.gitignore$' \
         | tar -cf - -T - | tar -xf - -C "$STAGE/$NAME"

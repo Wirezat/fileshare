@@ -19,9 +19,15 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Settings → Upload notification: a message to an ntfy topic for every finished upload (server, topic and optional access token), with file name, size and the share it went into. Optional access token for protected topics. Off while the address is empty.
 
+- `fileshare-backend version` prints the running version.
+
 ### Changed
 
 - Release tarballs are named `fileshare-v<version>-linux-amd64.tar.gz` and `fileshare-v<version>-linux-arm64.tar.gz`. The installer stops with a clear message if the binary does not fit the machine.
+
+### Fixed
+
+- Preview images: `golang.org/x/image` moves to v0.45.0, which closes a memory exhaustion when decoding crafted WebP files (GO-2026-6222).
 
 ## 5.1.0 (exodus)
 
