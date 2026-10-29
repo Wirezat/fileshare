@@ -27,6 +27,7 @@ import (
 	"github.com/Wirezat/fileshare/internal/throttle"
 	"github.com/Wirezat/fileshare/internal/upload"
 	"github.com/Wirezat/fileshare/internal/web"
+	"github.com/Wirezat/fileshare/internal/webhook"
 )
 
 const (
@@ -244,6 +245,7 @@ func build(st *store.FileStore, counts *stats.Stats, logs *logstore.Store, reque
 	}
 	uploads := upload.New(chunkBase, chunkTimeout(st))
 	uploads.Observe(counts)
+	uploads.OnPublished(webhook.New(st.Current).Published)
 	uploads.Sweep()
 	srv, err := web.New(web.Deps{
 		Store:      st,

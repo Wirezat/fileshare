@@ -147,3 +147,26 @@ func TestResumingASessionIsNoNewUpload(t *testing.T) {
 		t.Errorf("resume reported %v", got)
 	}
 }
+
+func TestOnPublishedGetsFinalNameDirAndSize(t *testing.T) {
+	s, dest := newStorage(t)
+	got := make(chan Published, 2)
+	s.OnPublished(func(p Published) { got <- p })
+	initSession(t, s, "a.txt", 5, 3, dest)
+	send(t, s, 0, "aaa")
+	select {
+	case p := <-got:
+		t.Fatalf("hook ran before the last chunk: %+v", p)
+	case <-time.After(50 * time.Millisecond):
+	}
+	send(t, s, 1, "bb")
+	select {
+	case p := <-got:
+		want := Published{Filename: "a.txt", DestDir: filepath.Clean(dest), Size: 5}
+		if p != want {
+			t.Errorf("published = %+v, want %+v", p, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("hook did not run")
+	}
+}

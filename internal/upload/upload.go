@@ -92,6 +92,13 @@ type Observer interface {
 	UploadAbandoned(key string)
 }
 
+// Published describes a finished upload: the final file name, the directory it landed in and its size in bytes.
+type Published struct {
+	Filename string
+	DestDir  string
+	Size     int64
+}
+
 type noObserver struct{}
 
 func (noObserver) UploadStarted(string)        {}
@@ -105,6 +112,7 @@ type Storage struct {
 	tempBase string
 	timeout  func() time.Duration
 	observer Observer
+	onDone   func(Published)
 	mu       sync.RWMutex
 	sessions map[string]*chunkSession
 	swept    time.Time
@@ -122,6 +130,11 @@ func New(tempBase string, timeout func() time.Duration) *Storage {
 
 func (s *Storage) Observe(o Observer) {
 	s.observer = o
+}
+
+// OnPublished makes fn run, in its own goroutine, once for every upload that finishes.
+func (s *Storage) OnPublished(fn func(Published)) {
+	s.onDone = fn
 }
 
 // key names the session of uploadID for destDir, so the same file uploaded into two shares gets two sessions.
@@ -352,6 +365,9 @@ func (s *Storage) Receive(uploadID, destDir string, index int, r io.Reader) (boo
 	sess.gone, sess.published = true, true
 	sess.mu.Unlock()
 	s.observer.UploadPublished(key)
+	if s.onDone != nil {
+		go s.onDone(Published{Filename: filepath.Base(dest), DestDir: meta.DestDir, Size: meta.Size})
+	}
 	s.cleanup(sess)
 	GoLog.Infof("chunk upload complete: %q → %q", meta.Filename, dest)
 	return true, nil

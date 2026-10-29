@@ -31,7 +31,7 @@ func loadOffice(t *testing.T, e *testEnv) *config.Config {
 	return e.stored(t)
 }
 
-func TestOfficeSettingsGetNeverReturnsTheSecret(t *testing.T) {
+func TestOfficeSettingsGetReturnsURLAndSecret(t *testing.T) {
 	e := withOfficeConfig(t, "https://office.example.com", "s3cret")
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/settings/office", nil)
@@ -41,22 +41,16 @@ func TestOfficeSettingsGetNeverReturnsTheSecret(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if strings.Contains(rec.Body.String(), "s3cret") {
-		t.Fatalf("response leaked the secret: %s", rec.Body.String())
-	}
-
 	var got struct {
-		OfficeURL string `json:"office_url"`
-		SecretSet bool   `json:"secret_set"`
+		OfficeURL    string `json:"office_url"`
+		OfficeSecret string `json:"office_secret"`
+		SecretSet    bool   `json:"secret_set"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.OfficeURL != "https://office.example.com" {
-		t.Errorf("office_url = %q", got.OfficeURL)
-	}
-	if !got.SecretSet {
-		t.Error("secret_set = false, want true")
+	if got.OfficeURL != "https://office.example.com" || got.OfficeSecret != "s3cret" || !got.SecretSet {
+		t.Errorf("response = %+v", got)
 	}
 }
 

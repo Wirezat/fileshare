@@ -15,6 +15,9 @@ func (v View) AdminUsername() string       { return v.c.AdminUsername }
 func (v View) AdminPassword() string       { return v.c.AdminPassword }
 func (v View) OfficeURL() string           { return v.c.OfficeURL }
 func (v View) OfficeSecret() string        { return v.c.OfficeSecret }
+func (v View) WebhookServer() string       { return v.c.WebhookServer }
+func (v View) WebhookTopic() string        { return v.c.WebhookTopic }
+func (v View) WebhookToken() string        { return v.c.WebhookToken }
 
 func (v View) DownloadLimit() (enabled bool, mbit int) {
 	return v.c.DownloadLimitEnabled, v.c.DownloadLimitMbit

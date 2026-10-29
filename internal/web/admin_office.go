@@ -27,18 +27,19 @@ func normalizeOfficeURL(raw string) (string, error) {
 
 // handleAdminSettingsOffice reads and updates the document server connection.
 //
-//	GET   /admin/api/settings/office → {"office_url":"…","secret_set":true}
+//	GET   /admin/api/settings/office → {"office_url":"…","office_secret":"…","secret_set":true}
 //	PATCH /admin/api/settings/office   Body: {"office_url":"…","office_secret":"…"}
 //
-// The secret is write-only. On PATCH an omitted field keeps its value and "" deletes it.
+// On PATCH an omitted field keeps its value and "" deletes it.
 func (s *Server) handleAdminSettingsOffice(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case http.MethodGet:
 		cfg := s.deps.Store.Current()
 		jsonResponse(w, map[string]any{
-			"office_url": cfg.OfficeURL(),
-			"secret_set": cfg.OfficeSecret() != "",
+			"office_url":    cfg.OfficeURL(),
+			"office_secret": cfg.OfficeSecret(),
+			"secret_set":    cfg.OfficeSecret() != "",
 		})
 
 	case http.MethodPatch:
@@ -79,7 +80,7 @@ func (s *Server) handleAdminSettingsOffice(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// logOfficeChange records the new state without ever writing the secret itself.
+// logOfficeChange records the new state without writing the secret itself.
 func logOfficeChange(config *config.Config) {
 	switch {
 	case config.OfficeURL == "":

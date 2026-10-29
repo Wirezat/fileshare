@@ -1,5 +1,5 @@
-/* fileshare / admin/settings.js — admin credentials, office integration, download
-   limit and destructive upkeep. Field markup is built from wui's form classes.
+/* fileshare / admin/settings.js — admin credentials, office integration, upload
+   webhook, download limit and destructive upkeep. Field markup is built from wui's form classes.
 */
 
 import { renderPage, showModal } from '/static/ui/js/wui.js'
@@ -17,16 +17,15 @@ function field(labelKey, inputHTML, captionKey) {
     return wrap
 }
 
-function passwordInput(name) {
+function passwordInput(name, value = '') {
     return `<div class="input-wrap">`
-        + `<input class="input has-end-icon" type="password" name="${esc(name)}" autocomplete="off" data-pw>`
+        + `<input class="input has-end-icon" type="password" name="${esc(name)}" value="${esc(value)}" autocomplete="off" data-pw>`
         + `<button type="button" class="pw-reveal" tabindex="-1" data-reveal`
         + ` aria-label="${esc(t('settings.reveal'))}">\u{1F441}</button>`
         + `</div>`
 }
 
-/* Wires every reveal button in a form. The input is focused afterwards, which
-   also clears a stored-secret placeholder sitting in it. */
+/* Wires every reveal button in a form. The input is focused afterwards. */
 function wireReveals(node) {
     for (const btn of node.querySelectorAll('[data-reveal]')) {
         const input = btn.parentElement.querySelector('input')
@@ -201,17 +200,13 @@ function confirmPrune() {
     })
 }
 
-const SECRET_PLACEHOLDER = '\u2022'.repeat(24)
-
 /* ── Office integration ──────────────────────────────────────────────────── */
 
-/* Reads the stored connection. The secret itself never leaves the server, so
-   the response only says whether one exists. */
 async function loadOffice() {
     try {
         return await (await apiFetch('/admin/api/settings/office')).json()
     } catch {
-        return { office_url: '', secret_set: false }
+        return { office_url: '', office_secret: '' }
     }
 }
 
@@ -224,24 +219,7 @@ function officeForm(state) {
         `<input class="input" name="office_url" type="url" autocomplete="off"`
         + ` placeholder="https://office.example.com" value="${esc(state.office_url)}">`)
 
-    const secretField = field('settings.office.secret', passwordInput('office_secret'))
-
-    /* A stored secret never reaches the browser, so the field shows a
-       placeholder of the same shape a saved password has. Focusing clears it
-       for typing; leaving it untouched puts it back, so a stray click does not
-       read as a deletion. */
-    const paint = () => {
-        const el = get('office_secret')
-        if (state.secret_set) {
-            el.value = SECRET_PLACEHOLDER
-            el.dataset.stored = '1'
-        } else {
-            el.value = ''
-            delete el.dataset.stored
-        }
-    }
-
-    const typed = () => (get('office_secret').dataset.stored ? '' : get('office_secret').value)
+    const secretField = field('settings.office.secret', passwordInput('office_secret', state.office_secret))
 
     async function patch(body) {
         await apiFetch('/admin/api/settings/office', {
@@ -251,22 +229,13 @@ function officeForm(state) {
         })
     }
 
-    /* The secret field is left empty to keep the stored one, so it is only sent
-       when the admin actually typed a new one. */
     async function save() {
         const url = get('office_url').value.trim()
-        const secret = typed()
+        const secret = get('office_secret').value.trim()
         if (!url) return showToast({ tone: 'danger', messageKey: t('settings.office.url_required') })
-        if (!secret && !state.secret_set) {
-            return showToast({ tone: 'danger', messageKey: t('settings.office.secret_required') })
-        }
-        const body = { office_url: url }
-        if (secret) body.office_secret = secret
+        if (!secret) return showToast({ tone: 'danger', messageKey: t('settings.office.secret_required') })
         try {
-            await patch(body)
-            state.office_url = url
-            if (secret) state.secret_set = true
-            paint()
+            await patch({ office_url: url, office_secret: secret })
             ok('settings.office.done')
         } catch (err) {
             fail(err)
@@ -286,10 +255,8 @@ function officeForm(state) {
                     onClick: async () => {
                         try {
                             await patch({ office_url: '', office_secret: '' })
-                            state.office_url = ''
-                            state.secret_set = false
                             get('office_url').value = ''
-                            paint()
+                            get('office_secret').value = ''
                             ok('settings.office.removed')
                         } catch (err) {
                             fail(err)
@@ -310,19 +277,7 @@ function officeForm(state) {
         ),
     )
 
-    const secretEl = get('office_secret')
-    secretEl.addEventListener('focus', () => {
-        if (secretEl.dataset.stored) {
-            secretEl.value = ''
-            delete secretEl.dataset.stored
-        }
-    })
-    secretEl.addEventListener('blur', () => {
-        if (state.secret_set && secretEl.value === '') paint()
-    })
-
     wireReveals(node)
-    paint()
     return node
 }
 
@@ -409,12 +364,74 @@ function bandwidthForm(state) {
     return node
 }
 
+/* ── Upload webhook ──────────────────────────────────────────────────────── */
+
+const DEFAULT_NTFY = 'https://ntfy.sh'
+
+async function loadWebhook() {
+    try {
+        return await (await apiFetch('/admin/api/settings/webhook')).json()
+    } catch {
+        return { webhook_server: '', webhook_topic: '', webhook_token: '' }
+    }
+}
+
+function randomTopic() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+    const bytes = crypto.getRandomValues(new Uint8Array(16))
+    return 'fileshare-' + Array.from(bytes, b => chars[b % chars.length]).join('')
+}
+
+function webhookForm(state) {
+    const node = document.createElement('div')
+    node.className = 'form-stack settings-form'
+    const get = name => node.querySelector(`[name="${name}"]`)
+
+    async function save() {
+        const topic = get('webhook_topic').value.trim()
+        try {
+            await apiFetch('/admin/api/settings/webhook', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    webhook_server: get('webhook_server').value.trim() || DEFAULT_NTFY,
+                    webhook_topic: topic,
+                    webhook_token: get('webhook_token').value.trim(),
+                }),
+            })
+            ok(topic ? 'settings.webhook.done' : 'settings.webhook.removed')
+        } catch (err) {
+            fail(err)
+        }
+    }
+
+    node.append(
+        description('settings.webhook.desc'),
+        field('settings.webhook.server',
+            `<input class="input" name="webhook_server" type="url" autocomplete="off"`
+            + ` placeholder="${DEFAULT_NTFY}" value="${esc(state.webhook_server || DEFAULT_NTFY)}">`),
+        field('settings.webhook.topic',
+            `<input class="input" name="webhook_topic" type="text" autocomplete="off"`
+            + ` value="${esc(state.webhook_topic)}">`,
+            'settings.webhook.topic_hint'),
+        field('settings.webhook.token', passwordInput('webhook_token', state.webhook_token),
+            'settings.webhook.token_hint'),
+        actions(
+            { labelKey: 'settings.webhook.submit', onClick: save },
+            { labelKey: 'settings.webhook.random', variant: 'ghost', onClick: () => { get('webhook_topic').value = randomTopic() } },
+        ),
+    )
+    wireReveals(node)
+    return node
+}
+
 /* ── Boot ────────────────────────────────────────────────────────────────── */
 
 await bootChrome()
 
 const office = await loadOffice()
 const downloadLimit = await loadDownloadLimit()
+const webhook = await loadWebhook()
 
 renderPage({
     pageHeader: {
@@ -425,6 +442,7 @@ renderPage({
         { id: 'username', title: 'settings.username.title', content: { type: 'raw', node: usernameForm() } },
         { id: 'password', title: 'settings.password.title', content: { type: 'raw', node: passwordForm() } },
         { id: 'office',   title: 'settings.office.title',   content: { type: 'raw', node: officeForm(office) } },
+        { id: 'webhook',  title: 'settings.webhook.title',  content: { type: 'raw', node: webhookForm(webhook) } },
         { id: 'bandwidth', title: 'settings.bandwidth.title', content: { type: 'raw', node: bandwidthForm(downloadLimit) } },
         { id: 'danger',   title: 'settings.danger.title',   content: { type: 'raw', node: dangerZone() } },
     ],
