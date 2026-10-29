@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -131,5 +132,26 @@ func TestConcurrentUpdatesAreNotLost(t *testing.T) {
 	reopened, _ := Open(path)
 	if n := reopened.Current().ShareCount(); n != 50 {
 		t.Errorf("on disk: %d shares, want 50", n)
+	}
+}
+
+func TestOpenRefusesNewerSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	raw := fmt.Sprintf(`{"schema":%d}`, config.Schema+1)
+	os.WriteFile(path, []byte(raw), 0o600)
+	_, err := Open(path)
+	if !errors.Is(err, config.ErrNewerSchema) {
+		t.Errorf("Open = %v, want ErrNewerSchema", err)
+	}
+}
+
+func TestLegacyFileWithoutSchemaIsStampedOnSave(t *testing.T) {
+	s, path := openTemp(t, `{"files":{}}`)
+	if err := s.Update(addShare("docs")); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if want := fmt.Sprintf(`"schema": %d`, config.Schema); !strings.Contains(string(data), want) {
+		t.Errorf("saved file lacks %s:\n%s", want, data)
 	}
 }

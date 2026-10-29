@@ -27,6 +27,9 @@ func (c *Config) SetDownloadLimit(enabled bool, mbit *int) error {
 
 // Validate reports the first setting in c that the server cannot run with, or nil.
 func (c *Config) Validate() error {
+	if c.Schema > Schema {
+		return fmt.Errorf("%w: schema %d, this version reads up to %d; update fileshare or restore a backup", ErrNewerSchema, c.Schema, Schema)
+	}
 	return checkDownloadLimit(c.DownloadLimitEnabled, c.DownloadLimitMbit, c.DownloadLimitMbit != 0)
 }
 

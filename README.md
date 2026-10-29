@@ -66,7 +66,7 @@ Forgot the password? Set `"admin_password": ""` in `data.json`; a new setup code
 
 - **Back up the data folder** (`./data`, `/opt/fileshare` with `sudo`, `~/.local/share/fileshare` without). `data.json` holds all settings and shares, `stats.json` the statistics. It contains password hashes and the document server secret, so keep the backup private.
 - **Update:** `docker compose pull && docker compose up -d`, or run the installer of the new release and pick Update.
-- **Newer versions read the data of older ones. Going back does not work cleanly**: an older version drops settings it does not know. Back up before updating and restore the backup to go back.
+- **Newer versions read the data of older ones. Going back does not work cleanly**: an older version drops settings it does not know (versions with a `schema` number in `data.json` refuse to start instead). Back up before updating and restore the backup to go back.
 - Changes, especially breaking ones, are in the [CHANGELOG](CHANGELOG.md). To report a security issue, see [SECURITY.md](SECURITY.md).
 
 ## Configuration

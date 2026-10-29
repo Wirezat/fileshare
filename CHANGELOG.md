@@ -6,7 +6,7 @@ Versions follow [Semantic Versioning](https://semver.org) from 5.1.0 on:
 - **Minor** (5.2.0): new features. Your data and setup keep working without changes.
 - **Patch** (5.1.1): fixes only.
 
-Every version reads the `data.json` of all earlier versions. Going back to an older version is not supported; restore a backup instead.
+Every version reads the `data.json` of all earlier versions. Going back to an older version is not supported; restore a backup instead. From the first version with a `schema` number on, an older one refuses to start on newer data.
 
 Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions are described on the [releases page](https://github.com/Wirezat/fileshare/releases).
 
@@ -15,6 +15,7 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 ### Added
 
 - The Docker/Podman image and the release tarball also run on arm64 (Raspberry Pi 4/5 and other 64-bit ARM boards).
+- `data.json` carries a `schema` number. A version that finds a higher number refuses to start instead of dropping settings it does not know. Versions before this one do not check it, so going back from here to 5.1.x still loses settings.
 
 ### Changed
 

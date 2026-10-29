@@ -8,6 +8,7 @@ import (
 )
 
 var defaults = Config{
+	Schema:                 Schema,
 	Port:                   27182,
 	MaxPostSize:            94371840,
 	ChunkInactivityTimeout: 1800,
@@ -44,8 +45,14 @@ func IsExpired(fd FileData) bool {
 
 var ErrRefused = errors.New("config: stored config not taken over")
 
+// Schema is the highest data.json layout this binary reads and the one it writes.
+const Schema = 1
+
+var ErrNewerSchema = errors.New("config: data.json was written by a newer fileshare")
+
 // Config is the top-level application configuration as stored in data.json.
 type Config struct {
+	Schema                 int                 `json:"schema"`
 	Revision               int64               `json:"revision"`
 	Port                   int                 `json:"port"`
 	MaxPostSize            int                 `json:"maxPostSize"`
