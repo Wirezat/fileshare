@@ -13,21 +13,6 @@ import (
 
 const testSecret = "06e7f94b2b06ce5c7fc22730c5639b6eb1cab0a36725a9648e6396546ae2fdca"
 
-func TestDocType(t *testing.T) {
-	cases := map[string]string{
-		"bericht.docx": "word", "alt.doc": "word", "brief.odt": "word",
-		"zahlen.xlsx": "cell", "alt.xls": "cell", "tabelle.ods": "cell",
-		"folien.pptx": "slide", "alt.ppt": "slide", "vortrag.odp": "slide",
-		"GROSS.DOCX": "word",
-		"scan.pdf":   "", "notiz.txt": "", "bild.png": "", "ohne-endung": "",
-	}
-	for name, want := range cases {
-		if got := DocType(name); got != want {
-			t.Errorf("DocType(%q) = %q, want %q", name, got, want)
-		}
-	}
-}
-
 func TestJWTRoundTrip(t *testing.T) {
 	claims := map[string]any{"document": map[string]any{"key": "abc"}, "mode": "view"}
 	tok, err := SignJWT(testSecret, claims)

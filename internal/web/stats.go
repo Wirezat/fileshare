@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/stats"
@@ -56,7 +57,7 @@ func shownInline(name string) bool {
 			return true
 		}
 	}
-	return media.IsText(name)
+	return filetype.Lookup(name).Kind == filetype.Text
 }
 
 // isFileDownload reports whether serving this file counts as a download: the download button,

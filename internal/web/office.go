@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/share"
 )
@@ -20,7 +21,7 @@ func officeWanted(r *http.Request, ctx *requestContext) bool {
 	return !ctx.fileInfo.IsDir() &&
 		ctx.fileData.Office != config.OfficeOff &&
 		ctx.config.OfficeReady() &&
-		office.DocType(ctx.fileInfo.Name()) != "" &&
+		filetype.Lookup(ctx.fileInfo.Name()).OfficeType != "" &&
 		r.URL.Query().Get("dl") == ""
 }
 
@@ -117,7 +118,7 @@ func (s *Server) handleOfficeCallback(w http.ResponseWriter, r *http.Request) {
 		dsReply(w, http.StatusGone, 1)
 		return
 	}
-	if fd.Office != config.OfficeEdit || office.DocType(diskPath) == "" {
+	if fd.Office != config.OfficeEdit || filetype.Lookup(diskPath).OfficeType == "" {
 		dsReply(w, http.StatusForbidden, 1)
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/media"
 )
 
@@ -50,13 +51,13 @@ func (s *Server) servePreview(w http.ResponseWriter, r *http.Request, ctx *reque
 		RefreshURL:  dlPath,
 	}
 
-	switch media.Kind(name) {
-	case "image":
-		if media.CanThumbnail(name) {
+	switch t := filetype.Lookup(name); t.Kind {
+	case filetype.Image:
+		if t.Thumbnail {
 			data.ImageURL = absoluteURL(r, r.URL.Path+"?preview=1")
 			data.ImageType = "image/jpeg"
 		}
-	case "video":
+	case filetype.Video:
 		data.VideoURL = absoluteURL(r, dlPath)
 		data.VideoType = media.MimeType(name)
 	}

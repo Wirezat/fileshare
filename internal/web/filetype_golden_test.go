@@ -1,11 +1,9 @@
 package web
 
 import (
-	"strings"
 	"testing"
-	"unicode/utf16"
 
-	"github.com/Wirezat/fileshare/internal/media"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/office"
 )
 
@@ -73,19 +71,31 @@ func goldenTypeCases() []typeCase {
 	return append(cases, textCase("A.MD"), textCase("a.b.go"))
 }
 
+func mediaKind(name string) string {
+	switch k := filetype.Lookup(name).Kind; k {
+	case filetype.Image, filetype.Video, filetype.Audio:
+		return k
+	}
+	return ""
+}
+
+func fileLabel(name string) string {
+	return filetype.Lookup(name).Label
+}
+
 func TestFileTypeGolden(t *testing.T) {
 	for _, tc := range goldenTypeCases() {
-		if got := media.Kind(tc.name); got != tc.kind {
-			t.Errorf("media.Kind(%q) = %q, want %q", tc.name, got, tc.kind)
+		if got := mediaKind(tc.name); got != tc.kind {
+			t.Errorf("mediaKind(%q) = %q, want %q", tc.name, got, tc.kind)
 		}
-		if got := media.CanThumbnail(tc.name); got != tc.thumbnail {
-			t.Errorf("media.CanThumbnail(%q) = %v, want %v", tc.name, got, tc.thumbnail)
+		if got := filetype.Lookup(tc.name).Thumbnail; got != tc.thumbnail {
+			t.Errorf("Lookup(%q).Thumbnail = %v, want %v", tc.name, got, tc.thumbnail)
 		}
-		if got := media.IsText(tc.name); got != tc.text {
-			t.Errorf("media.IsText(%q) = %v, want %v", tc.name, got, tc.text)
+		if got := filetype.Lookup(tc.name).Kind == filetype.Text; got != tc.text {
+			t.Errorf("Lookup(%q).Kind == Text = %v, want %v", tc.name, got, tc.text)
 		}
-		if got := office.DocType(tc.name); got != tc.docType {
-			t.Errorf("office.DocType(%q) = %q, want %q", tc.name, got, tc.docType)
+		if got := filetype.Lookup(tc.name).OfficeType; got != tc.docType {
+			t.Errorf("Lookup(%q).OfficeType = %q, want %q", tc.name, got, tc.docType)
 		}
 		if got := office.OpensInline(false, tc.name); got != tc.inlineOff {
 			t.Errorf("office.OpensInline(false, %q) = %v, want %v", tc.name, got, tc.inlineOff)
@@ -97,21 +107,6 @@ func TestFileTypeGolden(t *testing.T) {
 			t.Errorf("shownInline(%q) = %v, want %v", tc.name, got, tc.shownInline)
 		}
 	}
-}
-
-func fileLabel(name string) string {
-	ext := strings.ToLower(name[strings.LastIndex(name, ".")+1:])
-	if ext == "jpeg" {
-		return "JPG"
-	}
-	units := utf16.Encode([]rune(strings.ToUpper(ext)))
-	if len(units) > 4 {
-		units = units[:4]
-	}
-	if len(units) == 0 {
-		return "FILE"
-	}
-	return string(utf16.Decode(units))
 }
 
 func TestFileLabelGolden(t *testing.T) {

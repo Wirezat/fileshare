@@ -27,26 +27,6 @@ func ext(name string) string {
 	return strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
 }
 
-var kinds = map[string]string{
-	"jpg": "image", "jpeg": "image", "png": "image", "gif": "image", "webp": "image", "avif": "image",
-	"mp4": "video", "mov": "video", "webm": "video", "mkv": "video", "avi": "video", "wmv": "video",
-	"mp3": "audio", "wav": "audio", "flac": "audio", "aac": "audio", "ogg": "audio",
-}
-
-// Kind returns "image", "video", "audio" or "" for name.
-func Kind(name string) string {
-	return kinds[ext(name)]
-}
-
-var thumbnailFormats = map[string]bool{
-	"jpg": true, "jpeg": true, "png": true, "gif": true, "webp": true,
-}
-
-// CanThumbnail reports whether name is a JPEG, PNG, GIF or WebP image.
-func CanThumbnail(name string) bool {
-	return thumbnailFormats[ext(name)]
-}
-
 // Thumbnail scales src to fit within maxEdge on its longest side and flattens it onto white.
 func Thumbnail(src image.Image, maxEdge int) *image.RGBA {
 	b := src.Bounds()
@@ -66,18 +46,6 @@ func Thumbnail(src image.Image, maxEdge int) *image.RGBA {
 		draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
 	}
 	return dst
-}
-
-var textExt = map[string]bool{
-	"txt": true, "md": true, "log": true, "csv": true, "json": true, "xml": true,
-	"yaml": true, "yml": true, "toml": true, "ini": true, "cfg": true, "conf": true,
-	"sh": true, "py": true, "go": true, "js": true, "ts": true, "css": true, "html": true,
-	"java": true, "c": true, "h": true, "cpp": true, "rs": true, "sql": true,
-}
-
-// IsText reports whether name has an extension the listing previews as text.
-func IsText(name string) bool {
-	return textExt[ext(name)]
 }
 
 // MimeType returns the MIME type for name's extension, or application/octet-stream.

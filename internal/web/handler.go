@@ -11,8 +11,8 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/media"
-	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/share"
 	"github.com/Wirezat/fileshare/internal/stats"
 )
@@ -168,7 +168,7 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, ctx *requestC
 
 // serveShareFile hands out the shared file inside a CSP sandbox.
 func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
-	if office.Ext(diskPath) != "pdf" {
+	if filetype.Lookup(diskPath).Kind != filetype.PDF {
 		w.Header().Set("Content-Security-Policy", "sandbox")
 	}
 	http.ServeFile(w, r, diskPath)

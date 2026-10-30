@@ -15,28 +15,20 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-)
 
-var docTypes = map[string]string{
-	"docx": "word", "doc": "word", "odt": "word",
-	"xlsx": "cell", "xls": "cell", "ods": "cell",
-	"pptx": "slide", "ppt": "slide", "odp": "slide",
-}
+	"github.com/Wirezat/fileshare/internal/filetype"
+)
 
 // Ext returns the lower-case extension of name without the dot.
 func Ext(name string) string {
 	return strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
 }
 
-// DocType returns the document server's type for name ("word", "cell", "slide") or "" if it handles none.
-func DocType(name string) string {
-	return docTypes[Ext(name)]
-}
-
 // OpensInline reports whether clicking name shows it instead of saving it:
 // PDFs always, office documents when office is enabled for the share.
 func OpensInline(enabled bool, name string) bool {
-	return Ext(name) == "pdf" || (enabled && DocType(name) != "")
+	t := filetype.Lookup(name)
+	return t.Kind == filetype.PDF || (enabled && t.OfficeType != "")
 }
 
 // DocKey identifies one revision of a file; it changes with the file's size or modification time.
@@ -146,7 +138,7 @@ func EditorConfig(doc Doc, lang, secret string) map[string]any {
 				"print":    true,
 			},
 		},
-		"documentType": DocType(doc.Name),
+		"documentType": filetype.Lookup(doc.Name).OfficeType,
 		"editorConfig": editor,
 	}
 	if tok, err := SignJWT(secret, cfg); err == nil {

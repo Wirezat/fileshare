@@ -9,13 +9,14 @@ import (
 	"os"
 
 	"github.com/Wirezat/GoLog"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/media"
 	_ "golang.org/x/image/webp"
 )
 
 // wantsPreviewImage reports whether this request is for a thumbnailed image.
 func wantsPreviewImage(r *http.Request, ctx *requestContext) bool {
-	return r.URL.Query().Get("preview") == "1" && media.CanThumbnail(ctx.fileInfo.Name())
+	return r.URL.Query().Get("preview") == "1" && filetype.Lookup(ctx.fileInfo.Name()).Thumbnail
 }
 
 // servePreviewImage answers with the shared image as a JPEG thumbnail.

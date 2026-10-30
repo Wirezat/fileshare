@@ -9,9 +9,10 @@ import (
 	"strings"
 
 	"github.com/Wirezat/GoLog"
-	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+
+	"github.com/Wirezat/fileshare/internal/filetype"
 )
 
 const textViewMaxBytes = 1 << 20
@@ -26,7 +27,7 @@ func textWanted(r *http.Request, ctx *requestContext) bool {
 // for .md, the escaped file inside <pre> for every other text extension.
 func serveTextView(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	name := ctx.fileInfo.Name()
-	if !media.IsText(name) {
+	if filetype.Lookup(name).Kind != filetype.Text {
 		http.NotFound(w, r)
 		return
 	}

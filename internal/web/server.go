@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/logstore"
-	"github.com/Wirezat/fileshare/internal/media"
 	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/share"
 )
@@ -96,7 +96,7 @@ func New(d Deps) (*Server, error) {
 			*dst, err = tmpl.ParseFiles(html(file))
 		}
 	}
-	parse(&t.directory, template.New("directory").Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": media.IsText}), "share.html")
+	parse(&t.directory, template.New("directory").Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": func(name string) bool { return filetype.Lookup(name).Kind == filetype.Text }}), "share.html")
 	parse(&t.gate, template.New("gate"), "gate.html")
 	parse(&t.notFound, template.New("notfound"), "notfound.html")
 	parse(&t.expired, template.New("expired"), "expired.html")

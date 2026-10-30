@@ -29,20 +29,6 @@ func TestIsPreviewBot(t *testing.T) {
 	}
 }
 
-func TestKind(t *testing.T) {
-	cases := map[string]string{
-		"photo.jpg": "image", "photo.PNG": "image", "anim.gif": "image", "pic.webp": "image",
-		"clip.mp4": "video", "clip.MOV": "video", "clip.webm": "video",
-		"song.mp3": "audio", "song.FLAC": "audio", "song.wav": "audio", "song.aac": "audio", "song.ogg": "audio",
-		"song.m4a": "", "song.opus": "", "doc.pdf": "", "notiz.txt": "", "no-ext": "",
-	}
-	for name, want := range cases {
-		if got := Kind(name); got != want {
-			t.Errorf("Kind(%q) = %q, want %q", name, got, want)
-		}
-	}
-}
-
 func TestFormatBytes(t *testing.T) {
 	cases := map[int64]string{
 		0:             "0 B",
@@ -92,28 +78,6 @@ func TestDirDescription(t *testing.T) {
 
 	if single := DirDescription([]FileInfo{{Name: "a.txt", Size: 1}}, 0); single != "1 file, 0 folders · 1 B" {
 		t.Errorf("DirDescription(one file) = %q", single)
-	}
-}
-
-func TestIsText(t *testing.T) {
-	for name, want := range map[string]bool{
-		"a.txt": true, "a.md": true, "a.go": true, "a.json": true, "a.YML": true,
-		"a.zip": false, "a.pdf": false, "a.docx": false, "noext": false, "a.png": false,
-	} {
-		if got := IsText(name); got != want {
-			t.Errorf("IsText(%q) = %v, want %v", name, got, want)
-		}
-	}
-}
-
-func TestCanThumbnail(t *testing.T) {
-	for name, want := range map[string]bool{
-		"a.jpg": true, "a.JPEG": true, "a.png": true, "a.gif": true, "a.webp": true,
-		"a.avif": false, "a.mp4": false, "a.pdf": false, "noext": false,
-	} {
-		if got := CanThumbnail(name); got != want {
-			t.Errorf("CanThumbnail(%q) = %v, want %v", name, got, want)
-		}
 	}
 }
 
