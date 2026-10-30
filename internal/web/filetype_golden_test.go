@@ -29,7 +29,7 @@ func videoCase(name string) typeCase {
 }
 
 func audioCase(name string) typeCase {
-	return typeCase{name: name, shownInline: true}
+	return typeCase{name: name, kind: "audio", shownInline: true}
 }
 
 func textCase(name string) typeCase {
@@ -50,7 +50,7 @@ func goldenTypeCases() []typeCase {
 		imageCase("a.png", true), imageCase("a.gif", true), imageCase("a.webp", true), imageCase("a.avif", false),
 		{name: "a.bmp", shownInline: true}, {name: "a.svg", shownInline: true},
 		videoCase("a.mp4"), videoCase("a.mov"), videoCase("a.webm"), videoCase("a.mkv"), videoCase("a.avi"), videoCase("a.wmv"),
-		audioCase("a.mp3"), audioCase("a.wav"), audioCase("a.flac"), audioCase("a.aac"), audioCase("a.ogg"), audioCase("a.m4a"), audioCase("a.opus"),
+		audioCase("a.mp3"), audioCase("a.wav"), audioCase("a.flac"), audioCase("a.aac"), audioCase("a.ogg"), typeCase{name: "a.m4a", shownInline: true}, typeCase{name: "a.opus", shownInline: true},
 		{name: "a.pdf", inlineOff: true, inlineOn: true, shownInline: true},
 		{name: "A.PDF", inlineOff: true, inlineOn: true, shownInline: true},
 		{name: "résumé.pdf", inlineOff: true, inlineOn: true, shownInline: true},

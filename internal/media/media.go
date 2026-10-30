@@ -30,9 +30,10 @@ func ext(name string) string {
 var kinds = map[string]string{
 	"jpg": "image", "jpeg": "image", "png": "image", "gif": "image", "webp": "image", "avif": "image",
 	"mp4": "video", "mov": "video", "webm": "video", "mkv": "video", "avi": "video", "wmv": "video",
+	"mp3": "audio", "wav": "audio", "flac": "audio", "aac": "audio", "ogg": "audio",
 }
 
-// Kind returns "image", "video" or "" for name.
+// Kind returns "image", "video", "audio" or "" for name.
 func Kind(name string) string {
 	return kinds[ext(name)]
 }

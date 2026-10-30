@@ -33,7 +33,8 @@ func TestKind(t *testing.T) {
 	cases := map[string]string{
 		"photo.jpg": "image", "photo.PNG": "image", "anim.gif": "image", "pic.webp": "image",
 		"clip.mp4": "video", "clip.MOV": "video", "clip.webm": "video",
-		"song.mp3": "", "doc.pdf": "", "notiz.txt": "", "no-ext": "",
+		"song.mp3": "audio", "song.FLAC": "audio", "song.wav": "audio", "song.aac": "audio", "song.ogg": "audio",
+		"song.m4a": "", "song.opus": "", "doc.pdf": "", "notiz.txt": "", "no-ext": "",
 	}
 	for name, want := range cases {
 		if got := Kind(name); got != want {
