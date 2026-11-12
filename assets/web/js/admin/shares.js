@@ -104,16 +104,18 @@ function renderExpires(_val, row) {
         + ` data-sub="${esc(row.sub)}" title="${esc(d.toLocaleString())}">${esc(label)}</span>`
 }
 
-function toggleBadge(row, act, on, onKey, offKey, hintKey, locked = false) {
+function toggleBadge(row, act, on, onKey, offKey, hintKey, lockedHintKey = null) {
+    const locked = lockedHintKey !== null
     return `<button class="badge ${on ? 'badge-success' : ''}${locked ? ' locked' : ''}" data-act="${act}"`
-        + ` data-sub="${esc(row.sub)}" title="${esc(t(hintKey))}">`
+        + ` data-sub="${esc(row.sub)}" title="${esc(t(locked ? lockedHintKey : hintKey))}"`
+        + `${locked ? ' aria-disabled="true"' : ''}>`
         + `${esc(t(on ? onKey : offKey))}</button>`
 }
 
 function renderUpload(_val, row) {
     return toggleBadge(row, 'upload', row.s.allow_post,
         'shares.value.on', 'shares.value.off', 'shares.hint.toggle_upload',
-        !row.s.writable && !row.s.allow_post)
+        !row.s.writable && !row.s.allow_post ? 'shares.upload.locked' : null)
 }
 
 function renderZip(_val, row) {
@@ -485,10 +487,7 @@ function wireTable(el) {
         switch (target.dataset.act) {
             case 'password': openPasswordModal(sub); break
             case 'upload':
-                if (target.classList.contains('locked')) {
-                    showToast({ tone: 'danger', messageKey: t('shares.upload.locked') })
-                    break
-                }
+                if (target.getAttribute('aria-disabled') === 'true') break
                 patchShare(sub, { allow_post: !shares[sub].allow_post }, true)
                 break
             case 'zip':      patchShare(sub, { no_zip: !shares[sub].no_zip }, true); break
