@@ -1,6 +1,6 @@
 module github.com/Wirezat/fileshare
 
-go 1.25.0
+go 1.26.11
 
 require (
 	github.com/Wirezat/GoLog v0.0.0-20261023081353-9dc8a2289901
