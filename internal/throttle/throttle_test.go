@@ -457,11 +457,27 @@ func TestTheClientsDownloadsShareItsHalf(t *testing.T) {
 	}
 }
 
+type stepClock struct {
+	now time.Time
+}
+
+// clock returns the virtual time the clock stands at.
+func (c *stepClock) clock() time.Time { return c.now }
+
+// sleep advances the virtual time by d at once and never fails.
+func (c *stepClock) sleep(_ context.Context, d time.Duration) error {
+	c.now = c.now.Add(d)
+	return nil
+}
+
 func TestAFinishedClientNoLongerTakesAShare(t *testing.T) {
+	c := &stepClock{now: time.Unix(1000, 0)}
 	l := New(newSetting(true, 8).get)
+	l.now, l.sleep = c.clock, c.sleep
 	serveAs(context.Background(), l, "a", httptest.NewRecorder(), writeAll(200_000))
-	d := serveAs(context.Background(), l, "b", httptest.NewRecorder(), writeAll(400_000))
-	if d > 600*time.Millisecond {
+	start := c.now
+	serveAs(context.Background(), l, "b", httptest.NewRecorder(), writeAll(400_000))
+	if d := c.now.Sub(start); d > 500*time.Millisecond {
 		t.Errorf("400 KB of client b alone after client a finished took %v at 8 Mbit/s, want the full rate (0.4 s)", d)
 	}
 	l.mu.Lock()
