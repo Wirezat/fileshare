@@ -3,6 +3,7 @@ package web
 import (
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,15 @@ func zipSelection(raw []string) ([]string, bool) {
 		roots = append(roots, clean)
 	}
 	return roots, true
+}
+
+// pathURL percent-encodes each segment of the slash-separated path p, so names with #, ? or % stay part of the path.
+func pathURL(p string) string {
+	segments := strings.Split(p, "/")
+	for i, seg := range segments {
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
 }
 
 func buildCrumbs(subpath, sharePath, relPath string) []Crumb {

@@ -63,3 +63,23 @@ func TestListingTextFollowsAcceptLanguage(t *testing.T) {
 		t.Error("default listing lacks the English download label")
 	}
 }
+
+func TestLinksEncodeReservedCharactersInNames(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "https://office.example.com", testSecret)
+	os.MkdirAll(filepath.Join(dir, "b #2", "c"), 0o755)
+	os.WriteFile(filepath.Join(dir, "b #2", "a #1?%.png"), []byte("x"), 0o600)
+
+	body := get(t, e, "/docs/b%20%232/c").Body.String()
+	if want := `<a href="/docs/b%20%232">b #2</a>`; !strings.Contains(body, want) {
+		t.Errorf("breadcrumb lacks %s", want)
+	}
+	body = get(t, e, "/docs/b%20%232").Body.String()
+	for _, want := range []string{`data-href="/docs/b%20%232/a%20%231%3F%25.png"`, `href="/docs/b%20%232/a%20%231%3F%25.png"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("listing lacks %s", want)
+		}
+	}
+	if rec := get(t, e, "/docs/b%20%232/a%20%231%3F%25.png"); rec.Code != 200 || rec.Body.String() != "x" {
+		t.Errorf("encoded link answers %d %q, want the file", rec.Code, rec.Body.String())
+	}
+}

@@ -102,6 +102,7 @@ func New(d Deps) (*Server, error) {
 		"isText":      func(name string) bool { return filetype.Lookup(name).Kind == filetype.Text },
 		"icon":        entryIcon,
 		"view":        filetype.ViewFor,
+		"pathURL":     pathURL,
 	}), "share.html")
 	parse(&t.gate, template.New("gate"), "gate.html")
 	parse(&t.notFound, template.New("notfound"), "notfound.html")
