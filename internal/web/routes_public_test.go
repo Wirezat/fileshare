@@ -339,11 +339,13 @@ func TestChunkSizeIsCappedByMaxPostSize(t *testing.T) {
 	}
 }
 
-func TestShareScriptIsRevalidated(t *testing.T) {
-	h := newEnv(t, baseConfig()).handler
-	for _, p := range []string{"/static/share.js", "/static/share-media.js", "/static/share-lightbox.js", "/static/share.css"} {
-		if got := send(h, http.MethodGet, p, nil).Header().Get("Cache-Control"); got != "no-cache" {
-			t.Errorf("%s Cache-Control = %q, want no-cache", p, got)
+func TestStaticFilesAreRevalidated(t *testing.T) {
+	e := newEnv(t, baseConfig())
+	cookie := e.cookie(t)
+	for _, p := range []string{"/static/share.js", "/static/share-media.js", "/static/share-lightbox.js", "/static/share.css", "/static/ui/index.css", "/admin/static/js/settings.js"} {
+		rec := send(e.handler, http.MethodGet, p, nil, asFetch, withCookie(cookie))
+		if got := rec.Header().Get("Cache-Control"); rec.Code != http.StatusOK || got != "no-cache" {
+			t.Errorf("%s: %d, Cache-Control = %q, want 200 and no-cache", p, rec.Code, got)
 		}
 	}
 }

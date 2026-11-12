@@ -40,11 +40,11 @@ func (s *Server) buildMux() *http.ServeMux {
 		mux.HandleFunc(path, s.adminAuth(h))
 	}
 
-	uiFS := http.StripPrefix("/static/ui/", http.FileServer(http.Dir(s.asset("ui"))))
+	uiFS := revalidated(http.StripPrefix("/static/ui/", http.FileServer(http.Dir(s.asset("ui")))))
 	mux.Handle("/static/ui/", uiFS)
 	mux.HandleFunc("/static/theme.css", s.handleThemeCSS)
 
-	jsFS := http.StripPrefix("/admin/static/js/", http.FileServer(http.Dir(s.asset("js/admin"))))
+	jsFS := revalidated(http.StripPrefix("/admin/static/js/", http.FileServer(http.Dir(s.asset("js/admin")))))
 	mux.HandleFunc("/admin/static/js/", s.adminAuth(jsFS.ServeHTTP))
 
 	mux.HandleFunc("/admin/login", s.handleAdminLogin)

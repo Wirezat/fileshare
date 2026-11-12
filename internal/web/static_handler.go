@@ -16,6 +16,14 @@ func (s *Server) staticAsset(rel string) http.HandlerFunc {
 	}
 }
 
+// revalidated wraps h so that every response carries Cache-Control: no-cache.
+func revalidated(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		h.ServeHTTP(w, r)
+	})
+}
+
 // handleLogEvent allows the client to send log messages to the server.
 func handleLogEvent(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
