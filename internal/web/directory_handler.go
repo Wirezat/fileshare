@@ -73,8 +73,10 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 		Expiration:   fd.Expiration,
 		AllowPost:    fd.AllowPost,
 		AllowZip:     !fd.NoZip,
-		Office:       fd.Office != config.OfficeOff && ctx.config.OfficeReady(),
+		Office:       officeOn(ctx),
+		OfficeEdit:   officeOn(ctx) && fd.Office == config.OfficeEdit,
 		IsEmpty:      len(files) == 0,
+		Text:         s.shareText[requestLang(r)],
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)
 	}

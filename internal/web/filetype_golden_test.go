@@ -79,10 +79,6 @@ func mediaKind(name string) string {
 	return ""
 }
 
-func fileLabel(name string) string {
-	return filetype.Lookup(name).Label
-}
-
 func TestFileTypeGolden(t *testing.T) {
 	for _, tc := range goldenTypeCases() {
 		if got := mediaKind(tc.name); got != tc.kind {
@@ -106,31 +102,5 @@ func TestFileTypeGolden(t *testing.T) {
 		if got := shownInline(tc.name); got != tc.shownInline {
 			t.Errorf("shownInline(%q) = %v, want %v", tc.name, got, tc.shownInline)
 		}
-	}
-}
-
-func TestFileLabelGolden(t *testing.T) {
-	for name, want := range map[string]string{
-		"a.jpg": "JPG", "a.JPEG": "JPG", "UPPER.JPG": "JPG", "A.JPG": "JPG", "a.png": "PNG", "a.webp": "WEBP",
-		"a.mp4": "MP4", "a.mp3": "MP3", "a.pdf": "PDF", "A.PDF": "PDF", "résumé.pdf": "PDF",
-		"a.docx": "DOCX", "a.xlsx": "XLSX", "a.pptx": "PPTX",
-		"a.md": "MD", "a.go": "GO", "a.html": "HTML", "a.json": "JSON",
-		"a.zip": "ZIP", "a.tar.gz": "GZ", "a.TAR.GZ": "GZ", "a.7z": "7Z",
-		"a.svg": "SVG", "a.bmp": "BMP", "a.m4a": "M4A", "a.opus": "OPUS", "a.tsv": "TSV",
-		"Makefile": "MAKE", "Dockerfile": "DOCK", ".env": "ENV", ".bashrc": "BASH",
-		"blob.unknownext": "UNKN", "a.verylongext": "VERY", "a.b.c.d": "D",
-		"a.": "FILE", "..": "FILE", "a..": "FILE", "": "FILE",
-		"a.日本語拡張": "日本語拡", "a.😀😀😀": "😀😀", "a.ı": "I",
-	} {
-		if got := fileLabel(name); got != want {
-			t.Errorf("fileLabel(%q) = %q, want %q", name, got, want)
-		}
-	}
-}
-
-func TestFileLabelDiffersFromJSOnMultiLetterUppercase(t *testing.T) {
-	const js = "SS"
-	if got := fileLabel("a.ß"); got != "ß" || got == js {
-		t.Errorf("fileLabel(%q) = %q, want %q (JS gives %q)", "a.ß", got, "ß", js)
 	}
 }

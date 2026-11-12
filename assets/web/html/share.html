@@ -144,14 +144,13 @@
                     </div>
                 </div>
                 <div class="container-body container-body-flush" id="file-list">
-            <ul class="file-grid"{{if .Office}} data-office{{end}}>
+            <ul class="file-grid"{{if .Office}} data-office="{{if .OfficeEdit}}edit{{else}}view{{end}}"{{end}}>
                 {{range .Files}}{{$dl := and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}}
                 <li class="file-card" data-name="{{.Name}}" data-size="{{.Size}}"
-                    data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}{{if and (not .IsDir) (isText .Name)}} data-text{{end}}>
+                    data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{else}} data-view="{{view .Name $.Office}}"{{end}}>
                     <input type="checkbox" class="select-box card-select" aria-label="Select {{.Name}}" />
                     <a class="card-preview card-preview-icon" href="/{{$.Subpath}}{{.Path}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>
-                        <span class="card-icon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
-                        <span class="card-ext"></span>
+                        <span class="card-icon">{{icon .Name .IsDir}}</span>
                     </a>
                     <div class="card-name" title="{{.Name}}">
                         <a href="/{{$.Subpath}}{{.Path}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
@@ -161,20 +160,17 @@
                 {{end}}
             </ul>
 
-            <!-- The same entries as rows. share.js fills icon and type from the
-                 extension maps it already uses for cards, and formats Size. -->
             <table class="table file-table">
                 <thead>
-                    <tr><th class="col-narrow"><input type="checkbox" id="select-all" aria-label="Select all" /></th><th></th><th>Name</th><th>Type</th><th class="col-narrow">Size</th><th class="col-narrow"></th></tr>
+                    <tr><th class="col-narrow"><input type="checkbox" id="select-all" aria-label="Select all" /></th><th></th><th>Name</th><th class="col-narrow">Size</th><th class="col-narrow"></th></tr>
                 </thead>
                 <tbody>
                     {{range .Files}}{{$dl := and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}}
                     <tr class="file-row" data-name="{{.Name}}" data-size="{{.Size}}"
-                        data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{end}}{{if and (not .IsDir) (isText .Name)}} data-text{{end}}>
+                        data-href="/{{$.Subpath}}{{.Path}}"{{if .IsDir}} data-dir{{else}} data-view="{{view .Name $.Office}}"{{end}}>
                         <td class="row-select col-narrow"><input type="checkbox" class="select-box" aria-label="Select {{.Name}}" /></td>
-                        <td class="row-icon">{{if .IsDir}}📁{{else}}📄{{end}}</td>
+                        <td class="row-icon">{{icon .Name .IsDir}}</td>
                         <td class="row-name"><a href="/{{$.Subpath}}{{.Path}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
-                        <td class="row-type"></td>
                         <td class="row-size col-narrow"></td>
                         <td class="row-dl col-narrow"></td>
                     </tr>
@@ -189,17 +185,51 @@
         </div>
     </main>
 
-    <!-- Lightbox -->
-    <div id="lightbox" class="lightbox">
-        <span class="lightbox-close" id="lightbox-close">&times;</span>
-        <img id="lightbox-img" class="lightbox-content" src="" alt="" style="display:none" />
-        <video id="lightbox-video" class="lightbox-content" controls style="display:none">
-            <source src="" type="video/mp4" />
-        </video>
-        <div id="lightbox-text" class="lightbox-content lightbox-text" style="display:none"></div>
+    <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-name" hidden>
+        <div class="lightbox-panel">
+            <header class="lightbox-head">
+                <div class="lightbox-title">
+                    <span id="lightbox-name"></span>
+                    <span id="lightbox-size"></span>
+                </div>
+                <a class="lightbox-btn" id="lightbox-edit" hidden title="{{index .Text "share.lightbox.edit"}}" aria-label="{{index .Text "share.lightbox.edit"}}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg>
+                </a>
+                <button type="button" class="lightbox-btn" id="lightbox-source" hidden></button>
+                <a class="lightbox-btn" id="lightbox-download" download title="{{index .Text "share.lightbox.download"}}" aria-label="{{index .Text "share.lightbox.download"}}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+                </a>
+                <button type="button" class="lightbox-btn" id="lightbox-close" title="{{index .Text "share.lightbox.close"}}" aria-label="{{index .Text "share.lightbox.close"}}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </header>
+            <div class="lightbox-stage">
+                <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="{{index .Text "share.lightbox.prev"}}">
+                    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                </button>
+                <div class="lightbox-body" id="lightbox-body"></div>
+                <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="{{index .Text "share.lightbox.next"}}">
+                    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                </button>
+            </div>
+            <div class="lightbox-note" id="lightbox-note" hidden></div>
+        </div>
     </div>
 
+    <template id="lightbox-info">
+        <div class="lightbox-info">
+            <span class="lightbox-info-icon"></span>
+            <span class="lightbox-info-name"></span>
+            <span class="lightbox-info-size"></span>
+            <span class="lightbox-info-text"></span>
+            <a class="btn btn-primary lightbox-info-download" download>{{index .Text "share.lightbox.download"}}</a>
+        </div>
+    </template>
+
+    <script id="share-text" type="application/json">{{.Text}}</script>
     <script src="/static/share.js"></script>
+    <script src="/static/share-media.js"></script>
+    <script src="/static/share-lightbox.js"></script>
 
     <script type="module">
         import { wireMarquee } from '/static/ui/js/marquee.js';

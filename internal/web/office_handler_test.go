@@ -165,3 +165,27 @@ func TestPdfIsServedWithoutTheSandbox(t *testing.T) {
 		t.Errorf("html disguised as .pdf served as %q", ct)
 	}
 }
+
+func TestOfficeViewIsReadOnlyAndEmbeddable(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeEdit}, "https://office.example.com", testSecret)
+
+	rec := get(t, e, "/docs/bericht.docx?view=office")
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, `"mode":"view"`) {
+		t.Fatalf("status %d, body lacks read-only mode: %s", rec.Code, body)
+	}
+	if strings.Contains(body, "callbackUrl") || strings.Contains(body, `class="header"`) {
+		t.Errorf("embedded viewer has a callback or its own header: %s", body)
+	}
+	if csp, xfo := rec.Header().Get("Content-Security-Policy"), rec.Header().Get("X-Frame-Options"); csp != "frame-ancestors 'self'" || xfo != "SAMEORIGIN" {
+		t.Errorf("CSP %q XFO %q", csp, xfo)
+	}
+}
+
+func TestOfficeViewNeedsOffice(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeOff}, "https://office.example.com", testSecret)
+
+	if rec := get(t, e, "/docs/bericht.docx?view=office"); rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d, want 404", rec.Code)
+	}
+}

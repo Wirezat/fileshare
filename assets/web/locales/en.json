@@ -219,5 +219,22 @@
   "shares.upload.locked": "fileshare has no write access here",
   "shares.problem.unreadable": "fileshare cannot read this path",
   "shares.problem.unwritable": "Uploads on, but no write access",
-  "settings.access_broken": "Permission checks unavailable – every folder shows as locked. See the log."
+  "settings.access_broken": "Permission checks unavailable – every folder shows as locked. See the log.",
+  "share.lightbox.edit": "Edit",
+  "share.lightbox.download": "Download",
+  "share.lightbox.close": "Close",
+  "share.lightbox.no_preview": "No preview available",
+  "share.lightbox.empty": "File is empty",
+  "share.lightbox.truncated": "Truncated, download for the full file",
+  "share.lightbox.source": "Source",
+  "share.lightbox.rendered": "Rendered",
+  "share.lightbox.loading": "Loading…",
+  "share.lightbox.failed": "Preview failed.",
+  "share.lightbox.prev": "Previous file",
+  "share.lightbox.next": "Next file",
+  "share.media.play": "Play",
+  "share.media.pause": "Pause",
+  "share.media.seek": "Position",
+  "share.media.volume": "Volume",
+  "share.media.fullscreen": "Full screen"
 }

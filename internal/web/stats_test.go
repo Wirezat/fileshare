@@ -227,6 +227,8 @@ func TestPageViewsAreShareOpensOnly(t *testing.T) {
 	send(e.handler, http.MethodGet, "/single", nil, asBrowser)
 	send(e.handler, http.MethodGet, "/docs/a.txt", nil, asBrowser)
 	send(e.handler, http.MethodGet, "/docs/photo.jpg?preview=1", nil, asBrowser)
+	send(e.handler, http.MethodGet, "/single?preview=1", nil, asBrowser)
+	send(e.handler, http.MethodGet, "/single?view=text", nil, asBrowser)
 	send(e.handler, http.MethodGet, "/single", nil, asBrowser, withHeader("Range", "bytes=0-"))
 	send(e.handler, http.MethodGet, "/single", nil, asBrowser, withHeader("Sec-Fetch-Dest", "video"))
 	send(e.handler, http.MethodGet, "/docs?download=zip", nil, asBrowser)

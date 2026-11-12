@@ -19,8 +19,7 @@ import (
 // officeWanted reports whether this request should get the viewer page instead of the file.
 func officeWanted(r *http.Request, ctx *requestContext) bool {
 	return !ctx.fileInfo.IsDir() &&
-		ctx.fileData.Office != config.OfficeOff &&
-		ctx.config.OfficeReady() &&
+		officeOn(ctx) &&
 		filetype.Lookup(ctx.fileInfo.Name()).OfficeType != "" &&
 		r.URL.Query().Get("dl") == ""
 }
@@ -40,10 +39,12 @@ type officePage struct {
 	DownloadURL string
 	APIScript   string
 	Config      template.JS
+	Embedded    bool
 }
 
-// serveOfficeViewer renders the page that embeds the document server editor.
-func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+// serveOfficeViewer renders the page that embeds the document server editor; embedded gives the read-only
+// viewer without its own header, framable by the share page.
+func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestContext, embedded bool) {
 	tmpl := s.tpl.office
 
 	scheme := "http"
@@ -57,7 +58,7 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 		Name:     name,
 		Key:      office.DocKey(ctx.diskPath, ctx.fileInfo),
 		URL:      scheme + "://" + r.Host + downloadPath,
-		Edit:     ctx.fileData.Office == config.OfficeEdit,
+		Edit:     !embedded && ctx.fileData.Office == config.OfficeEdit,
 		Callback: scheme + "://" + r.Host + r.URL.Path + "?callback=1",
 	}, requestLang(r), ctx.config.OfficeSecret())
 	cfgJSON, err := json.Marshal(cfg)
@@ -71,6 +72,9 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 		parent = filepath.Dir(r.URL.Path)
 	}
 
+	if embedded {
+		allowSameOriginFraming(w, "frame-ancestors 'self'")
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "office", officePage{
 		Title:       name,
@@ -79,6 +83,7 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 		DownloadURL: downloadPath,
 		APIScript:   ctx.config.OfficeURL() + "/web-apps/apps/api/documents/api.js",
 		Config:      template.JS(cfgJSON),
+		Embedded:    embedded,
 	}); err != nil {
 		GoLog.Errorf("failed to render office template: %v", err)
 	}

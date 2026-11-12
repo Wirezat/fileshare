@@ -8,15 +8,12 @@ import (
 	"github.com/Wirezat/GoLog"
 )
 
-// handleShareCSS and handleShareJS serve static assets.
-func (s *Server) handleShareCSS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeFile(w, r, s.asset("css/share.css"))
-}
-
-func (s *Server) handleShareJS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeFile(w, r, s.asset("js/share.js"))
+// staticAsset serves the file rel inside the assets directory, revalidated on every use.
+func (s *Server) staticAsset(rel string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeFile(w, r, s.asset(rel))
+	}
 }
 
 // handleLogEvent allows the client to send log messages to the server.

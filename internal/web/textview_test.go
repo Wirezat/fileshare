@@ -83,11 +83,44 @@ func TestTextViewRefusesNonTextFiles(t *testing.T) {
 	}
 }
 
-func TestTextViewRefusesLargeFiles(t *testing.T) {
-	rec := textView(t, textShare(t, "big.log", strings.Repeat("x", textViewMaxBytes+1)))
+func viewOf(t *testing.T, ctx *requestContext, view string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/docs/"+ctx.fileInfo.Name()+"?view="+view, nil)
+	rec := httptest.NewRecorder()
+	newEnv(t, baseConfig()).srv.handleGet(rec, req, ctx)
+	return rec
+}
 
-	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("status = %d, want 413", rec.Code)
+func TestTextViewTruncatesLargeFiles(t *testing.T) {
+	rec := textView(t, textShare(t, "big.log", strings.Repeat("a", textViewMaxBytes-1)+"é"+"tail"))
+
+	if rec.Code != http.StatusOK || rec.Header().Get("X-Fileshare-Truncated") != "1" {
+		t.Fatalf("status %d, truncated header %q", rec.Code, rec.Header().Get("X-Fileshare-Truncated"))
+	}
+	if want := "<pre>" + strings.Repeat("a", textViewMaxBytes-1) + "</pre>"; rec.Body.String() != want {
+		t.Errorf("body has %d bytes, want the first MiB cut before the split character", rec.Body.Len())
+	}
+}
+
+func TestTextViewProbe(t *testing.T) {
+	rec := textView(t, textShare(t, "Makefile", "all:\n\techo hi\n"))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<pre>all:") {
+		t.Errorf("text without extension: %d %q", rec.Code, rec.Body.String())
+	}
+	if rec := textView(t, textShare(t, "blob.bin", "\x00\x01")); rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("binary without extension: status %d, want 415", rec.Code)
+	}
+}
+
+func TestSourceViewEscapesMarkdownAndHTML(t *testing.T) {
+	if got := viewOf(t, textShare(t, "README.md", "# T <b>"), "source").Body.String(); got != "<pre># T &lt;b&gt;</pre>" {
+		t.Errorf("markdown source = %q", got)
+	}
+	if got := viewOf(t, textShare(t, "page.html", "<script>x</script>"), "source").Body.String(); got != "<pre>&lt;script&gt;x&lt;/script&gt;</pre>" {
+		t.Errorf("html source = %q", got)
+	}
+	if rec := viewOf(t, textShare(t, "notes.txt", "plain"), "source"); rec.Code != http.StatusNotFound {
+		t.Errorf("txt source: status %d, want 404", rec.Code)
 	}
 }
 

@@ -32,7 +32,9 @@ type PageData struct {
 	AllowPost    bool
 	AllowZip     bool
 	Office       bool
+	OfficeEdit   bool
 	IsEmpty      bool
+	Text         map[string]string
 }
 
 type Crumb struct {

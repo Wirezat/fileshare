@@ -72,8 +72,10 @@ func TestPublicRequestsReachTheRequestLog(t *testing.T) {
 func TestUIAssetsComeFromTheAssetsDir(t *testing.T) {
 	e := newEnv(t, baseConfig())
 	assets := t.TempDir()
-	if err := os.CopyFS(filepath.Join(assets, "html"), os.DirFS("../../assets/web/html")); err != nil {
-		t.Fatal(err)
+	for _, dir := range []string{"html", "locales"} {
+		if err := os.CopyFS(filepath.Join(assets, dir), os.DirFS("../../assets/web/"+dir)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := os.MkdirAll(filepath.Join(assets, "ui"), 0o755); err != nil {
 		t.Fatal(err)

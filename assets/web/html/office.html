@@ -29,6 +29,7 @@
 
 <body class="app-shell office-shell">
 
+    {{if not .Embedded}}
     <header class="header">
         <span class="header-brand">
             {{if .ParentURL}}<a class="header-logo" href="{{.ParentURL}}" title="/{{.Subpath}}">📂</a>{{else}}<span class="header-logo">📂</span>{{end}}
@@ -40,6 +41,7 @@
                 title="Toggle theme">🌙</button>
         </div>
     </header>
+    {{end}}
 
     <div class="office-frame" id="office"></div>
 

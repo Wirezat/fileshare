@@ -219,5 +219,22 @@
   "shares.upload.locked": "Kein Schreibrecht für fileshare",
   "shares.problem.unreadable": "fileshare kann diesen Pfad nicht lesen",
   "shares.problem.unwritable": "Upload an, aber kein Schreibrecht",
-  "settings.access_broken": "Rechteprüfung nicht verfügbar – alle Ordner erscheinen gesperrt. Siehe Log."
+  "settings.access_broken": "Rechteprüfung nicht verfügbar – alle Ordner erscheinen gesperrt. Siehe Log.",
+  "share.lightbox.edit": "Bearbeiten",
+  "share.lightbox.download": "Herunterladen",
+  "share.lightbox.close": "Schließen",
+  "share.lightbox.no_preview": "Keine Vorschau verfügbar",
+  "share.lightbox.empty": "Datei ist leer",
+  "share.lightbox.truncated": "Gekürzt, vollständig per Download",
+  "share.lightbox.source": "Quelltext",
+  "share.lightbox.rendered": "Gerendert",
+  "share.lightbox.loading": "Lädt …",
+  "share.lightbox.failed": "Vorschau fehlgeschlagen.",
+  "share.lightbox.prev": "Vorige Datei",
+  "share.lightbox.next": "Nächste Datei",
+  "share.media.play": "Abspielen",
+  "share.media.pause": "Pause",
+  "share.media.seek": "Position",
+  "share.media.volume": "Lautstärke",
+  "share.media.fullscreen": "Vollbild"
 }

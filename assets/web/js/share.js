@@ -21,184 +21,62 @@ function toggleTheme() {
 }
 $("theme-toggle").textContent = document.documentElement.classList.contains("dark") ? "☀️" : "🌙";
 
-// ── Lightbox ──────────────────────────────────────────
-let isLightboxOpen = false, currentMediaIndex = 0;
-const mediaElements = [];
+// ── Share texts ───────────────────────────────────
+const T = (() => {
+    try { return JSON.parse($("share-text")?.textContent || "{}") ?? {}; } catch { return {}; }
+})();
+const t = key => T[key] ?? key;
 
-function openLightbox(mediaEl) {
-    isLightboxOpen = true;
-    const img = $("lightbox-img"), vid = $("lightbox-video");
-    img.style.display = vid.style.display = $("lightbox-text").style.display = "none";
-    currentMediaIndex = mediaElements.indexOf(mediaEl);
-    if (mediaEl.tagName === "IMG") {
-        img.src = mediaEl.src;
-        img.style.display = "block";
-    } else {
-        vid.querySelector("source").src = mediaEl.querySelector("source").src;
-        vid.load();
-        vid.style.display = "block";
-    }
-    $("lightbox").style.display = "block";
-    document.body.style.overflow = "hidden";
-}
+const SVG_NS = "http://www.w3.org/2000/svg";
 
-function closeLightbox() {
-    isLightboxOpen = false;
-    $("lightbox-video").pause();
-    $("lightbox").style.display = "none";
-    document.body.style.overflow = "";
-}
-
-async function openTextLightbox(href) {
-    const panel = $("lightbox-text");
-    $("lightbox-img").style.display = $("lightbox-video").style.display = "none";
-    panel.textContent = "Loading…";
-    panel.style.display = "block";
-    $("lightbox").style.display = "block";
-    document.body.style.overflow = "hidden";
-    isLightboxOpen = true;
-    try {
-        const res = await fetch(href + "?view=text");
-        if (!res.ok) throw new Error(await res.text());
-        panel.innerHTML = await res.text();
-    } catch (err) {
-        panel.textContent = String(err.message || err).trim() || "Preview failed.";
-    }
-}
-
-function initTextPreview() {
-    document.addEventListener("click", e => {
-        const link = e.target.closest("[data-text] a:not(.row-download):not(.download-button)");
-        if (!link || link.hasAttribute("download") || e.ctrlKey || e.metaKey || e.button !== 0) return;
-        e.preventDefault();
-        openTextLightbox(link.closest("[data-text]").dataset.href);
-    });
-}
-
-function navigateLightbox(dir) {
-    if (!mediaElements.length) return;
-    currentMediaIndex = (currentMediaIndex + dir + mediaElements.length) % mediaElements.length;
-    openLightbox(mediaElements[currentMediaIndex]);
+/* Builds an inline SVG icon from path data d in a 24×24 box.
+   @returns {SVGSVGElement} */
+function svgIcon(d) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+    return svg;
 }
 
 // ── File cards ────────────────────────────────────────
-const MEDIA_KIND = {
-    jpg: "image", jpeg: "image", png: "image", gif: "image", webp: "image", avif: "image",
-    mp4: "video", mov: "video", webm: "video", mkv: "video", avi: "video", wmv: "video",
-    mp3: "audio", wav: "audio", flac: "audio", aac: "audio", ogg: "audio",
-};
-
-const KIND_ICON = {
-    zip: "📦", rar: "📦", "7z": "📦", tar: "📦", gz: "📦",
-    pdf: "📄", doc: "📄", docx: "📄", odt: "📄",
-    xls: "📊", xlsx: "📊", ods: "📊", csv: "📊",
-    ppt: "📽️", pptx: "📽️", odp: "📽️",
-    txt: "📝", md: "📝", log: "📝",
-};
-
-const OFFICE_EXT = new Set(["docx", "doc", "odt", "xlsx", "xls", "ods", "pptx", "ppt", "odp"]);
-const officeOn = document.querySelector(".file-grid")?.hasAttribute("data-office") ?? false;
-
-const opensInline = ext => ext === "pdf" || (officeOn && OFFICE_EXT.has(ext));
-
-function downloadOverlay(href) {
-    const overlay = document.createElement("div");
-    overlay.className = "overlay";
-    const btn = document.createElement("a");
-    btn.className = "btn btn-primary btn-sm download-button";
-    btn.href = href + "?dl=1";
-    btn.download = "";
-    btn.textContent = "Download";
-    btn.addEventListener("click", e => e.stopPropagation());
-    overlay.appendChild(btn);
-    return overlay;
-}
-
+/* Fills size and download button of every file card and turns its preview link into a plain box. */
 function hydrateCards() {
     document.querySelectorAll(".file-card").forEach(card => {
-        const name = card.dataset.name ?? "";
-        const href = card.dataset.href ?? "";
-        let preview = card.querySelector(".card-preview");
-        if (!preview) return;
-
-        const sizeEl = card.querySelector(".card-size");
-        if (sizeEl && !card.hasAttribute("data-dir")) {
-            sizeEl.textContent = formatBytes(Number(card.dataset.size ?? 0));
-        }
-
         if (card.hasAttribute("data-dir")) return;
-
-        const ext = name.split(".").pop().toLowerCase();
-        const kind = MEDIA_KIND[ext];
-
-        if (!kind) {
-            const inline = opensInline(ext) || card.hasAttribute("data-text");
-            card.classList.toggle("file-card-inline", inline);
-            card.querySelector(".card-icon").textContent = inline ? "📖" : (KIND_ICON[ext] ?? "📎");
-            card.querySelector(".card-ext").textContent = fileTypeLabel(name);
-            card.appendChild(downloadOverlay(href));
-            return;
+        const sizeEl = card.querySelector(".card-size");
+        if (sizeEl) sizeEl.textContent = formatBytes(Number(card.dataset.size ?? 0));
+        const link = card.querySelector("a.card-preview");
+        if (link) {
+            const box = document.createElement("div");
+            box.className = link.className;
+            box.append(...link.childNodes);
+            link.replaceWith(box);
         }
-
-        // media-container is the lightbox hook; audio has nothing to enlarge.
-        card.classList.add("file-card-" + kind);
-        if (kind !== "audio") card.classList.add("media-container");
-
-        // Swap the server-rendered preview anchor for a div; media cards open
-        // the lightbox instead of navigating.
-        const box = document.createElement("div");
-        box.className = "card-preview";
-        preview.replaceWith(box);
-        preview = box;
-
-        if (kind === "image") {
-            const img = document.createElement("img");
-            img.src = href;
-            img.alt = name;
-            img.loading = "lazy";
-            img.decoding = "async";
-            preview.replaceChildren(img);
-        } else if (kind === "video") {
-            const vid = document.createElement("video");
-            vid.preload = "metadata";
-            const src = document.createElement("source");
-            src.src = href;
-            vid.appendChild(src);
-            preview.replaceChildren(vid);
-        } else {
-            preview.classList.add("card-preview-audio");
-            const audio = document.createElement("audio");
-            audio.controls = true;
-            audio.preload = "none";
-            const src = document.createElement("source");
-            src.src = href;
-            audio.appendChild(src);
-            preview.replaceChildren(audio);
-        }
-
-        if (kind !== "audio") card.appendChild(downloadOverlay(href));
+        const dl = document.createElement("a");
+        dl.className = "card-download";
+        dl.href = card.dataset.href + "?dl=1";
+        dl.download = "";
+        dl.title = t("share.lightbox.download");
+        dl.setAttribute("aria-label", dl.title);
+        dl.appendChild(svgIcon("M12 4v11m0 0l-5-5m5 5l5-5M5 20h14"));
+        card.appendChild(dl);
     });
 }
 
 // ── Table view ────────────────────────────────────────
-// Same entries as the card grid, server-rendered as <tr>s with empty type and
-// size cells — filled in here from the same extension maps the cards use, and
-// from the same byte formatter the upload toast uses.
+/* Fills size and download link of every table row. */
 function hydrateTable() {
     document.querySelectorAll(".file-row").forEach(row => {
-        const name = row.dataset.name ?? "";
         const isDir = row.hasAttribute("data-dir");
-        const ext = name.split(".").pop().toLowerCase();
-        const inline = !isDir && (opensInline(ext) || ext in MEDIA_KIND || row.hasAttribute("data-text"));
-        row.classList.toggle("file-row-inline", inline);
-        row.querySelector(".row-icon").textContent = isDir ? "📁" : inline ? "📖" : (KIND_ICON[ext] ?? "📎");
-        row.querySelector(".row-type").textContent = isDir ? "Folder" : fileTypeLabel(name);
         if (!isDir) {
             const dl = document.createElement("a");
             dl.className = "row-download";
             dl.href = row.dataset.href + "?dl=1";
             dl.download = "";
-            dl.title = "Download";
+            dl.title = t("share.lightbox.download");
             dl.textContent = "⭳";
             row.querySelector(".row-dl").appendChild(dl);
         }
@@ -334,16 +212,6 @@ function initCrumbDropdowns() {
     });
 }
 
-function setupMediaContainer(container) {
-    const media = container.querySelector("img, video");
-    if (media) mediaElements.push(media);
-    if (media) {
-        container.addEventListener("click", () => openLightbox(media));
-        if (media.tagName === "VIDEO")
-            media.addEventListener("click", e => { e.stopPropagation(); openLightbox(media); });
-    }
-}
-
 // ── ZIP ───────────────────────────────────────────────
 function downloadAsZip(e) {
     e.preventDefault();
@@ -442,19 +310,6 @@ function estimateUpload(sentBytes, remainingBytes, activeMs) {
 
 const steadyEta = (shown, next) =>
     shown == null || next < shown || next - shown >= Math.max(3, shown * 0.05) ? next : shown;
-
-const EXT_MAP = {
-    jpg: "JPG", jpeg: "JPG", png: "PNG", gif: "GIF", webp: "WEBP", svg: "SVG",
-    mp4: "MP4", mov: "MOV", avi: "AVI", webm: "WEBM", mp3: "MP3", wav: "WAV", ogg: "OGG",
-    pdf: "PDF", zip: "ZIP", rar: "RAR", "7z": "7Z", tar: "TAR", gz: "GZ",
-    doc: "DOC", docx: "DOCX", xls: "XLS", xlsx: "XLSX", ppt: "PPT", pptx: "PPTX",
-    txt: "TXT", md: "MD", json: "JSON", csv: "CSV",
-    js: "JS", ts: "TS", html: "HTML", css: "CSS", py: "PY",
-};
-const fileTypeLabel = name => {
-    const ext = name.split(".").pop().toLowerCase();
-    return (EXT_MAP[ext] ?? ext.toUpperCase().slice(0, 4)) || "FILE";
-};
 
 const _ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 const escapeHtml = s => s.replace(/[&<>"]/g, c => _ESC[c]);
@@ -570,7 +425,6 @@ function renderFileList() {
         const active = f.status === "uploading" || f.status === "pending";
         const paused = !!filePausedFlags[i];
         return `<div class="upload-file-row" data-index="${i}">
-            <span class="upload-file-type">${fileTypeLabel(f.name)}</span>
             <div class="upload-file-info">
                 <div class="upload-file-name-row">
                     <span class="upload-file-name">${escapeHtml(f.name)}</span>
@@ -851,24 +705,12 @@ async function runUploads(run, files, base, ui) {
 
 // ── Init ──────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-    // Cards first; hydrateCards adds .media-container to previewable ones.
     hydrateCards();
-    document.querySelectorAll(".media-container").forEach(setupMediaContainer);
     hydrateTable();
     initViewPicker();
     initCrumbDropdowns();
     initFilter();
     initSelection();
-    initTextPreview();
-
-    $("lightbox-close")?.addEventListener("click", closeLightbox);
-    $("lightbox")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeLightbox(); });
-    document.addEventListener("keydown", e => {
-        if (!isLightboxOpen) return;
-        if (e.key === "Escape") closeLightbox();
-        else if (e.key === "ArrowRight") navigateLightbox(1);
-        else if (e.key === "ArrowLeft") navigateLightbox(-1);
-    });
 
     updatePauseButton();
 

@@ -132,23 +132,23 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, ctx *requestC
 	switch {
 	case ctx.fileInfo.IsDir():
 		s.serveDirectory(w, r, ctx)
-	case wantsPreviewImage(r, ctx):
-		servePreviewImage(w, r, ctx)
+	case wantsPreview(r):
+		s.servePreviewVariant(w, r, ctx)
 	case previewWanted(r, ctx):
 		s.servePreview(w, r, ctx)
+	case wantsView(r):
+		s.serveViewVariant(w, r, ctx)
 	case officeWanted(r, ctx):
-		s.serveOfficeViewer(w, r, ctx)
-	case textWanted(r, ctx):
-		serveTextView(w, r, ctx)
+		s.serveOfficeViewer(w, r, ctx, false)
 	default:
 		s.serveFile(w, r, ctx)
 	}
 }
 
-// opensFileShare reports whether the request opens a file share's own page, not a thumbnail or text view of it.
+// opensFileShare reports whether the request opens a file share's own page, not a preview or view of it.
 func opensFileShare(r *http.Request, ctx *requestContext) bool {
 	return !ctx.fileInfo.IsDir() && ctx.diskPath == ctx.fileData.Path && !ctx.machine &&
-		r.Method == http.MethodGet && isPageLoad(r) && !wantsPreviewImage(r, ctx) && !textWanted(r, ctx)
+		r.Method == http.MethodGet && isPageLoad(r) && !wantsVariant(r)
 }
 
 func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, ctx *requestContext) {

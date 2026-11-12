@@ -81,6 +81,7 @@ type templates struct {
 type Server struct {
 	deps         Deps
 	tpl          templates
+	shareText    map[string]map[string]string
 	requestLogMu sync.Mutex
 	streamsDone  chan struct{}
 	closeStreams sync.Once
@@ -96,7 +97,12 @@ func New(d Deps) (*Server, error) {
 			*dst, err = tmpl.ParseFiles(html(file))
 		}
 	}
-	parse(&t.directory, template.New("directory").Funcs(template.FuncMap{"opensInline": office.OpensInline, "isText": func(name string) bool { return filetype.Lookup(name).Kind == filetype.Text }}), "share.html")
+	parse(&t.directory, template.New("directory").Funcs(template.FuncMap{
+		"opensInline": office.OpensInline,
+		"isText":      func(name string) bool { return filetype.Lookup(name).Kind == filetype.Text },
+		"icon":        entryIcon,
+		"view":        filetype.ViewFor,
+	}), "share.html")
 	parse(&t.gate, template.New("gate"), "gate.html")
 	parse(&t.notFound, template.New("notfound"), "notfound.html")
 	parse(&t.expired, template.New("expired"), "expired.html")
@@ -105,7 +111,11 @@ func New(d Deps) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{deps: d, tpl: t, streamsDone: make(chan struct{})}, nil
+	text, err := loadShareText(d.Assets)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{deps: d, tpl: t, shareText: text, streamsDone: make(chan struct{})}, nil
 }
 
 func (s *Server) CloseStreams() {
