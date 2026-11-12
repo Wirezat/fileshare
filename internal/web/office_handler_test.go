@@ -189,3 +189,23 @@ func TestOfficeViewNeedsOffice(t *testing.T) {
 		t.Fatalf("status %d, want 404", rec.Code)
 	}
 }
+
+func TestViewerLinksEncodeReservedCharactersInNames(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
+	os.Mkdir(filepath.Join(dir, "b #2"), 0o755)
+	os.WriteFile(filepath.Join(dir, "b #2", "a #1?%.docx"), []byte(docBytes), 0o600)
+
+	body := get(t, e, "/docs/b%20%232/a%20%231%3F%25.docx").Body.String()
+	for _, want := range []string{
+		`"url":"http://example.com/docs/b%20%232/a%20%231%3F%25.docx?dl=1"`,
+		`href="/docs/b%20%232/a%20%231%3F%25.docx?dl=1" download`,
+		`href="/docs/b%20%232"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("viewer page lacks %s", want)
+		}
+	}
+	if rec := get(t, e, "/docs/b%20%232/a%20%231%3F%25.docx?dl=1"); rec.Body.String() != docBytes {
+		t.Errorf("document URL answers %d without the document", rec.Code)
+	}
+}

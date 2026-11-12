@@ -43,18 +43,18 @@ func (s *Server) servePreview(w http.ResponseWriter, r *http.Request, ctx *reque
 	tmpl := s.tpl.preview
 
 	name := ctx.fileInfo.Name()
-	dlPath := r.URL.Path + "?dl=1"
+	dlPath := r.URL.EscapedPath() + "?dl=1"
 	data := previewData{
 		Title:       name,
 		Description: media.FileDescription(name, ctx.fileInfo.Size(), ctx.fileData.Expiration),
-		URL:         absoluteURL(r, r.URL.Path),
+		URL:         absoluteURL(r, r.URL.EscapedPath()),
 		RefreshURL:  dlPath,
 	}
 
 	switch t := filetype.Lookup(name); t.Kind {
 	case filetype.Image:
 		if t.Thumbnail {
-			data.ImageURL = absoluteURL(r, r.URL.Path+"?preview=1")
+			data.ImageURL = absoluteURL(r, r.URL.EscapedPath()+"?preview=1")
 			data.ImageType = "image/jpeg"
 		}
 	case filetype.Video:
@@ -71,7 +71,7 @@ func (s *Server) serveExpiredPreview(w http.ResponseWriter, r *http.Request, sub
 	renderPreview(w, http.StatusGone, tmpl, previewData{
 		Title:       "/" + subpath,
 		Description: "This share has expired",
-		URL:         absoluteURL(r, r.URL.Path),
+		URL:         absoluteURL(r, r.URL.EscapedPath()),
 	})
 }
 

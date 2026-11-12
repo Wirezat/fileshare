@@ -218,3 +218,18 @@ func TestExpiredSharePreview(t *testing.T) {
 		t.Errorf("expired page lacks the expected message: %s", rec.Body.String())
 	}
 }
+
+func TestPreviewLinksEncodeReservedCharactersInNames(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "", "")
+	os.WriteFile(filepath.Join(dir, "a #1?%.txt"), []byte("x"), 0o600)
+
+	body := get(t, e, "/docs/a%20%231%3F%25.txt", "User-Agent", "TelegramBot (like TwitterBot)").Body.String()
+	for _, want := range []string{
+		`og:url" content="http://example.com/docs/a%20%231%3F%25.txt"`,
+		`url=/docs/a%20%231%3F%25.txt?dl=1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("preview page lacks %s: %s", want, body)
+		}
+	}
+}

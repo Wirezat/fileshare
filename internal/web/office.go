@@ -51,7 +51,7 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 	if requestIsHTTPS(r) {
 		scheme = "https"
 	}
-	downloadPath := r.URL.Path + "?dl=1"
+	downloadPath := r.URL.EscapedPath() + "?dl=1"
 	name := ctx.fileInfo.Name()
 
 	cfg := office.EditorConfig(office.Doc{
@@ -59,7 +59,7 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 		Key:      office.DocKey(ctx.diskPath, ctx.fileInfo),
 		URL:      scheme + "://" + r.Host + downloadPath,
 		Edit:     !embedded && ctx.fileData.Office == config.OfficeEdit,
-		Callback: scheme + "://" + r.Host + r.URL.Path + "?callback=1",
+		Callback: scheme + "://" + r.Host + r.URL.EscapedPath() + "?callback=1",
 	}, requestLang(r), ctx.config.OfficeSecret())
 	cfgJSON, err := json.Marshal(cfg)
 	if err != nil {
@@ -69,7 +69,7 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 
 	parent := ""
 	if ctx.diskPath != ctx.fileData.Path {
-		parent = filepath.Dir(r.URL.Path)
+		parent = filepath.Dir(r.URL.EscapedPath())
 	}
 
 	if embedded {
