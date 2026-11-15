@@ -11,7 +11,9 @@ import (
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/access"
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/filetype"
 	"github.com/Wirezat/fileshare/internal/media"
+	"github.com/Wirezat/fileshare/internal/office"
 	"github.com/Wirezat/fileshare/internal/stats"
 	"github.com/Wirezat/fileshare/internal/upload"
 )
@@ -68,6 +70,7 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 		DirPath:      relPath,
 		DirName:      dirName,
 		Files:        files,
+		Entries:      listEntries(ctx.subpath, files, officeOn(ctx)),
 		ParentDir:    parentDir,
 		HasParentDir: ctx.diskPath != fd.Path,
 		Description:  media.DirDescription(files, fd.Expiration),
@@ -94,6 +97,28 @@ func zipSelection(raw []string) ([]string, bool) {
 		roots = append(roots, clean)
 	}
 	return roots, true
+}
+
+// listEntries describes files for the share page script: the link, view, icon and whether a click downloads,
+// for share subpath; officeOn reports whether office documents open in the office viewer.
+// It returns an empty, non-nil slice for an empty directory.
+func listEntries(subpath string, files []media.FileInfo, officeOn bool) []ListEntry {
+	entries := make([]ListEntry, 0, len(files))
+	for _, f := range files {
+		e := ListEntry{
+			Name: f.Name,
+			Href: pathURL("/" + subpath + f.Path),
+			Size: f.Size,
+			Dir:  f.IsDir,
+			Icon: entryIcon(f.Name, f.IsDir),
+		}
+		if !f.IsDir {
+			e.View = filetype.ViewFor(f.Name, officeOn)
+			e.Download = !office.OpensInline(officeOn, f.Name) && filetype.Lookup(f.Name).Kind != filetype.Text
+		}
+		entries = append(entries, e)
+	}
+	return entries
 }
 
 // pathURL percent-encodes each segment of the slash-separated path p, so names with #, ? or % stay part of the path.

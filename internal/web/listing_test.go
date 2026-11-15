@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,5 +82,45 @@ func TestLinksEncodeReservedCharactersInNames(t *testing.T) {
 	}
 	if rec := get(t, e, "/docs/b%20%232/a%20%231%3F%25.png"); rec.Code != 200 || rec.Body.String() != "x" {
 		t.Errorf("encoded link answers %d %q, want the file", rec.Code, rec.Body.String())
+	}
+}
+
+func listingEntries(t *testing.T, body string) map[string]ListEntry {
+	t.Helper()
+	const open = `<script id="entries" type="application/json">`
+	start := strings.Index(body, open)
+	if start < 0 {
+		t.Fatal("listing has no entries script")
+	}
+	raw := body[start+len(open):]
+	raw = raw[:strings.Index(raw, "</script>")]
+	var list []ListEntry
+	if err := json.Unmarshal([]byte(raw), &list); err != nil {
+		t.Fatalf("entries script is not JSON: %v", err)
+	}
+	byName := make(map[string]ListEntry, len(list))
+	for _, e := range list {
+		byName[e.Name] = e
+	}
+	return byName
+}
+
+func TestListingEmbedsEntries(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{Office: config.OfficeView}, "https://office.example.com", testSecret)
+	for _, name := range []string{"a.zip", "a.pdf", "a #1?%.png"} {
+		os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600)
+	}
+	os.Mkdir(filepath.Join(dir, "sub"), 0o755)
+
+	got := listingEntries(t, get(t, e, "/docs").Body.String())
+	for name, want := range map[string]ListEntry{
+		"sub":        {Name: "sub", Href: "/docs/sub", Dir: true, Icon: "📁"},
+		"a.zip":      {Name: "a.zip", Href: "/docs/a.zip", Size: 1, View: "info", Icon: "📦", Download: true},
+		"a.pdf":      {Name: "a.pdf", Href: "/docs/a.pdf", Size: 1, View: "pdf", Icon: "📕"},
+		"a #1?%.png": {Name: "a #1?%.png", Href: "/docs/a%20%231%3F%25.png", Size: 1, View: "image", Icon: "🖼️", Download: true},
+	} {
+		if got[name] != want {
+			t.Errorf("entry %q = %+v, want %+v", name, got[name], want)
+		}
 	}
 }
