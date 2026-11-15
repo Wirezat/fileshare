@@ -120,6 +120,8 @@ button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
     overflow: hidden;
     background: var(--bg-card);
     transition: border-color 0.12s;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px auto 180px;
 }
 
 .file-card:hover { border-color: var(--border-strong); }

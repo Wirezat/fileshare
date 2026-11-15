@@ -234,19 +234,23 @@
     <script type="module">
         import { wireMarquee } from '/static/ui/js/marquee.js';
 
-        function wireNames() {
-            document.querySelectorAll(".card-name a").forEach(el => {
-                if (el.firstElementChild) return;
-                const inner = document.createElement("span");
-                inner.textContent = el.textContent.trim();
-                el.textContent = "";
-                el.appendChild(inner);
-                if (!wireMarquee(el, inner)) el.textContent = inner.textContent;
-            });
+        const wiredCards = new WeakSet();
+
+        /* Wires the marquee of a card name the first time the pointer enters its card. */
+        function wireName(e) {
+            const card = e.target.closest?.(".file-card");
+            if (!card || wiredCards.has(card)) return;
+            wiredCards.add(card);
+            const el = card.querySelector(".card-name a");
+            if (!el) return;
+            const inner = document.createElement("span");
+            inner.textContent = el.textContent.trim();
+            el.textContent = "";
+            el.appendChild(inner);
+            if (!wireMarquee(el, inner)) el.textContent = inner.textContent;
         }
 
-        document.addEventListener("DOMContentLoaded", wireNames);
-        window.addEventListener("load", wireNames);
+        document.addEventListener("mouseover", wireName);
     </script>
 </body>
 
