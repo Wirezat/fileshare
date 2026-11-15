@@ -219,6 +219,8 @@ button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
     color: var(--text);
 }
 
+.card-name a > span { display: inline-block; }
+
 .card-size {
     flex-shrink: 0;
     font-size: var(--text-xs);
