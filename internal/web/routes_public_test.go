@@ -430,7 +430,7 @@ func TestStaticAssets(t *testing.T) {
 	e := newEnv(t, baseConfig())
 	h := e.handler
 
-	for _, target := range []string{"/static/share.css", "/static/share.js", "/static/share-media.js", "/static/share-lightbox.js", "/static/theme.css", "/static/locales/de.json"} {
+	for _, target := range []string{"/static/share.css", "/static/share.js", "/static/share-media.js", "/static/share-lightbox.js", "/static/share-list.js", "/static/theme.css", "/static/locales/de.json"} {
 		rec := send(h, http.MethodGet, target, nil)
 		if rec.Code != http.StatusOK || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
 			t.Errorf("%s: %d", target, rec.Code)

@@ -45,7 +45,6 @@
     color: var(--text-muted);
     text-align: center;
 }
-.file-card[hidden] { display: none; }
 .card-select {
     position: absolute;
     top: var(--gap-control);

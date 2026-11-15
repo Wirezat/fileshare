@@ -144,40 +144,16 @@
                     </div>
                 </div>
                 <div class="container-body container-body-flush" id="file-list">
-            <ul class="file-grid"{{if .Office}} data-office="{{if .OfficeEdit}}edit{{else}}view{{end}}"{{end}}>
-                {{range .Files}}{{$dl := and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}}
-                <li class="file-card" data-name="{{.Name}}" data-size="{{.Size}}"
-                    data-href="{{pathURL (print "/" $.Subpath .Path)}}"{{if .IsDir}} data-dir{{else}} data-view="{{view .Name $.Office}}"{{end}}>
-                    <input type="checkbox" class="select-box card-select" aria-label="Select {{.Name}}" />
-                    <a class="card-preview card-preview-icon" href="{{pathURL (print "/" $.Subpath .Path)}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>
-                        <span class="card-icon">{{icon .Name .IsDir}}</span>
-                    </a>
-                    <div class="card-name" title="{{.Name}}">
-                        <a href="{{pathURL (print "/" $.Subpath .Path)}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a>
-                        <span class="card-size"></span>
-                    </div>
-                </li>
-                {{end}}
-            </ul>
+            <ul class="file-grid"{{if .Office}} data-office="{{if .OfficeEdit}}edit{{else}}view{{end}}"{{end}}></ul>
 
             <table class="table file-table">
                 <thead>
                     <tr><th class="col-narrow"><input type="checkbox" id="select-all" aria-label="Select all" /></th><th></th><th>Name</th><th class="col-narrow">Size</th><th class="col-narrow"></th></tr>
                 </thead>
-                <tbody>
-                    {{range .Files}}{{$dl := and (not .IsDir) (not (opensInline $.Office .Name)) (not (isText .Name))}}
-                    <tr class="file-row" data-name="{{.Name}}" data-size="{{.Size}}"
-                        data-href="{{pathURL (print "/" $.Subpath .Path)}}"{{if .IsDir}} data-dir{{else}} data-view="{{view .Name $.Office}}"{{end}}>
-                        <td class="row-select col-narrow"><input type="checkbox" class="select-box" aria-label="Select {{.Name}}" /></td>
-                        <td class="row-icon">{{icon .Name .IsDir}}</td>
-                        <td class="row-name"><a href="{{pathURL (print "/" $.Subpath .Path)}}{{if $dl}}?dl=1{{end}}"{{if $dl}} download{{end}}>{{.Name}}{{if .IsDir}}/{{end}}</a></td>
-                        <td class="row-size col-narrow"></td>
-                        <td class="row-dl col-narrow"></td>
-                    </tr>
-                    {{end}}
-                </tbody>
+                <tbody></tbody>
             </table>
             <div class="filter-empty" id="filter-empty" hidden>No matching entries.</div>
+            <noscript><div class="filter-empty">{{index .Text "share.list.noscript"}}</div></noscript>
                 </div>
             </div>
             {{end}}
@@ -229,6 +205,7 @@
     <script id="entries" type="application/json">{{.Entries}}</script>
     <script id="share-text" type="application/json">{{.Text}}</script>
     <script src="/static/share.js"></script>
+    <script src="/static/share-list.js"></script>
     <script src="/static/share-media.js"></script>
     <script src="/static/share-lightbox.js"></script>
 

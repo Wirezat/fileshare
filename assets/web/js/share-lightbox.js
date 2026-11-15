@@ -6,23 +6,10 @@ const TEXT_VIEWS = new Set(["text", "markdown", "html", "probe"]);
 const SOURCE_ICON = "M8 6l-6 6 6 6M16 6l6 6-6 6";
 const RENDERED_ICON = "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z";
 
-/* Reads the server's description of a listing entry.
-   @returns {{name: string, href: string, size: number, view: string}} */
-function entryData(entry) {
-    return {
-        name: entry.dataset.name ?? "",
-        href: entry.dataset.href ?? "",
-        size: Number(entry.dataset.size ?? 0),
-        view: entry.dataset.view ?? "info",
-    };
-}
-
-/* Returns the visible file entries of the view that is shown, in listing order.
-   @returns {Element[]} */
+/* Returns the shown file entries, without folders, in listing order.
+   @returns {object[]} */
 function lightboxEntries() {
-    const table = $("file-list")?.classList.contains("view-table");
-    return [...document.querySelectorAll(table ? ".file-row" : ".file-card")]
-        .filter(el => !el.hidden && !el.hasAttribute("data-dir"));
+    return listing.visible.filter(e => !e.dir);
 }
 
 /* Shows text below the lightbox content; an empty text hides the note. */
@@ -39,10 +26,9 @@ function showMessage(key) {
 }
 
 /* Shows the info view of entry (icon, name, size, download) with the share text textKey. */
-function showInfo(entry, textKey) {
-    const d = entryData(entry);
+function showInfo(d, textKey) {
     const node = $("lightbox-info").content.firstElementChild.cloneNode(true);
-    node.querySelector(".lightbox-info-icon").textContent = entry.querySelector(".card-icon, .row-icon")?.textContent ?? "";
+    node.querySelector(".lightbox-info-icon").textContent = d.icon;
     node.querySelector(".lightbox-info-name").textContent = d.name;
     node.querySelector(".lightbox-info-size").textContent = formatBytes(d.size);
     node.querySelector(".lightbox-info-text").textContent = t(textKey);
@@ -55,7 +41,7 @@ async function showFragment(entry, view) {
     const token = lightbox.token = {};
     showMessage("share.lightbox.loading");
     try {
-        const res = await fetch(entryData(entry).href + "?view=" + view);
+        const res = await fetch(entry.href + "?view=" + view);
         if (lightbox.token !== token) return;
         if (res.status === 415) { showInfo(entry, "share.lightbox.no_preview"); return; }
         if (!res.ok) throw new Error(String(res.status));
@@ -91,8 +77,7 @@ function mediaPlayer(media, extra) {
 }
 
 /* Fills the lightbox body for entry according to its view. */
-function renderEntry(entry) {
-    const d = entryData(entry);
+function renderEntry(d) {
     const body = $("lightbox-body");
     const source = $("lightbox-source");
     lightbox.token = {};
@@ -105,8 +90,8 @@ function renderEntry(entry) {
     source.title = label;
     source.setAttribute("aria-label", label);
 
-    if (d.size === 0) { showInfo(entry, "share.lightbox.empty"); return; }
-    if (!lightbox.rendered && !source.hidden) { showFragment(entry, "source"); return; }
+    if (d.size === 0) { showInfo(d, "share.lightbox.empty"); return; }
+    if (!lightbox.rendered && !source.hidden) { showFragment(d, "source"); return; }
     switch (d.view) {
         case "image": {
             const img = Object.assign(document.createElement("img"), { className: "lightbox-image", alt: d.name });
@@ -126,7 +111,7 @@ function renderEntry(entry) {
             cover.addEventListener("error", () => {
                 cover.replaceWith(Object.assign(document.createElement("span"), {
                     className: "lightbox-cover lightbox-cover-icon",
-                    textContent: entry.querySelector(".card-icon, .row-icon")?.textContent ?? "",
+                    textContent: d.icon,
                 }));
             });
             cover.src = `${d.href}?preview=1&size=${CARD_PREVIEW_MAX}`;
@@ -147,20 +132,19 @@ function renderEntry(entry) {
         case "markdown":
         case "text":
         case "probe":
-            showFragment(entry, "text");
+            showFragment(d, "text");
             break;
         default:
-            showInfo(entry, "share.lightbox.no_preview");
+            showInfo(d, "share.lightbox.no_preview");
     }
 }
 
-/* Opens the lightbox on a listing entry (card or row) and pauses every other medium. */
-function openLightbox(entry) {
-    const d = entryData(entry);
+/* Opens the lightbox on a listing entry and pauses every other medium. */
+function openLightbox(d) {
     const box = $("lightbox");
     pauseOtherMedia(null);
     if (box.hidden) lightbox.returnFocus = document.activeElement;
-    lightbox.entry = entry;
+    lightbox.entry = d;
     lightbox.rendered = true;
 
     $("lightbox-name").textContent = d.name;
@@ -173,7 +157,7 @@ function openLightbox(entry) {
     const several = lightboxEntries().length > 1;
     $("lightbox-prev").hidden = $("lightbox-next").hidden = !several;
 
-    renderEntry(entry);
+    renderEntry(d);
     if (box.hidden) {
         box.hidden = false;
         document.body.style.overflow = "hidden";
@@ -240,8 +224,8 @@ function initEntryClicks() {
     document.addEventListener("click", e => {
         if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
         if (e.target.closest(".select-box, .row-select, .card-download, .row-download, .media-menu")) return;
-        const entry = e.target.closest(".file-card, .file-row");
-        if (!entry || entry.hasAttribute("data-dir")) return;
+        const entry = entryAt(e.target);
+        if (!entry || entry.dir) return;
         e.preventDefault();
         openLightbox(entry);
     });
@@ -254,9 +238,8 @@ function cardPixels(box) {
     return Math.min(CARD_PREVIEW_MAX, Math.ceil(Math.max(box.clientWidth, box.clientHeight) * (window.devicePixelRatio || 1)));
 }
 
-/* Loads the preview of a card according to its view; on 204 or error the icon stays. */
-function previewCard(card) {
-    const d = entryData(card);
+/* Loads the preview of entry d into its card according to its view; on 204 or error the icon stays. */
+function previewCard(card, d) {
     const box = card.querySelector(".card-preview");
     if (!box || d.size === 0) return;
     const shown = () => box.classList.add("has-preview");
@@ -286,20 +269,21 @@ function previewCard(card) {
     }
 }
 
-/* Loads card previews once each card comes near the viewport. */
-function initCardPreviews() {
-    const cards = [...document.querySelectorAll(".file-card[data-view]")];
-    if (!("IntersectionObserver" in window)) { cards.forEach(previewCard); return; }
-    const io = new IntersectionObserver(entries => entries.forEach(en => {
+let previewObserver = null;
+
+/* Loads the preview of a file card once it comes near the viewport. */
+function observePreview(card) {
+    if (!("IntersectionObserver" in window)) { previewCard(card, entryAt(card)); return; }
+    previewObserver ??= new IntersectionObserver(entries => entries.forEach(en => {
         if (!en.isIntersecting) return;
-        io.unobserve(en.target);
-        previewCard(en.target);
+        previewObserver.unobserve(en.target);
+        const entry = entryAt(en.target);
+        if (entry) previewCard(en.target, entry);
     }), { rootMargin: "200px" });
-    cards.forEach(c => io.observe(c));
+    previewObserver.observe(card);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     initLightbox();
     initEntryClicks();
-    initCardPreviews();
 });

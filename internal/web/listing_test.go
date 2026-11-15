@@ -21,29 +21,25 @@ func listingFixture(t *testing.T, office string) string {
 }
 
 func TestListingMarksViewAndIcon(t *testing.T) {
-	common := []string{
-		`data-href="/docs/a.jpg" data-view="image"`,
-		`data-href="/docs/a.mp4" data-view="video"`,
-		`data-href="/docs/a.mp3" data-view="audio"`,
-		`data-href="/docs/a.pdf" data-view="pdf"`,
-		`data-href="/docs/notes.txt" data-view="text"`,
-		`data-href="/docs/README.md" data-view="markdown"`,
-		`data-href="/docs/page.html" data-view="html"`,
-		`data-href="/docs/main.go" data-view="text"`,
-		`data-href="/docs/a.zip" data-view="info"`,
-		`data-href="/docs/Makefile" data-view="probe"`,
-		`<span class="card-icon">📕</span>`,
-		`<span class="card-icon">💻</span>`,
-		`<td class="row-icon">📁</td>`,
+	views := map[string]string{
+		"a.jpg": "image", "a.mp4": "video", "a.mp3": "audio", "a.pdf": "pdf", "notes.txt": "text",
+		"README.md": "markdown", "page.html": "html", "main.go": "text", "a.zip": "info", "Makefile": "probe",
 	}
-	for mode, docx := range map[string]string{
-		config.OfficeOff:  `data-href="/docs/bericht.docx" data-view="info"`,
-		config.OfficeView: `data-href="/docs/bericht.docx" data-view="office"`,
-	} {
+	icons := map[string]string{"a.pdf": "📕", "main.go": "💻", "sub": "📁"}
+	for mode, docx := range map[string]string{config.OfficeOff: "info", config.OfficeView: "office"} {
 		body := listingFixture(t, mode)
-		for _, want := range append(common, docx) {
-			if !strings.Contains(body, want) {
-				t.Errorf("office %q: listing lacks %s", mode, want)
+		entries := listingEntries(t, body)
+		for name, want := range views {
+			if got := entries[name].View; got != want {
+				t.Errorf("office %q: %s has view %q, want %q", mode, name, got, want)
+			}
+		}
+		if got := entries["bericht.docx"].View; got != docx {
+			t.Errorf("office %q: bericht.docx has view %q, want %q", mode, got, docx)
+		}
+		for name, want := range icons {
+			if got := entries[name].Icon; got != want {
+				t.Errorf("office %q: %s has icon %q, want %q", mode, name, got, want)
 			}
 		}
 		for _, gone := range []string{"data-text", "card-ext", "row-type"} {
@@ -74,11 +70,9 @@ func TestLinksEncodeReservedCharactersInNames(t *testing.T) {
 	if want := `<a href="/docs/b%20%232">b #2</a>`; !strings.Contains(body, want) {
 		t.Errorf("breadcrumb lacks %s", want)
 	}
-	body = get(t, e, "/docs/b%20%232").Body.String()
-	for _, want := range []string{`data-href="/docs/b%20%232/a%20%231%3F%25.png"`, `href="/docs/b%20%232/a%20%231%3F%25.png"`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("listing lacks %s", want)
-		}
+	entries := listingEntries(t, get(t, e, "/docs/b%20%232").Body.String())
+	if got, want := entries["a #1?%.png"].Href, "/docs/b%20%232/a%20%231%3F%25.png"; got != want {
+		t.Errorf("entry href = %q, want %q", got, want)
 	}
 	if rec := get(t, e, "/docs/b%20%232/a%20%231%3F%25.png"); rec.Code != 200 || rec.Body.String() != "x" {
 		t.Errorf("encoded link answers %d %q, want the file", rec.Code, rec.Body.String())

@@ -73,6 +73,7 @@ func (s *Server) buildMux() *http.ServeMux {
 	mux.HandleFunc("/static/share.js", s.staticAsset("js/share.js"))
 	mux.HandleFunc("/static/share-media.js", s.staticAsset("js/share-media.js"))
 	mux.HandleFunc("/static/share-lightbox.js", s.staticAsset("js/share-lightbox.js"))
+	mux.HandleFunc("/static/share-list.js", s.staticAsset("js/share-list.js"))
 
 	mux.Handle("/static/locales/", http.StripPrefix("/static/locales/", http.FileServer(http.Dir(s.asset("locales")))))
 

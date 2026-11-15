@@ -236,5 +236,7 @@
   "share.media.pause": "Pause",
   "share.media.seek": "Position",
   "share.media.volume": "Volume",
-  "share.media.fullscreen": "Full screen"
+  "share.media.fullscreen": "Full screen",
+  "share.list.select": "Select {name}",
+  "share.list.noscript": "This page needs JavaScript to list the files."
 }

@@ -113,14 +113,11 @@ func TestRangeAnsweredInFullIsADownload(t *testing.T) {
 
 func TestListingLinksForcedDownloadsAsDownloads(t *testing.T) {
 	e, _ := statsShares(t, nil)
-	body := send(e.handler, http.MethodGet, "/docs", nil, asBrowser).Body.String()
-	for _, want := range []string{`href="/docs/photo.jpg?dl=1" download`, `href="/docs/data.bin?dl=1" download`, `href="/docs/a.txt">`, `href="/docs/sub">`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("listing lacks %s", want)
+	entries := listingEntries(t, send(e.handler, http.MethodGet, "/docs", nil, asBrowser).Body.String())
+	for name, want := range map[string]bool{"photo.jpg": true, "data.bin": true, "a.txt": false, "sub": false} {
+		if got := entries[name].Download; got != want {
+			t.Errorf("%s: download %v, want %v", name, got, want)
 		}
-	}
-	if strings.Contains(body, `href="/docs/photo.jpg" download`) {
-		t.Error("a forced download links to the file without ?dl=1")
 	}
 	send(e.handler, http.MethodGet, "/docs/photo.jpg?dl=1", nil, asBrowser)
 	if p := report(e); p.Downloads != 1 {

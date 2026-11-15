@@ -41,49 +41,6 @@ function svgIcon(d) {
     return svg;
 }
 
-// ── File cards ────────────────────────────────────────
-/* Fills size and download button of every file card and turns its preview link into a plain box. */
-function hydrateCards() {
-    document.querySelectorAll(".file-card").forEach(card => {
-        if (card.hasAttribute("data-dir")) return;
-        const sizeEl = card.querySelector(".card-size");
-        if (sizeEl) sizeEl.textContent = formatBytes(Number(card.dataset.size ?? 0));
-        const link = card.querySelector("a.card-preview");
-        if (link) {
-            const box = document.createElement("div");
-            box.className = link.className;
-            box.append(...link.childNodes);
-            link.replaceWith(box);
-        }
-        const dl = document.createElement("a");
-        dl.className = "card-download";
-        dl.href = card.dataset.href + "?dl=1";
-        dl.download = "";
-        dl.title = t("share.lightbox.download");
-        dl.setAttribute("aria-label", dl.title);
-        dl.appendChild(svgIcon("M12 4v11m0 0l-5-5m5 5l5-5M5 20h14"));
-        card.appendChild(dl);
-    });
-}
-
-// ── Table view ────────────────────────────────────────
-/* Fills size and download link of every table row. */
-function hydrateTable() {
-    document.querySelectorAll(".file-row").forEach(row => {
-        const isDir = row.hasAttribute("data-dir");
-        if (!isDir) {
-            const dl = document.createElement("a");
-            dl.className = "row-download";
-            dl.href = row.dataset.href + "?dl=1";
-            dl.download = "";
-            dl.title = t("share.lightbox.download");
-            dl.textContent = "⭳";
-            row.querySelector(".row-dl").appendChild(dl);
-        }
-        row.querySelector(".row-size").textContent = isDir ? "" : formatBytes(Number(row.dataset.size ?? 0));
-    });
-}
-
 // ── Card / table view toggle ─────────────────────────────
 function setFileView(view) {
     const list = $("file-list");
@@ -94,6 +51,7 @@ function setFileView(view) {
         btn.classList.toggle("active", btn.dataset.view === view);
     });
     localStorage.setItem("fileshare-view", view);
+    renderList();
 }
 
 function initViewPicker() {
@@ -107,25 +65,17 @@ function initViewPicker() {
 }
 
 // ── Filter & selection ────────────────────────────────
-// Cards and rows are the same entries twice; both carry data-name, and a
-// checkbox in either view marks the entry in both.
 const selected = new Set();
 
 let showDotfiles = localStorage.getItem("fileshare-show-dotfiles") === "1";
 
+/* Shows the entries matching query and the dotfile setting. */
 function applyFilter(query) {
-    const q = query.trim().toLowerCase();
-    let shown = 0;
-    document.querySelectorAll(".file-card, .file-row").forEach(el => {
-        const name = el.dataset.name ?? "";
-        const hit = (!q || name.toLowerCase().includes(q)) && (showDotfiles || !name.startsWith("."));
-        el.hidden = !hit;
-        if (hit) shown++;
-    });
-    const empty = $("filter-empty");
-    if (empty) empty.hidden = shown > 0;
+    listing.visible = filterEntries(listing.entries, query, showDotfiles);
+    renderList();
 }
 
+/* Wires the filter field, the dotfile toggle and Ctrl/Cmd+F, which focuses the filter while no lightbox is open. */
 function initFilter() {
     const input = $("file-filter");
     if (!input) return;
@@ -140,20 +90,25 @@ function initFilter() {
     toggle.addEventListener("click", () => {
         showDotfiles = !showDotfiles;
         localStorage.setItem("fileshare-show-dotfiles", showDotfiles ? "1" : "0");
-        if (!showDotfiles) [...selected].filter(n => n.startsWith(".")).forEach(n => setSelected(n, false));
+        if (!showDotfiles) [...selected].filter(n => n.startsWith(".")).forEach(n => selected.delete(n));
         sync();
     });
     sync();
     input.addEventListener("keydown", e => {
         if (e.key === "Escape") { input.value = ""; applyFilter(""); }
     });
+    document.addEventListener("keydown", e => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "f") return;
+        if ($("lightbox") && !$("lightbox").hidden) return;
+        e.preventDefault();
+        input.focus();
+        input.select();
+    });
 }
 
-function setSelected(name, on) {
-    selected[on ? "add" : "delete"](name);
-    document.querySelectorAll(".select-box").forEach(box => {
-        if (box.closest("[data-name]")?.dataset.name === name) box.checked = on;
-    });
+/* Ticks the rendered checkboxes whose entry is selected. */
+function syncSelectBoxes() {
+    document.querySelectorAll("[data-index] .select-box").forEach(box => { box.checked = selected.has(entryAt(box)?.name); });
 }
 
 function updateZipButton() {
@@ -161,22 +116,24 @@ function updateZipButton() {
     if (btn) btn.textContent = selected.size ? `ZIP (${selected.size})` : "ZIP";
     const all = $("select-all");
     if (all) {
-        const rows = document.querySelectorAll(".file-row:not([hidden])");
-        const picked = [...rows].filter(r => selected.has(r.dataset.name)).length;
-        all.checked = rows.length > 0 && picked === rows.length;
-        all.indeterminate = picked > 0 && picked < rows.length;
+        const shown = listing.visible.length;
+        const picked = listing.visible.filter(e => selected.has(e.name)).length;
+        all.checked = shown > 0 && picked === shown;
+        all.indeterminate = picked > 0 && picked < shown;
     }
 }
 
 function initSelection() {
     document.addEventListener("change", e => {
         const box = e.target.closest(".select-box");
-        if (!box) return;
-        setSelected(box.closest("[data-name]").dataset.name, box.checked);
+        const entry = box && entryAt(box);
+        if (!entry) return;
+        selected[box.checked ? "add" : "delete"](entry.name);
         updateZipButton();
     });
     $("select-all")?.addEventListener("change", e => {
-        document.querySelectorAll(".file-row:not([hidden])").forEach(row => setSelected(row.dataset.name, e.target.checked));
+        listing.visible.forEach(entry => selected[e.target.checked ? "add" : "delete"](entry.name));
+        syncSelectBoxes();
         updateZipButton();
     });
 }
@@ -705,8 +662,6 @@ async function runUploads(run, files, base, ui) {
 
 // ── Init ──────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-    hydrateCards();
-    hydrateTable();
     initViewPicker();
     initCrumbDropdowns();
     initFilter();
