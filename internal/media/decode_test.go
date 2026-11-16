@@ -7,6 +7,7 @@ import (
 	"errors"
 	"hash/crc32"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"image/png"
 	"testing"
@@ -127,5 +128,56 @@ func TestEncodeThumbnailUsesTheExifThumbnailOfOversizedImages(t *testing.T) {
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(out))
 	if err != nil || format != "jpeg" || cfg.Width != 120 || cfg.Height != 90 {
 		t.Errorf("got %s %dx%d (%v), want jpeg 120x90", format, cfg.Width, cfg.Height, err)
+	}
+}
+
+// withExifOrientation returns the JPEG j with an Exif segment whose IFD0 holds orientation o.
+func withExifOrientation(j []byte, o uint16) []byte {
+	le := binary.LittleEndian
+	tiff := []byte("II*\x00")
+	tiff = le.AppendUint32(tiff, 8)
+	tiff = le.AppendUint16(tiff, 1)
+	tiff = le.AppendUint16(tiff, 0x0112)
+	tiff = le.AppendUint16(tiff, 3)
+	tiff = le.AppendUint32(tiff, 1)
+	tiff = le.AppendUint16(tiff, o)
+	tiff = le.AppendUint16(tiff, 0)
+	tiff = le.AppendUint32(tiff, 0)
+	out := []byte{0xFF, 0xD8, 0xFF, 0xE1}
+	out = binary.BigEndian.AppendUint16(out, uint16(2+6+len(tiff)))
+	out = append(out, "Exif\x00\x00"...)
+	out = append(out, tiff...)
+	return append(out, j[2:]...)
+}
+
+func TestEncodeThumbnailFollowsExifOrientation(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 200, 100))
+	for y := range 100 {
+		for x := range 200 {
+			if x < 100 {
+				src.Set(x, y, color.RGBA{R: 255, A: 255})
+			} else {
+				src.Set(x, y, color.RGBA{B: 255, A: 255})
+			}
+		}
+	}
+	var j bytes.Buffer
+	jpeg.Encode(&j, src, &jpeg.Options{Quality: 95})
+
+	out, err := EncodeThumbnail(context.Background(), bytes.NewReader(withExifOrientation(j.Bytes(), 6)), 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := jpeg.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := img.Bounds(); b.Dx() != 100 || b.Dy() != 200 {
+		t.Fatalf("preview is %dx%d, want 100x200", b.Dx(), b.Dy())
+	}
+	top, _, _, _ := img.At(50, 50).RGBA()
+	_, _, bottom, _ := img.At(50, 150).RGBA()
+	if top < 0xC000 || bottom < 0xC000 {
+		t.Errorf("orientation 6 should put the left (red) half on top and the right (blue) half below")
 	}
 }

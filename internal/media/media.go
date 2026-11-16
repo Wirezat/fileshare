@@ -48,6 +48,46 @@ func Thumbnail(src image.Image, maxEdge int) *image.RGBA {
 	return dst
 }
 
+// Orient returns img turned and mirrored so that an image with Exif orientation o (1 to 8) shows upright;
+// orientation 1 and unknown values return img unchanged.
+func Orient(img *image.RGBA, o int) *image.RGBA {
+	if o < 2 || o > 8 {
+		return img
+	}
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	dw, dh := w, h
+	if o >= 5 {
+		dw, dh = h, w
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
+	for y := range h {
+		for x := range w {
+			var dx, dy int
+			switch o {
+			case 2:
+				dx, dy = w-1-x, y
+			case 3:
+				dx, dy = w-1-x, h-1-y
+			case 4:
+				dx, dy = x, h-1-y
+			case 5:
+				dx, dy = y, x
+			case 6:
+				dx, dy = h-1-y, x
+			case 7:
+				dx, dy = h-1-y, w-1-x
+			case 8:
+				dx, dy = y, w-1-x
+			}
+			si := img.PixOffset(b.Min.X+x, b.Min.Y+y)
+			di := dst.PixOffset(dx, dy)
+			copy(dst.Pix[di:di+4], img.Pix[si:si+4])
+		}
+	}
+	return dst
+}
+
 // MimeType returns the MIME type for name's extension, or application/octet-stream.
 func MimeType(name string) string {
 	if t := mime.TypeByExtension(filepath.Ext(name)); t != "" {
