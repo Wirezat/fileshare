@@ -63,6 +63,16 @@
     width: 1%;
     text-align: center;
 }
+.file-row { cursor: pointer; }
+.file-row input { cursor: auto; }
+
+.file-row .row-name {
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .file-row .row-name a { color: var(--text); }
 .file-row .row-size {
     color: var(--text-muted);

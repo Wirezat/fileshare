@@ -92,23 +92,30 @@ function rowNode(entry, index) {
 }
 
 const LIST_BUFFER_ROWS = 3;
-const listView = { nodes: new Map(), rowHeight: 0, columns: 1, width: 0, scheduled: false, top: null, bottom: null };
+const listView = { nodes: new Map(), rowHeight: 0, columns: 1, width: 0, stale: false, scheduled: false, top: null, bottom: null };
 
 /* Returns the rows to render: those overlapping the viewport of a scroll container at scrollTop with
    viewportHeight, for a list starting listTop into its content with rowCount rows of rowHeight, plus buffer rows.
-   @returns {{first: number, last: number}} inclusive row range, last < first when nothing is to be rendered */
+   @returns {{first: number, last: number}} inclusive row range, last < first when nothing is to be rendered;
+   a scrollTop past the end gives the last row */
 function listWindow(scrollTop, viewportHeight, listTop, rowHeight, rowCount, buffer) {
     if (rowCount === 0) return { first: 0, last: -1 };
     const top = scrollTop - listTop;
     const first = Math.max(0, Math.floor(Math.max(0, top) / rowHeight) - buffer);
     const last = Math.min(rowCount - 1, Math.ceil((top + viewportHeight) / rowHeight) - 1 + buffer);
-    return { first, last };
+    return { first: Math.min(first, Math.max(last, 0)), last };
 }
 
 /* Returns the element the page scrolls in.
    @returns {Element} */
 function listScroller() {
-    return $q("main.main") ?? document.scrollingElement;
+    return $q("main.main");
+}
+
+/* Returns how far container starts below the top of the content of scroller.
+   @returns {number} pixels */
+function listTopOf(container, scroller) {
+    return container.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
 }
 
 /* Returns the container of the shown view and whether it is the table.
@@ -138,7 +145,7 @@ function dropNode(index) {
 /* Measures row height and column count of the shown view on a probe node of the first entry. */
 function measureList(container, table) {
     const probe = (table ? rowNode : cardNode)(listing.visible[0], 0);
-    container.appendChild(probe);
+    container.prepend(probe);
     const gap = table ? 0 : parseFloat(getComputedStyle(container).rowGap) || 0;
     listView.rowHeight = probe.getBoundingClientRect().height + gap;
     listView.columns = table ? 1 : Math.max(1, getComputedStyle(container).gridTemplateColumns.split(" ").length);
@@ -146,16 +153,25 @@ function measureList(container, table) {
     probe.remove();
 }
 
-/* Renders the entries of listing.visible that fall into the window of the shown view and removes the rest. */
+/* Renders the entries of listing.visible that fall into the window of the shown view and removes the rest;
+   when listView.stale it re-measures and keeps the first visible entry where it was. */
 function renderWindow() {
     const { container, table } = shownList();
     if (!container || !listing.visible.length) return;
-    if (!listView.rowHeight) measureList(container, table);
     const scroller = listScroller();
+    let anchor = null;
+    if (listView.stale && listView.rowHeight) {
+        const offset = Math.max(0, scroller.scrollTop - listTopOf(container, scroller)) / listView.rowHeight;
+        anchor = { index: Math.floor(offset) * listView.columns, within: offset % 1 };
+    }
+    if (listView.stale || !listView.rowHeight) measureList(container, table);
+    listView.stale = false;
     const { rowHeight, columns, nodes } = listView;
     const rows = Math.ceil(listing.visible.length / columns);
-    const listTop = container.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-    const { first, last } = listWindow(scroller.scrollTop, scroller.clientHeight, listTop, rowHeight, rows, LIST_BUFFER_ROWS);
+    const listTop = listTopOf(container, scroller);
+    const scrollTop = anchor === null ? scroller.scrollTop
+        : listTop + (Math.floor(anchor.index / columns) + anchor.within) * rowHeight;
+    const { first, last } = listWindow(scrollTop, scroller.clientHeight, listTop, rowHeight, rows, LIST_BUFFER_ROWS);
     const from = first * columns, to = Math.min(listing.visible.length, (last + 1) * columns);
     for (const index of [...nodes.keys()]) if (index < from || index >= to) dropNode(index);
     const keptFrom = nodes.size ? Math.min(...nodes.keys()) : Infinity;
@@ -183,6 +199,7 @@ function renderWindow() {
         container.style.paddingTop = above + "px";
         container.style.paddingBottom = below + "px";
     }
+    if (anchor !== null) scroller.scrollTop = scrollTop;
 }
 
 /* Renders the window at the next animation frame, at most once per frame. */
@@ -202,29 +219,34 @@ function renderList() {
     body.replaceChildren();
     grid.style.paddingTop = grid.style.paddingBottom = "";
     listView.rowHeight = 0;
+    listView.stale = false;
     const { container } = shownList();
     const scroller = listScroller();
-    const listTop = container.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const listTop = listTopOf(container, scroller);
     if (scroller.scrollTop > listTop) scroller.scrollTop = listTop;
     renderWindow();
     const empty = $("filter-empty");
     if (empty) empty.hidden = listing.visible.length > 0;
 }
 
-/* Re-renders the window on scrolling and re-measures it when the list changes width. */
+/* Re-renders the window on scrolling and when the scroller resizes; re-measures it, keeping the first
+   visible entry in place, when the list changes width. */
 function initListWindow() {
     const list = $("file-list");
     if (!list) return;
     const scroller = listScroller();
-    (scroller === document.scrollingElement ? window : scroller).addEventListener("scroll", scheduleWindow, { passive: true });
-    if (!("ResizeObserver" in window)) return;
-    new ResizeObserver(([entry]) => {
-        const width = Math.round(entry.contentRect.width);
-        if (width === listView.width) return;
-        listView.width = width;
-        listView.rowHeight = 0;
+    scroller.addEventListener("scroll", scheduleWindow, { passive: true });
+    const observer = new ResizeObserver(entries => {
+        for (const entry of entries) {
+            const width = Math.round(entry.contentRect.width);
+            if (entry.target !== list || width === listView.width) continue;
+            listView.width = width;
+            listView.stale = true;
+        }
         scheduleWindow();
-    }).observe(list);
+    });
+    observer.observe(list);
+    observer.observe(scroller);
 }
 
 document.addEventListener("DOMContentLoaded", initListWindow);

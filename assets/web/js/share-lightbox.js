@@ -275,7 +275,6 @@ let previewObserver = null;
 
 /* Loads the preview of a file card once it has stayed near the viewport for PREVIEW_DELAY_MS. */
 function observePreview(card) {
-    if (!("IntersectionObserver" in window)) { previewCard(card, entryAt(card)); return; }
     previewObserver ??= new IntersectionObserver(entries => entries.forEach(en => {
         clearTimeout(previewTimers.get(en.target));
         if (!en.isIntersecting) return;
