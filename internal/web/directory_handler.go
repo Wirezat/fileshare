@@ -81,7 +81,6 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 		UploadTime:   fd.UploadTime,
 		DirPath:      relPath,
 		DirName:      dirName,
-		Files:        files,
 		Entries:      listEntries(ctx.subpath, files, officeOn(ctx)),
 		ParentDir:    parentDir,
 		HasParentDir: ctx.diskPath != fd.Path,

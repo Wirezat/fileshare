@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/Wirezat/fileshare/internal/config"
-	"github.com/Wirezat/fileshare/internal/media"
 )
 
 // requestContext holds the resolved share and file of one request.
@@ -35,7 +34,6 @@ type PageData struct {
 	DirPath      string
 	DirName      string
 	Crumbs       []Crumb
-	Files        []media.FileInfo
 	Entries      []ListEntry
 	ParentDir    string
 	HasParentDir bool

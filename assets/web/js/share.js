@@ -42,6 +42,7 @@ function svgIcon(d) {
 }
 
 // ── Card / table view toggle ─────────────────────────────
+/* Shows the card or the table view (view "table" picks the table), remembers it and renders the list. */
 function setFileView(view) {
     const list = $("file-list");
     if (!list) return;
@@ -111,6 +112,7 @@ function syncSelectBoxes() {
     document.querySelectorAll("[data-index] .select-box").forEach(box => { box.checked = selected.has(entryAt(box)?.name); });
 }
 
+/* Shows the number of selected entries on the ZIP button and sets the select-all box to all, some or none. */
 function updateZipButton() {
     const btn = $("zip-btn");
     if (btn) btn.textContent = selected.size ? `ZIP (${selected.size})` : "ZIP";
@@ -123,6 +125,7 @@ function updateZipButton() {
     }
 }
 
+/* Wires the entry checkboxes and the select-all box to the selection. */
 function initSelection() {
     document.addEventListener("change", e => {
         const box = e.target.closest(".select-box");
