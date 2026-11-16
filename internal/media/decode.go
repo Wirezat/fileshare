@@ -25,9 +25,23 @@ func FitsDecodeLimit(w, h int) bool {
 }
 
 // EncodeThumbnail decodes the image in src and returns it as a JPEG whose long edge is at most maxEdge.
-// It returns ErrTooLarge without decoding when the image exceeds FitsDecodeLimit, and ctx.Err() when ctx ends
-// while waiting for one of the two decode slots.
+// An image over FitsDecodeLimit is not decoded: its Exif thumbnail is used instead, and without one it returns
+// ErrTooLarge. It returns ctx.Err() when ctx ends while waiting for one of the two decode slots.
 func EncodeThumbnail(ctx context.Context, src io.ReadSeeker, maxEdge int) ([]byte, error) {
+	out, err := encodeThumbnail(ctx, src, maxEdge)
+	if !errors.Is(err, ErrTooLarge) {
+		return out, err
+	}
+	thumb, ok := ExifThumbnail(src)
+	if !ok {
+		return nil, ErrTooLarge
+	}
+	return encodeThumbnail(ctx, bytes.NewReader(thumb), maxEdge)
+}
+
+// encodeThumbnail decodes the image in src and returns it as a JPEG whose long edge is at most maxEdge,
+// or ErrTooLarge without decoding when the image exceeds FitsDecodeLimit.
+func encodeThumbnail(ctx context.Context, src io.ReadSeeker, maxEdge int) ([]byte, error) {
 	cfg, _, err := image.DecodeConfig(src)
 	if err != nil {
 		return nil, err
