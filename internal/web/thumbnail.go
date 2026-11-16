@@ -18,13 +18,18 @@ const (
 	previewMinSize = 64
 )
 
-// previewSize returns the requested long edge of a preview image, clamped to 64…1200; missing or invalid gives 1200.
-func previewSize(r *http.Request) int {
+// previewSize returns the requested long edge of a preview image for a file shown with view, clamped to 64…1200,
+// or 64…2400 for images the browser cannot show itself; missing or invalid gives the upper bound.
+func previewSize(r *http.Request, view string) int {
+	limit := media.ThumbnailMaxEdge
+	if view == filetype.ViewConverted {
+		limit = media.ConvertedMaxEdge
+	}
 	n, err := strconv.Atoi(r.URL.Query().Get("size"))
 	if err != nil {
-		return media.ThumbnailMaxEdge
+		return limit
 	}
-	return min(max(n, previewMinSize), media.ThumbnailMaxEdge)
+	return min(max(n, previewMinSize), limit)
 }
 
 // servePreviewVariant answers ?preview: a JPEG for images and audio covers, the first lines for text,
@@ -32,7 +37,7 @@ func previewSize(r *http.Request) int {
 func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	view := fileView(ctx)
 	switch view {
-	case filetype.ViewImage, filetype.ViewAudio, filetype.ViewText, filetype.ViewMarkdown, filetype.ViewHTML, filetype.ViewProbe:
+	case filetype.ViewImage, filetype.ViewConverted, filetype.ViewAudio, filetype.ViewText, filetype.ViewMarkdown, filetype.ViewHTML, filetype.ViewProbe:
 	default:
 		http.NotFound(w, r)
 		return
@@ -48,27 +53,27 @@ func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx
 	defer f.Close()
 
 	switch view {
-	case filetype.ViewImage:
+	case filetype.ViewImage, filetype.ViewConverted:
 		if !filetype.Lookup(ctx.fileInfo.Name()).Thumbnail {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		writeJPEG(w, r, f)
+		writeJPEG(w, r, f, previewSize(r, view))
 	case filetype.ViewAudio:
 		pic, ok := cover.Find(f, ctx.fileInfo.Name())
 		if !ok {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		writeJPEG(w, r, bytes.NewReader(pic))
+		writeJPEG(w, r, bytes.NewReader(pic), previewSize(r, view))
 	default:
 		writeFirstLines(w, f)
 	}
 }
 
-// writeJPEG answers with src scaled to the requested preview size, or 204 when it cannot or may not be decoded.
-func writeJPEG(w http.ResponseWriter, r *http.Request, src io.ReadSeeker) {
-	out, err := media.EncodeThumbnail(r.Context(), src, previewSize(r))
+// writeJPEG answers with src scaled to a long edge of size, or 204 when it cannot or may not be decoded.
+func writeJPEG(w http.ResponseWriter, r *http.Request, src io.ReadSeeker, size int) {
+	out, err := media.EncodeThumbnail(r.Context(), src, size)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return

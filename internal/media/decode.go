@@ -10,6 +10,8 @@ import (
 	_ "image/png"
 	"io"
 
+	_ "github.com/gen2brain/avif"
+	_ "github.com/gen2brain/heic"
 	_ "golang.org/x/image/webp"
 )
 

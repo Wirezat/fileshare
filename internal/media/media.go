@@ -13,6 +13,7 @@ import (
 
 const (
 	ThumbnailMaxEdge = 1200
+	ConvertedMaxEdge = 2400
 	ThumbnailQuality = 82
 )
 

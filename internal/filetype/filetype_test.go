@@ -11,7 +11,8 @@ func TestLookup(t *testing.T) {
 		want Type
 	}{
 		{"a.jpg", Type{Kind: Image, Icon: IconImage, Thumbnail: true}},
-		{"a.avif", Type{Kind: Image, Icon: IconImage}},
+		{"a.avif", Type{Kind: Image, Icon: IconImage, Thumbnail: true}},
+		{"IMG_1.HEIC", Type{Kind: Image, Icon: IconImage, Thumbnail: true}},
 		{"a.mp4", Type{Kind: Video, Icon: IconVideo}},
 		{"a.flac", Type{Kind: Audio, Icon: IconAudio}},
 		{"a.pdf", Type{Kind: PDF, Icon: IconPDF}},
@@ -44,6 +45,7 @@ func TestViewFor(t *testing.T) {
 		off, on string
 	}{
 		{"a.png", ViewImage, ViewImage},
+		{"a.heic", ViewConverted, ViewConverted},
 		{"a.mov", ViewVideo, ViewVideo},
 		{"a.ogg", ViewAudio, ViewAudio},
 		{"a.pdf", ViewPDF, ViewPDF},

@@ -8,12 +8,14 @@ import (
 	"image"
 	"image/png"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Wirezat/fileshare/internal/config"
+	"github.com/Wirezat/fileshare/internal/filetype"
 )
 
 func previewEnv(t *testing.T) (*testEnv, string) {
@@ -168,5 +170,15 @@ func TestPreviewRevalidates(t *testing.T) {
 	}
 	if rec := get(t, e, "/docs/notiz.txt?preview=1", "If-None-Match", etag); rec.Code != http.StatusNotModified {
 		t.Errorf("revalidation: status %d, want 304", rec.Code)
+	}
+}
+
+func TestPreviewSizeAllowsLargerConvertedImages(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/docs/a.heic?preview=1&size=5000", nil)
+	if got := previewSize(r, filetype.ViewImage); got != 1200 {
+		t.Errorf("image preview size = %d, want 1200", got)
+	}
+	if got := previewSize(r, filetype.ViewConverted); got != 2400 {
+		t.Errorf("converted preview size = %d, want 2400", got)
 	}
 }

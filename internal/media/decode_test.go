@@ -10,6 +10,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"testing"
 )
 
@@ -179,5 +180,22 @@ func TestEncodeThumbnailFollowsExifOrientation(t *testing.T) {
 	_, _, bottom, _ := img.At(50, 150).RGBA()
 	if top < 0xC000 || bottom < 0xC000 {
 		t.Errorf("orientation 6 should put the left (red) half on top and the right (blue) half below")
+	}
+}
+
+func TestEncodeThumbnailDecodesAvifAndHeic(t *testing.T) {
+	for _, name := range []string{"testdata/photo.avif", "testdata/photo.heic"} {
+		src, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := EncodeThumbnail(context.Background(), bytes.NewReader(src), 64)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if cfg, format, err := image.DecodeConfig(bytes.NewReader(out)); err != nil || format != "jpeg" || max(cfg.Width, cfg.Height) != 64 {
+			t.Errorf("%s: got %s %dx%d (%v), want a jpeg with long edge 64", name, format, cfg.Width, cfg.Height, err)
+		}
 	}
 }

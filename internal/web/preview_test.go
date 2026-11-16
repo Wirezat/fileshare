@@ -115,20 +115,6 @@ func TestPreviewImageThumbnail(t *testing.T) {
 	}
 }
 
-func TestPreviewSkipsOgImageForUnthumbnailableFormats(t *testing.T) {
-	e, dir := withOfficeShare(t, config.FileData{}, "", "")
-	os.WriteFile(filepath.Join(dir, "photo.avif"), []byte("not a real avif but irrelevant here"), 0o600)
-
-	rec := get(t, e, "/docs/photo.avif", "User-Agent", "facebookexternalhit/1.1")
-	body := rec.Body.String()
-	if strings.Contains(body, "og:image") {
-		t.Errorf("avif file got an og:image tag we can't actually serve: %s", body)
-	}
-	if !strings.Contains(body, `og:description" content="AVIF ·`) {
-		t.Errorf("avif file lacks a text description: %s", body)
-	}
-}
-
 func TestPreviewPageForVideo(t *testing.T) {
 	e, dir := withOfficeShare(t, config.FileData{}, "", "")
 	os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("fake-mp4-bytes"), 0o600)

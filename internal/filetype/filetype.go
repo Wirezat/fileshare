@@ -34,16 +34,17 @@ const (
 )
 
 const (
-	ViewImage    = "image"
-	ViewVideo    = "video"
-	ViewAudio    = "audio"
-	ViewPDF      = "pdf"
-	ViewOffice   = "office"
-	ViewText     = "text"
-	ViewMarkdown = "markdown"
-	ViewHTML     = "html"
-	ViewProbe    = "probe"
-	ViewInfo     = "info"
+	ViewImage     = "image"
+	ViewConverted = "converted"
+	ViewVideo     = "video"
+	ViewAudio     = "audio"
+	ViewPDF       = "pdf"
+	ViewOffice    = "office"
+	ViewText      = "text"
+	ViewMarkdown  = "markdown"
+	ViewHTML      = "html"
+	ViewProbe     = "probe"
+	ViewInfo      = "info"
 )
 
 const sniffBytes = 1024
@@ -66,8 +67,8 @@ func buildTable() map[string]Type {
 			m[e] = t
 		}
 	}
-	add(Type{Kind: Image, Icon: IconImage, Thumbnail: true, view: ViewImage}, "jpg", "jpeg", "png", "gif", "webp")
-	add(Type{Kind: Image, Icon: IconImage, view: ViewImage}, "avif")
+	add(Type{Kind: Image, Icon: IconImage, Thumbnail: true, view: ViewImage}, "jpg", "jpeg", "png", "gif", "webp", "avif")
+	add(Type{Kind: Image, Icon: IconImage, Thumbnail: true, view: ViewConverted}, "heic", "heif")
 	add(Type{Kind: Video, Icon: IconVideo, view: ViewVideo}, "mp4", "mov", "webm", "mkv", "avi", "wmv")
 	add(Type{Kind: Audio, Icon: IconAudio, view: ViewAudio}, "mp3", "wav", "flac", "aac", "ogg")
 	add(Type{Kind: PDF, Icon: IconPDF, view: ViewPDF}, "pdf")

@@ -10,4 +10,13 @@ require (
 	golang.org/x/image v0.48.0
 )
 
-require golang.org/x/sys v0.50.0
+require (
+	github.com/gen2brain/avif v0.6.0
+	github.com/gen2brain/heic v0.7.2
+	golang.org/x/sys v0.50.0
+)
+
+require (
+	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/tetratelabs/wazero v1.12.0 // indirect
+)

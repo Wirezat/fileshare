@@ -45,7 +45,7 @@ func plainCase(name string) typeCase {
 func goldenTypeCases() []typeCase {
 	cases := []typeCase{
 		imageCase("a.jpg", true), imageCase("A.JPG", true), imageCase("a.jpeg", true), imageCase("a.JPEG", true),
-		imageCase("a.png", true), imageCase("a.gif", true), imageCase("a.webp", true), imageCase("a.avif", false),
+		imageCase("a.png", true), imageCase("a.gif", true), imageCase("a.webp", true), imageCase("a.avif", true),
 		{name: "a.bmp", shownInline: true}, {name: "a.svg", shownInline: true},
 		videoCase("a.mp4"), videoCase("a.mov"), videoCase("a.webm"), videoCase("a.mkv"), videoCase("a.avi"), videoCase("a.wmv"),
 		audioCase("a.mp3"), audioCase("a.wav"), audioCase("a.flac"), audioCase("a.aac"), audioCase("a.ogg"), typeCase{name: "a.m4a", shownInline: true}, typeCase{name: "a.opus", shownInline: true},

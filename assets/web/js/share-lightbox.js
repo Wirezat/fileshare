@@ -1,6 +1,7 @@
 // ── Lightbox ──────────────────────────────────────────
 const lightbox = { entry: null, rendered: true, token: null, returnFocus: null };
 const CARD_PREVIEW_MAX = 1200;
+const CONVERTED_MAX = 2400;
 const SWIPE_MIN = 50;
 const TEXT_VIEWS = new Set(["text", "markdown", "html", "probe"]);
 const SOURCE_ICON = "M8 6l-6 6 6 6M16 6l6 6-6 6";
@@ -93,10 +94,11 @@ function renderEntry(d) {
     if (d.size === 0) { showInfo(d, "share.lightbox.empty"); return; }
     if (!lightbox.rendered && !source.hidden) { showFragment(d, "source"); return; }
     switch (d.view) {
-        case "image": {
+        case "image":
+        case "converted": {
             const img = Object.assign(document.createElement("img"), { className: "lightbox-image", alt: d.name });
             img.addEventListener("error", () => showMessage("share.lightbox.failed"));
-            img.src = d.href;
+            img.src = d.view === "converted" ? `${d.href}?preview=1&size=${CONVERTED_MAX}` : d.href;
             body.appendChild(img);
             break;
         }
@@ -243,7 +245,7 @@ function previewCard(card, d) {
     const box = card.querySelector(".card-preview");
     if (!box || d.size === 0) return;
     const shown = () => box.classList.add("has-preview");
-    if (d.view === "image" || d.view === "audio") {
+    if (d.view === "image" || d.view === "converted" || d.view === "audio") {
         const img = Object.assign(document.createElement("img"), { className: "card-thumb", alt: "", decoding: "async" });
         img.addEventListener("load", shown);
         img.addEventListener("error", () => img.remove());
