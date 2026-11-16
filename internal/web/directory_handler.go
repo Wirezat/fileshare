@@ -1,11 +1,14 @@
 package web
 
 import (
+	"compress/gzip"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Wirezat/GoLog"
@@ -63,7 +66,16 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 
 	files, _ := getFileInfos(ctx.diskPath, fd.Path)
 
-	if err := tmpl.Execute(w, PageData{
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Vary", "Accept-Encoding")
+	out := io.Writer(w)
+	if acceptsGzip(r) {
+		w.Header().Set("Content-Encoding", "gzip")
+		zw, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
+		defer zw.Close()
+		out = zw
+	}
+	if err := tmpl.Execute(out, PageData{
 		Crumbs:       buildCrumbs(ctx.subpath, fd.Path, relPath),
 		Subpath:      ctx.subpath,
 		UploadTime:   fd.UploadTime,
@@ -84,6 +96,23 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 	}); err != nil {
 		GoLog.Errorf("failed to render directory template: %v", err)
 	}
+}
+
+// acceptsGzip reports whether the Accept-Encoding header of r allows a gzip-compressed response.
+func acceptsGzip(r *http.Request) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		coding, params, _ := strings.Cut(part, ";")
+		if !strings.EqualFold(strings.TrimSpace(coding), "gzip") {
+			continue
+		}
+		q, ok := strings.CutPrefix(strings.ReplaceAll(params, " ", ""), "q=")
+		if !ok {
+			return true
+		}
+		v, err := strconv.ParseFloat(q, 64)
+		return err == nil && v > 0
+	}
+	return false
 }
 
 // zipSelection cleans the requested entry names and reports false when one escapes the directory.

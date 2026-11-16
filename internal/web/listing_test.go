@@ -1,7 +1,9 @@
 package web
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,5 +118,21 @@ func TestListingEmbedsEntries(t *testing.T) {
 		if got[name] != want {
 			t.Errorf("entry %q = %+v, want %+v", name, got[name], want)
 		}
+	}
+}
+
+func TestListingIsGzippedWhenAccepted(t *testing.T) {
+	e, _ := withOfficeShare(t, config.FileData{}, "https://office.example.com", testSecret)
+	rec := get(t, e, "/docs", "Accept-Encoding", "gzip, deflate, br")
+	if got := rec.Header().Get("Content-Encoding"); got != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip", got)
+	}
+	zr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("body is not gzip: %v", err)
+	}
+	body, _ := io.ReadAll(zr)
+	if !strings.Contains(string(body), `id="entries"`) {
+		t.Error("unpacked listing lacks the entries script")
 	}
 }
