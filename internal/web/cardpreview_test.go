@@ -83,9 +83,9 @@ func TestCardPreviewSizeIsClamped(t *testing.T) {
 	}
 }
 
-func TestCardPreviewOver4KIsNoContent(t *testing.T) {
+func TestCardPreviewOverTheDecodeLimitIsNoContent(t *testing.T) {
 	e, dir := previewEnv(t)
-	os.WriteFile(filepath.Join(dir, "phone.png"), pngHeaderOnly(4000, 3000), 0o600)
+	os.WriteFile(filepath.Join(dir, "phone.png"), pngHeaderOnly(8000, 6000), 0o600)
 
 	rec := get(t, e, "/docs/phone.png?preview=1&size=300")
 	if rec.Code != http.StatusNoContent || rec.Body.Len() != 0 {

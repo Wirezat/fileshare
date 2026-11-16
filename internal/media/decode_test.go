@@ -16,12 +16,11 @@ func TestFitsDecodeLimit(t *testing.T) {
 		w, h int
 		want bool
 	}{
-		{3840, 2160, true},
-		{2160, 3840, true},
-		{3841, 100, false},
-		{100, 3841, false},
-		{2200, 2200, false},
-		{4000, 3000, false},
+		{4032, 3024, true},
+		{4096, 4096, true},
+		{1816, 4032, true},
+		{4097, 4096, false},
+		{8000, 6000, false},
 	}
 	for _, tc := range cases {
 		if got := FitsDecodeLimit(tc.w, tc.h); got != tc.want {
@@ -46,7 +45,7 @@ func pngHeaderOnly(w, h int) []byte {
 }
 
 func TestEncodeThumbnailRefusesOversizedWithoutDecoding(t *testing.T) {
-	_, err := EncodeThumbnail(context.Background(), bytes.NewReader(pngHeaderOnly(4000, 3000)), 1200)
+	_, err := EncodeThumbnail(context.Background(), bytes.NewReader(pngHeaderOnly(8000, 6000)), 1200)
 	if !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("err = %v, want ErrTooLarge", err)
 	}

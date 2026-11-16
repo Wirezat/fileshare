@@ -13,18 +13,15 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-const (
-	DecodeMaxLong  = 3840
-	DecodeMaxShort = 2160
-)
+const DecodeMaxPixels = 4096 * 4096
 
 var ErrTooLarge = errors.New("image exceeds the decode limit")
 
 var decodeSlots = make(chan struct{}, 2)
 
-// FitsDecodeLimit reports whether a w×h image is small enough to decode: long edge at most 3840, short edge at most 2160.
+// FitsDecodeLimit reports whether a w×h image is small enough to decode: at most DecodeMaxPixels pixels.
 func FitsDecodeLimit(w, h int) bool {
-	return max(w, h) <= DecodeMaxLong && min(w, h) <= DecodeMaxShort
+	return w > 0 && h > 0 && w <= DecodeMaxPixels/h
 }
 
 // EncodeThumbnail decodes the image in src and returns it as a JPEG whose long edge is at most maxEdge.
