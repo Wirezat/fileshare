@@ -269,16 +269,22 @@ function previewCard(card, d) {
     }
 }
 
+const PREVIEW_DELAY_MS = 150;
+const previewTimers = new WeakMap();
 let previewObserver = null;
 
-/* Loads the preview of a file card once it comes near the viewport. */
+/* Loads the preview of a file card once it has stayed near the viewport for PREVIEW_DELAY_MS. */
 function observePreview(card) {
     if (!("IntersectionObserver" in window)) { previewCard(card, entryAt(card)); return; }
     previewObserver ??= new IntersectionObserver(entries => entries.forEach(en => {
+        clearTimeout(previewTimers.get(en.target));
         if (!en.isIntersecting) return;
-        previewObserver.unobserve(en.target);
-        const entry = entryAt(en.target);
-        if (entry) previewCard(en.target, entry);
+        previewTimers.set(en.target, setTimeout(() => {
+            if (!en.target.isConnected) return;
+            previewObserver.unobserve(en.target);
+            const entry = entryAt(en.target);
+            if (entry) previewCard(en.target, entry);
+        }, PREVIEW_DELAY_MS));
     }), { rootMargin: "200px" });
     previewObserver.observe(card);
 }

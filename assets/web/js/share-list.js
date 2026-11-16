@@ -91,16 +91,140 @@ function rowNode(entry, index) {
     return row;
 }
 
-/* Renders listing.visible into the grid or the table, whichever view is shown, and empties the other. */
+const LIST_BUFFER_ROWS = 3;
+const listView = { nodes: new Map(), rowHeight: 0, columns: 1, width: 0, scheduled: false, top: null, bottom: null };
+
+/* Returns the rows to render: those overlapping the viewport of a scroll container at scrollTop with
+   viewportHeight, for a list starting listTop into its content with rowCount rows of rowHeight, plus buffer rows.
+   @returns {{first: number, last: number}} inclusive row range, last < first when nothing is to be rendered */
+function listWindow(scrollTop, viewportHeight, listTop, rowHeight, rowCount, buffer) {
+    if (rowCount === 0) return { first: 0, last: -1 };
+    const top = scrollTop - listTop;
+    const first = Math.max(0, Math.floor(Math.max(0, top) / rowHeight) - buffer);
+    const last = Math.min(rowCount - 1, Math.ceil((top + viewportHeight) / rowHeight) - 1 + buffer);
+    return { first, last };
+}
+
+/* Returns the element the page scrolls in.
+   @returns {Element} */
+function listScroller() {
+    return $q("main.main") ?? document.scrollingElement;
+}
+
+/* Returns the container of the shown view and whether it is the table.
+   @returns {{container: Element | null, table: boolean}} */
+function shownList() {
+    const table = !!$("file-list")?.classList.contains("view-table");
+    return { container: $q(table ? ".file-table tbody" : ".file-grid"), table };
+}
+
+/* Builds an empty table row that stands in for the rows outside the window.
+   @returns {HTMLTableRowElement} */
+function spacerRow() {
+    const row = Object.assign(document.createElement("tr"), { className: "list-spacer" });
+    row.setAttribute("aria-hidden", "true");
+    row.appendChild(Object.assign(document.createElement("td"), { colSpan: 5 }));
+    return row;
+}
+
+/* Removes the node of listing.visible[index] from the page. */
+function dropNode(index) {
+    const node = listView.nodes.get(index);
+    previewObserver?.unobserve(node);
+    node.remove();
+    listView.nodes.delete(index);
+}
+
+/* Measures row height and column count of the shown view on a probe node of the first entry. */
+function measureList(container, table) {
+    const probe = (table ? rowNode : cardNode)(listing.visible[0], 0);
+    container.appendChild(probe);
+    const gap = table ? 0 : parseFloat(getComputedStyle(container).rowGap) || 0;
+    listView.rowHeight = probe.getBoundingClientRect().height + gap;
+    listView.columns = table ? 1 : Math.max(1, getComputedStyle(container).gridTemplateColumns.split(" ").length);
+    previewObserver?.unobserve(probe);
+    probe.remove();
+}
+
+/* Renders the entries of listing.visible that fall into the window of the shown view and removes the rest. */
+function renderWindow() {
+    const { container, table } = shownList();
+    if (!container || !listing.visible.length) return;
+    if (!listView.rowHeight) measureList(container, table);
+    const scroller = listScroller();
+    const { rowHeight, columns, nodes } = listView;
+    const rows = Math.ceil(listing.visible.length / columns);
+    const listTop = container.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const { first, last } = listWindow(scroller.scrollTop, scroller.clientHeight, listTop, rowHeight, rows, LIST_BUFFER_ROWS);
+    const from = first * columns, to = Math.min(listing.visible.length, (last + 1) * columns);
+    for (const index of [...nodes.keys()]) if (index < from || index >= to) dropNode(index);
+    const keptFrom = nodes.size ? Math.min(...nodes.keys()) : Infinity;
+    const make = table ? rowNode : cardNode;
+    const head = [], tail = [];
+    for (let i = from; i < to; i++) {
+        if (nodes.has(i)) continue;
+        const node = make(listing.visible[i], i);
+        nodes.set(i, node);
+        (i < keptFrom ? head : tail).push(node);
+    }
+    const above = first * rowHeight, below = Math.max(0, rows - 1 - last) * rowHeight;
+    if (table) {
+        listView.top ??= spacerRow();
+        listView.bottom ??= spacerRow();
+        if (!listView.top.isConnected) container.prepend(listView.top);
+        listView.top.firstChild.style.height = above + "px";
+        listView.top.after(...head);
+        if (listView.bottom.isConnected) listView.bottom.before(...tail); else container.append(...tail);
+        if (below) { listView.bottom.firstChild.style.height = below + "px"; container.append(listView.bottom); }
+        else listView.bottom.remove();
+    } else {
+        container.prepend(...head);
+        container.append(...tail);
+        container.style.paddingTop = above + "px";
+        container.style.paddingBottom = below + "px";
+    }
+}
+
+/* Renders the window at the next animation frame, at most once per frame. */
+function scheduleWindow() {
+    if (listView.scheduled) return;
+    listView.scheduled = true;
+    requestAnimationFrame(() => { listView.scheduled = false; renderWindow(); });
+}
+
+/* Renders listing.visible afresh into the shown view, empties the other and scrolls back to the list
+   when the list top lies above the viewport. */
 function renderList() {
     const grid = $q(".file-grid"), body = $q(".file-table tbody");
     if (!grid || !body) return;
-    const table = $("file-list").classList.contains("view-table");
-    const make = table ? rowNode : cardNode;
-    const frag = document.createDocumentFragment();
-    listing.visible.forEach((e, i) => frag.appendChild(make(e, i)));
-    (table ? body : grid).replaceChildren(frag);
-    (table ? grid : body).replaceChildren();
+    for (const index of [...listView.nodes.keys()]) dropNode(index);
+    grid.replaceChildren();
+    body.replaceChildren();
+    grid.style.paddingTop = grid.style.paddingBottom = "";
+    listView.rowHeight = 0;
+    const { container } = shownList();
+    const scroller = listScroller();
+    const listTop = container.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    if (scroller.scrollTop > listTop) scroller.scrollTop = listTop;
+    renderWindow();
     const empty = $("filter-empty");
     if (empty) empty.hidden = listing.visible.length > 0;
 }
+
+/* Re-renders the window on scrolling and re-measures it when the list changes width. */
+function initListWindow() {
+    const list = $("file-list");
+    if (!list) return;
+    const scroller = listScroller();
+    (scroller === document.scrollingElement ? window : scroller).addEventListener("scroll", scheduleWindow, { passive: true });
+    if (!("ResizeObserver" in window)) return;
+    new ResizeObserver(([entry]) => {
+        const width = Math.round(entry.contentRect.width);
+        if (width === listView.width) return;
+        listView.width = width;
+        listView.rowHeight = 0;
+        scheduleWindow();
+    }).observe(list);
+}
+
+document.addEventListener("DOMContentLoaded", initListWindow);

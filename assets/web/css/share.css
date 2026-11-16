@@ -53,6 +53,12 @@
 }
 .file-table .row-select { width: 1%; }
 
+.file-table tbody tr.list-spacer td {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
 .file-row .row-icon {
     width: 1%;
     text-align: center;
@@ -119,8 +125,6 @@ button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
     overflow: hidden;
     background: var(--bg-card);
     transition: border-color 0.12s;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 200px auto 180px;
 }
 
 .file-card:hover { border-color: var(--border-strong); }
