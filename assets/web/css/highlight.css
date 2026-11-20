@@ -1,80 +1,160 @@
 .lightbox-text .hljs-doctag { color:#d73a49 }
+.card-lines .hljs-doctag { color:#d73a49 }
 .lightbox-text .hljs-keyword { color:#d73a49 }
+.card-lines .hljs-keyword { color:#d73a49 }
 .lightbox-text .hljs-meta .hljs-keyword { color:#d73a49 }
+.card-lines .hljs-meta .hljs-keyword { color:#d73a49 }
 .lightbox-text .hljs-template-tag { color:#d73a49 }
+.card-lines .hljs-template-tag { color:#d73a49 }
 .lightbox-text .hljs-template-variable { color:#d73a49 }
+.card-lines .hljs-template-variable { color:#d73a49 }
 .lightbox-text .hljs-type { color:#d73a49 }
+.card-lines .hljs-type { color:#d73a49 }
 .lightbox-text .hljs-variable.language_ { color:#d73a49 }
+.card-lines .hljs-variable.language_ { color:#d73a49 }
 .lightbox-text .hljs-title { color:#6f42c1 }
+.card-lines .hljs-title { color:#6f42c1 }
 .lightbox-text .hljs-title.class_ { color:#6f42c1 }
+.card-lines .hljs-title.class_ { color:#6f42c1 }
 .lightbox-text .hljs-title.class_.inherited__ { color:#6f42c1 }
+.card-lines .hljs-title.class_.inherited__ { color:#6f42c1 }
 .lightbox-text .hljs-title.function_ { color:#6f42c1 }
+.card-lines .hljs-title.function_ { color:#6f42c1 }
 .lightbox-text .hljs-attr { color:#005cc5 }
+.card-lines .hljs-attr { color:#005cc5 }
 .lightbox-text .hljs-attribute { color:#005cc5 }
+.card-lines .hljs-attribute { color:#005cc5 }
 .lightbox-text .hljs-literal { color:#005cc5 }
+.card-lines .hljs-literal { color:#005cc5 }
 .lightbox-text .hljs-meta { color:#005cc5 }
+.card-lines .hljs-meta { color:#005cc5 }
 .lightbox-text .hljs-number { color:#005cc5 }
+.card-lines .hljs-number { color:#005cc5 }
 .lightbox-text .hljs-operator { color:#005cc5 }
+.card-lines .hljs-operator { color:#005cc5 }
 .lightbox-text .hljs-selector-attr { color:#005cc5 }
+.card-lines .hljs-selector-attr { color:#005cc5 }
 .lightbox-text .hljs-selector-class { color:#005cc5 }
+.card-lines .hljs-selector-class { color:#005cc5 }
 .lightbox-text .hljs-selector-id { color:#005cc5 }
+.card-lines .hljs-selector-id { color:#005cc5 }
 .lightbox-text .hljs-variable { color:#005cc5 }
+.card-lines .hljs-variable { color:#005cc5 }
 .lightbox-text .hljs-meta .hljs-string { color:#032f62 }
+.card-lines .hljs-meta .hljs-string { color:#032f62 }
 .lightbox-text .hljs-regexp { color:#032f62 }
+.card-lines .hljs-regexp { color:#032f62 }
 .lightbox-text .hljs-string { color:#032f62 }
+.card-lines .hljs-string { color:#032f62 }
 .lightbox-text .hljs-built_in { color:#e36209 }
+.card-lines .hljs-built_in { color:#e36209 }
 .lightbox-text .hljs-symbol { color:#e36209 }
+.card-lines .hljs-symbol { color:#e36209 }
 .lightbox-text .hljs-code { color:#6a737d }
+.card-lines .hljs-code { color:#6a737d }
 .lightbox-text .hljs-comment { color:#6a737d }
+.card-lines .hljs-comment { color:#6a737d }
 .lightbox-text .hljs-formula { color:#6a737d }
+.card-lines .hljs-formula { color:#6a737d }
 .lightbox-text .hljs-name { color:#22863a }
+.card-lines .hljs-name { color:#22863a }
 .lightbox-text .hljs-quote { color:#22863a }
+.card-lines .hljs-quote { color:#22863a }
 .lightbox-text .hljs-selector-pseudo { color:#22863a }
+.card-lines .hljs-selector-pseudo { color:#22863a }
 .lightbox-text .hljs-selector-tag { color:#22863a }
+.card-lines .hljs-selector-tag { color:#22863a }
 .lightbox-text .hljs-subst { color:#24292e }
+.card-lines .hljs-subst { color:#24292e }
 .lightbox-text .hljs-section { color:#005cc5; font-weight:700 }
+.card-lines .hljs-section { color:#005cc5; font-weight:700 }
 .lightbox-text .hljs-bullet { color:#735c0f }
+.card-lines .hljs-bullet { color:#735c0f }
 .lightbox-text .hljs-emphasis { color:#24292e; font-style:italic }
+.card-lines .hljs-emphasis { color:#24292e; font-style:italic }
 .lightbox-text .hljs-strong { color:#24292e; font-weight:700 }
+.card-lines .hljs-strong { color:#24292e; font-weight:700 }
 .lightbox-text .hljs-addition { color:#22863a; background-color:#f0fff4 }
+.card-lines .hljs-addition { color:#22863a; background-color:#f0fff4 }
 .lightbox-text .hljs-deletion { color:#b31d28; background-color:#ffeef0 }
+.card-lines .hljs-deletion { color:#b31d28; background-color:#ffeef0 }
 html.dark .lightbox-text .hljs-doctag { color:#ff7b72 }
+html.dark .card-lines .hljs-doctag { color:#ff7b72 }
 html.dark .lightbox-text .hljs-keyword { color:#ff7b72 }
+html.dark .card-lines .hljs-keyword { color:#ff7b72 }
 html.dark .lightbox-text .hljs-meta .hljs-keyword { color:#ff7b72 }
+html.dark .card-lines .hljs-meta .hljs-keyword { color:#ff7b72 }
 html.dark .lightbox-text .hljs-template-tag { color:#ff7b72 }
+html.dark .card-lines .hljs-template-tag { color:#ff7b72 }
 html.dark .lightbox-text .hljs-template-variable { color:#ff7b72 }
+html.dark .card-lines .hljs-template-variable { color:#ff7b72 }
 html.dark .lightbox-text .hljs-type { color:#ff7b72 }
+html.dark .card-lines .hljs-type { color:#ff7b72 }
 html.dark .lightbox-text .hljs-variable.language_ { color:#ff7b72 }
+html.dark .card-lines .hljs-variable.language_ { color:#ff7b72 }
 html.dark .lightbox-text .hljs-title { color:#d2a8ff }
+html.dark .card-lines .hljs-title { color:#d2a8ff }
 html.dark .lightbox-text .hljs-title.class_ { color:#d2a8ff }
+html.dark .card-lines .hljs-title.class_ { color:#d2a8ff }
 html.dark .lightbox-text .hljs-title.class_.inherited__ { color:#d2a8ff }
+html.dark .card-lines .hljs-title.class_.inherited__ { color:#d2a8ff }
 html.dark .lightbox-text .hljs-title.function_ { color:#d2a8ff }
+html.dark .card-lines .hljs-title.function_ { color:#d2a8ff }
 html.dark .lightbox-text .hljs-attr { color:#79c0ff }
+html.dark .card-lines .hljs-attr { color:#79c0ff }
 html.dark .lightbox-text .hljs-attribute { color:#79c0ff }
+html.dark .card-lines .hljs-attribute { color:#79c0ff }
 html.dark .lightbox-text .hljs-literal { color:#79c0ff }
+html.dark .card-lines .hljs-literal { color:#79c0ff }
 html.dark .lightbox-text .hljs-meta { color:#79c0ff }
+html.dark .card-lines .hljs-meta { color:#79c0ff }
 html.dark .lightbox-text .hljs-number { color:#79c0ff }
+html.dark .card-lines .hljs-number { color:#79c0ff }
 html.dark .lightbox-text .hljs-operator { color:#79c0ff }
+html.dark .card-lines .hljs-operator { color:#79c0ff }
 html.dark .lightbox-text .hljs-selector-attr { color:#79c0ff }
+html.dark .card-lines .hljs-selector-attr { color:#79c0ff }
 html.dark .lightbox-text .hljs-selector-class { color:#79c0ff }
+html.dark .card-lines .hljs-selector-class { color:#79c0ff }
 html.dark .lightbox-text .hljs-selector-id { color:#79c0ff }
+html.dark .card-lines .hljs-selector-id { color:#79c0ff }
 html.dark .lightbox-text .hljs-variable { color:#79c0ff }
+html.dark .card-lines .hljs-variable { color:#79c0ff }
 html.dark .lightbox-text .hljs-meta .hljs-string { color:#a5d6ff }
+html.dark .card-lines .hljs-meta .hljs-string { color:#a5d6ff }
 html.dark .lightbox-text .hljs-regexp { color:#a5d6ff }
+html.dark .card-lines .hljs-regexp { color:#a5d6ff }
 html.dark .lightbox-text .hljs-string { color:#a5d6ff }
+html.dark .card-lines .hljs-string { color:#a5d6ff }
 html.dark .lightbox-text .hljs-built_in { color:#ffa657 }
+html.dark .card-lines .hljs-built_in { color:#ffa657 }
 html.dark .lightbox-text .hljs-symbol { color:#ffa657 }
+html.dark .card-lines .hljs-symbol { color:#ffa657 }
 html.dark .lightbox-text .hljs-code { color:#8b949e }
+html.dark .card-lines .hljs-code { color:#8b949e }
 html.dark .lightbox-text .hljs-comment { color:#8b949e }
+html.dark .card-lines .hljs-comment { color:#8b949e }
 html.dark .lightbox-text .hljs-formula { color:#8b949e }
+html.dark .card-lines .hljs-formula { color:#8b949e }
 html.dark .lightbox-text .hljs-name { color:#7ee787 }
+html.dark .card-lines .hljs-name { color:#7ee787 }
 html.dark .lightbox-text .hljs-quote { color:#7ee787 }
+html.dark .card-lines .hljs-quote { color:#7ee787 }
 html.dark .lightbox-text .hljs-selector-pseudo { color:#7ee787 }
+html.dark .card-lines .hljs-selector-pseudo { color:#7ee787 }
 html.dark .lightbox-text .hljs-selector-tag { color:#7ee787 }
+html.dark .card-lines .hljs-selector-tag { color:#7ee787 }
 html.dark .lightbox-text .hljs-subst { color:#c9d1d9 }
+html.dark .card-lines .hljs-subst { color:#c9d1d9 }
 html.dark .lightbox-text .hljs-section { color:#1f6feb; font-weight:700 }
+html.dark .card-lines .hljs-section { color:#1f6feb; font-weight:700 }
 html.dark .lightbox-text .hljs-bullet { color:#f2cc60 }
+html.dark .card-lines .hljs-bullet { color:#f2cc60 }
 html.dark .lightbox-text .hljs-emphasis { color:#c9d1d9; font-style:italic }
+html.dark .card-lines .hljs-emphasis { color:#c9d1d9; font-style:italic }
 html.dark .lightbox-text .hljs-strong { color:#c9d1d9; font-weight:700 }
+html.dark .card-lines .hljs-strong { color:#c9d1d9; font-weight:700 }
 html.dark .lightbox-text .hljs-addition { color:#aff5b4; background-color:#033a16 }
+html.dark .card-lines .hljs-addition { color:#aff5b4; background-color:#033a16 }
 html.dark .lightbox-text .hljs-deletion { color:#ffdcd7; background-color:#67060c }
+html.dark .card-lines .hljs-deletion { color:#ffdcd7; background-color:#67060c }

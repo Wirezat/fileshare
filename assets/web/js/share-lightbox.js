@@ -37,39 +37,51 @@ function showInfo(d, textKey) {
     $("lightbox-body").replaceChildren(node);
 }
 
-const highlighter = { worker: null, nextId: 0, pending: new Map() };
-
-/* Stops a running highlight and lets every waiting call end with null. */
-function cancelHighlight() {
-    highlighter.worker?.terminate();
-    highlighter.worker = null;
-    highlighter.pending.forEach(resolve => resolve(null));
-    highlighter.pending.clear();
+/* Creates a highlighter that runs highlight.js in its own worker, started on first use.
+   highlight(text, name) resolves to the highlighted HTML by the language of the file name, or null when the language is
+   unknown or the work was cancelled or failed; cancel() stops the worker and ends every waiting call with null.
+   @returns {{highlight: function(string, string): Promise<string|null>, cancel: function(): void}} */
+function createHighlighter() {
+    let worker = null;
+    let nextId = 0;
+    const pending = new Map();
+    const cancel = () => {
+        worker?.terminate();
+        worker = null;
+        pending.forEach(resolve => resolve(null));
+        pending.clear();
+    };
+    const highlight = (text, name) => {
+        if (!worker) {
+            worker = new Worker("/static/share-highlight-worker.js");
+            worker.onmessage = ({ data }) => {
+                pending.get(data.id)?.(data.html);
+                pending.delete(data.id);
+            };
+            worker.onerror = cancel;
+        }
+        const id = nextId++;
+        return new Promise(resolve => {
+            pending.set(id, resolve);
+            worker.postMessage({ id, name, text });
+        });
+    };
+    return { highlight, cancel };
 }
 
-/* Highlights text in a worker by the language of the file name.
-   @returns {Promise<string|null>} the highlighted HTML, or null when the language is unknown or the highlight was cancelled or failed */
-function highlight(text, name) {
-    if (!highlighter.worker) {
-        const worker = new Worker("/static/share-highlight-worker.js");
-        worker.onmessage = ({ data }) => {
-            highlighter.pending.get(data.id)?.(data.html);
-            highlighter.pending.delete(data.id);
-        };
-        worker.onerror = cancelHighlight;
-        highlighter.worker = worker;
-    }
-    const id = highlighter.nextId++;
-    return new Promise(resolve => {
-        highlighter.pending.set(id, resolve);
-        highlighter.worker.postMessage({ id, name, text });
-    });
-}
+const lightboxHighlighter = createHighlighter();
+const cardHighlighter = createHighlighter();
 
 /* Replaces the text of pre with its highlighted HTML unless the lightbox moved on to another token meanwhile. */
 async function highlightPre(pre, name, token) {
-    const html = await highlight(pre.textContent, name);
+    const html = await lightboxHighlighter.highlight(pre.textContent, name);
     if (html !== null && lightbox.token === token) pre.innerHTML = html;
+}
+
+/* Replaces the text of a card preview pre with its highlighted HTML unless the card left the page meanwhile. */
+async function highlightCardLines(pre, name) {
+    const html = await cardHighlighter.highlight(pre.textContent, name);
+    if (html !== null && pre.isConnected) pre.innerHTML = html;
 }
 
 /* Loads the ?view=<view> fragment of entry into the lightbox; an unknown binary file shows the info view. */
@@ -118,7 +130,7 @@ function renderEntry(d) {
     const body = $("lightbox-body");
     const source = $("lightbox-source");
     lightbox.token = {};
-    cancelHighlight();
+    lightboxHighlighter.cancel();
     setNote("");
     body.querySelectorAll("audio, video").forEach(m => m.pause());
     body.replaceChildren();
@@ -209,7 +221,7 @@ function closeLightbox() {
     const box = $("lightbox");
     if (box.hidden) return;
     lightbox.token = {};
-    cancelHighlight();
+    lightboxHighlighter.cancel();
     $("lightbox-body").querySelectorAll("audio, video").forEach(m => m.pause());
     $("lightbox-body").replaceChildren();
     box.hidden = true;
@@ -302,8 +314,10 @@ function previewCard(card, d) {
             .then(res => res.status === 200 ? res.text() : null)
             .then(text => {
                 if (text == null) return;
-                box.appendChild(Object.assign(document.createElement("pre"), { className: "card-lines", textContent: text }));
+                const pre = Object.assign(document.createElement("pre"), { className: "card-lines", textContent: text });
+                box.appendChild(pre);
                 shown();
+                highlightCardLines(pre, d.name);
             })
             .catch(() => {});
     }
