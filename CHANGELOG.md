@@ -21,12 +21,27 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - `fileshare-backend version` prints the running version.
 
+- Users can show dotfiles in a share with a toggle next to the view picker. They stay hidden by default and the choice is remembered.
+
+- Every file opens in a lightbox and has an icon. Where possible it also has a card preview: images, the cover of mp3, flac and ogg files, the first lines of text, video and audio players, and Markdown, HTML, source code, PDF and Office documents in a matching view. Office files can be edited from the lightbox in shares with edit access.
+
+- Photos get card previews from phones and cameras too: the limit counts pixels (16.8 MP) instead of edge length, bigger photos show their embedded Exif thumbnail, rotated photos stand upright, and HEIC and AVIF photos work as well (the lightbox shows HEIC as a JPEG of up to 2400 px).
+
+- Shares with tens of thousands of entries open fast and scroll smoothly. The page carries the listing as compressed data and only the rows around the viewport are in the page. Previews start once a card stays in view. Filter, selection, ZIP download and the lightbox work on the whole listing. A share with 21,746 entries went from 35 MB to 320 KB and from several seconds to 1.6 s. The listing needs JavaScript.
+
+- Pressing Ctrl+F in a share focuses the filter field.
+
 ### Changed
 
 - Release tarballs are named `fileshare-v<version>-linux-amd64.tar.gz` and `fileshare-v<version>-linux-arm64.tar.gz`. The installer stops with a clear message if the binary does not fit the machine.
 
 ### Fixed
 
+- Links to files and folders with `#`, `?` or `%` in their name work. The same goes for the Office viewer and link previews.
+- Long file names on cards scroll on hover.
+- A locked upload toggle in the admin says why in its tooltip and looks disabled instead of answering a click with an error toast. Locked toggles dim as rounded pills.
+- Browsers revalidate the shared UI files and admin scripts on every use, so an update shows up at once.
+- Built with Go 1.26.11. Go 1.25 gets no more security fixes, and the older build called 14 known-vulnerable standard-library paths (`net/http`, `crypto/tls`, `crypto/x509`, `html/template`).
 - Preview images: `golang.org/x/image` moves to v0.45.0, which closes a memory exhaustion when decoding crafted WebP files (GO-2026-6222).
 
 ## 5.1.0 (exodus)
