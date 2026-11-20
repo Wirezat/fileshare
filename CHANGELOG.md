@@ -29,6 +29,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Shares with tens of thousands of entries open fast and scroll smoothly. The page carries the listing as compressed data and only the rows around the viewport are in the page. Previews start once a card stays in view. Filter, selection, ZIP download and the lightbox work on the whole listing. A share with 21,746 entries went from 35 MB to 320 KB and from several seconds to 1.6 s. The listing needs JavaScript.
 
+- Text and source files are shown with syntax colors in the lightbox, in light and dark mode. The colors are computed in the browser, so large files do not load the server, and the lightbox reads up to 2 MiB of a text file.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

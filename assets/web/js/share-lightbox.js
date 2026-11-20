@@ -37,6 +37,41 @@ function showInfo(d, textKey) {
     $("lightbox-body").replaceChildren(node);
 }
 
+const highlighter = { worker: null, nextId: 0, pending: new Map() };
+
+/* Stops a running highlight and lets every waiting call end with null. */
+function cancelHighlight() {
+    highlighter.worker?.terminate();
+    highlighter.worker = null;
+    highlighter.pending.forEach(resolve => resolve(null));
+    highlighter.pending.clear();
+}
+
+/* Highlights text in a worker by the language of the file name.
+   @returns {Promise<string|null>} the highlighted HTML, or null when the language is unknown or the highlight was cancelled or failed */
+function highlight(text, name) {
+    if (!highlighter.worker) {
+        const worker = new Worker("/static/share-highlight-worker.js");
+        worker.onmessage = ({ data }) => {
+            highlighter.pending.get(data.id)?.(data.html);
+            highlighter.pending.delete(data.id);
+        };
+        worker.onerror = cancelHighlight;
+        highlighter.worker = worker;
+    }
+    const id = highlighter.nextId++;
+    return new Promise(resolve => {
+        highlighter.pending.set(id, resolve);
+        highlighter.worker.postMessage({ id, name, text });
+    });
+}
+
+/* Replaces the text of pre with its highlighted HTML unless the lightbox moved on to another token meanwhile. */
+async function highlightPre(pre, name, token) {
+    const html = await highlight(pre.textContent, name);
+    if (html !== null && lightbox.token === token) pre.innerHTML = html;
+}
+
 /* Loads the ?view=<view> fragment of entry into the lightbox; an unknown binary file shows the info view. */
 async function showFragment(entry, view) {
     const token = lightbox.token = {};
@@ -52,6 +87,7 @@ async function showFragment(entry, view) {
         panel.innerHTML = html;
         $("lightbox-body").replaceChildren(panel);
         setNote(res.headers.get("X-Fileshare-Truncated") === "1" ? t("share.lightbox.truncated") : "");
+        if (panel.firstElementChild?.tagName === "PRE") highlightPre(panel.firstElementChild, entry.name, token);
     } catch {
         if (lightbox.token === token) showMessage("share.lightbox.failed");
     }
@@ -82,6 +118,7 @@ function renderEntry(d) {
     const body = $("lightbox-body");
     const source = $("lightbox-source");
     lightbox.token = {};
+    cancelHighlight();
     setNote("");
     body.querySelectorAll("audio, video").forEach(m => m.pause());
     body.replaceChildren();
@@ -172,6 +209,7 @@ function closeLightbox() {
     const box = $("lightbox");
     if (box.hidden) return;
     lightbox.token = {};
+    cancelHighlight();
     $("lightbox-body").querySelectorAll("audio, video").forEach(m => m.pause());
     $("lightbox-body").replaceChildren();
     box.hidden = true;

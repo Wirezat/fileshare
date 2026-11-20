@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	textViewMaxBytes = 1 << 20
+	textViewMaxBytes = 2 << 20
 	sniffBytes       = 1024
 )
 
 var markdown = goldmark.New(goldmark.WithExtensions(extension.GFM))
 
-// readCapped returns the first MiB of the requested file, cut before a split character;
+// readCapped returns the first 2 MiB of the requested file, cut before a split character;
 // truncated reports whether the file is longer.
 func readCapped(ctx *requestContext) (data []byte, truncated bool, err error) {
 	f, err := os.Open(ctx.diskPath)
@@ -47,7 +47,7 @@ func sniffsAsText(ctx *requestContext) bool {
 	return err == nil && filetype.Sniff(head)
 }
 
-// writeFragment answers with an HTML fragment built from the first MiB of the file and flags a cut-off file.
+// writeFragment answers with an HTML fragment built from the first 2 MiB of the file and flags a cut-off file.
 func writeFragment(w http.ResponseWriter, r *http.Request, ctx *requestContext, render func([]byte) ([]byte, error)) {
 	if notModified(w, r, ctx.fileInfo) {
 		return
