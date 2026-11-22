@@ -12,7 +12,7 @@ const (
 	frontCover  = 3
 )
 
-// Find returns the picture embedded in the mp3, flac or ogg file read from r, chosen by name's extension.
+// Find returns the picture embedded in the mp3, flac, ogg, opus or m4a file read from r, chosen by name's extension.
 // A front cover wins over other pictures; any other format, a missing picture or a malformed file gives false.
 // It reads at most 16 MiB of metadata.
 func Find(r io.Reader, name string) ([]byte, bool) {
@@ -21,8 +21,10 @@ func Find(r io.Reader, name string) ([]byte, bool) {
 		return findID3(r)
 	case "flac":
 		return findFLAC(r)
-	case "ogg":
+	case "ogg", "opus":
 		return findOgg(r)
+	case "m4a":
+		return findMP4(r)
 	}
 	return nil, false
 }

@@ -169,6 +169,52 @@ func TestFindOggPictureAcrossPages(t *testing.T) {
 	}
 }
 
+func TestFindOpusPicture(t *testing.T) {
+	data := append([]byte("FRONT"), bytes.Repeat([]byte("x"), 400)...)
+	field := "METADATA_BLOCK_PICTURE=" + base64.StdEncoding.EncodeToString(flacPicture(3, data, uint32(len(data))))
+	comment := []byte("OpusTags")
+	comment = binary.LittleEndian.AppendUint32(comment, 4)
+	comment = append(comment, "test"...)
+	comment = binary.LittleEndian.AppendUint32(comment, 1)
+	comment = binary.LittleEndian.AppendUint32(comment, uint32(len(field)))
+	comment = append(comment, field...)
+
+	got, ok := Find(bytes.NewReader(oggStream([][]byte{append([]byte("OpusHead"), make([]byte, 11)...), comment}, 1)), "song.opus")
+	if !ok || !bytes.Equal(got, data) {
+		t.Fatalf("Find = %d bytes, %v; want the %d-byte picture", len(got), ok, len(data))
+	}
+}
+
+func mp4Box(typ string, payload ...[]byte) []byte {
+	body := bytes.Join(payload, nil)
+	return append(binary.BigEndian.AppendUint32(nil, uint32(8+len(body))), append([]byte(typ), body...)...)
+}
+
+func m4aFile(picture []byte, mdatSize int) []byte {
+	data := mp4Box("data", []byte{0, 0, 0, 14, 0, 0, 0, 0}, picture)
+	ilst := mp4Box("ilst", mp4Box("covr", data))
+	moov := mp4Box("moov", mp4Box("udta", mp4Box("meta", []byte{0, 0, 0, 0}, ilst)))
+	return bytes.Join([][]byte{mp4Box("ftyp", []byte("M4A \x00\x00\x00\x00")), mp4Box("mdat", make([]byte, mdatSize)), moov}, nil)
+}
+
+func TestFindM4ACoverBehindMediaData(t *testing.T) {
+	picture := append([]byte("\x89PNG"), bytes.Repeat([]byte("x"), 300)...)
+
+	got, ok := Find(bytes.NewReader(m4aFile(picture, 1<<20)), "song.m4a")
+	if !ok || !bytes.Equal(got, picture) {
+		t.Fatalf("Find = %d bytes, %v; want the %d-byte picture", len(got), ok, len(picture))
+	}
+}
+
+func TestFindM4ARefusesMoovOver16MiB(t *testing.T) {
+	file := append(mp4Box("ftyp", []byte("M4A ")), binary.BigEndian.AppendUint32(nil, maxMetadata+9)...)
+	file = append(file, "moov"...)
+
+	if _, ok := Find(bytes.NewReader(file), "song.m4a"); ok {
+		t.Error("moov over 16 MiB was read")
+	}
+}
+
 func TestFindWithoutCover(t *testing.T) {
 	if _, ok := Find(bytes.NewReader([]byte("RIFF....WAVE")), "a.wav"); ok {
 		t.Error("wav reported a cover")

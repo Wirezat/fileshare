@@ -10,13 +10,22 @@ import (
 
 const pictureField = "METADATA_BLOCK_PICTURE"
 
-// findOgg returns the METADATA_BLOCK_PICTURE of the Vorbis comment header in the Ogg stream r.
+// findOgg returns the METADATA_BLOCK_PICTURE of the Vorbis or Opus comment header in the Ogg stream r.
 func findOgg(r io.Reader) ([]byte, bool) {
 	packets, ok := oggPackets(r, 2)
-	if !ok || !bytes.HasPrefix(packets[1], []byte("\x03vorbis")) {
+	if !ok {
 		return nil, false
 	}
-	c := cursor{packets[1][7:]}
+	var comments []byte
+	for _, magic := range []string{"\x03vorbis", "OpusTags"} {
+		if bytes.HasPrefix(packets[1], []byte(magic)) {
+			comments = packets[1][len(magic):]
+		}
+	}
+	if comments == nil {
+		return nil, false
+	}
+	c := cursor{comments}
 	if _, ok := c.prefixed(binary.LittleEndian); !ok {
 		return nil, false
 	}
