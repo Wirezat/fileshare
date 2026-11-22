@@ -90,6 +90,42 @@ func TestSniff(t *testing.T) {
 	}
 }
 
+func TestDetect(t *testing.T) {
+	ftyp := func(brand string) []byte { return append([]byte("\x00\x00\x00\x18ftyp"), brand+"\x00\x00\x00\x00"...) }
+	cases := []struct {
+		name string
+		head []byte
+		want string
+	}{
+		{"png", []byte("\x89PNG\r\n\x1a\n...."), "png"},
+		{"jpeg", []byte("\xff\xd8\xff\xe0...."), "jpg"},
+		{"gif", []byte("GIF89a..."), "gif"},
+		{"webp", []byte("RIFF\x10\x00\x00\x00WEBPVP8 "), "webp"},
+		{"wav", []byte("RIFF\x10\x00\x00\x00WAVEfmt "), "wav"},
+		{"pdf", []byte("%PDF-1.7\n"), "pdf"},
+		{"quicktime", ftyp("qt  "), "mov"},
+		{"mp4", ftyp("mp42"), "mp4"},
+		{"m4a", ftyp("M4A "), "m4a"},
+		{"heic", ftyp("heic"), "heic"},
+		{"avif", ftyp("avif"), "avif"},
+		{"matroska", []byte("\x1a\x45\xdf\xa3\x01\x00\x00\x00B\x82\x88matroska"), "mkv"},
+		{"webm", []byte("\x1a\x45\xdf\xa3\x01\x00\x00\x00B\x82\x84webm"), "webm"},
+		{"mp3 with tag", []byte("ID3\x04\x00"), "mp3"},
+		{"mp3 frame", []byte("\xff\xfb\x90\x00"), "mp3"},
+		{"flac", []byte("fLaC\x00"), "flac"},
+		{"ogg", []byte("OggS\x00\x02\x00\x00vorbis"), "ogg"},
+		{"opus", []byte("OggS\x00\x02\x00\x00OpusHead"), "opus"},
+		{"zip", []byte("PK\x03\x04"), "zip"},
+		{"text", []byte("hello world"), ""},
+		{"empty", nil, ""},
+	}
+	for _, tc := range cases {
+		if got := Detect(tc.head); got != tc.want {
+			t.Errorf("Detect(%s) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestTextExtensions(t *testing.T) {
 	for _, ext := range []string{
 		"txt", "md", "log", "csv", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf",

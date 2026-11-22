@@ -54,13 +54,13 @@ func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx
 
 	switch view {
 	case filetype.ViewImage, filetype.ViewConverted:
-		if !filetype.Lookup(ctx.fileInfo.Name()).Thumbnail {
+		if !filetype.Lookup(typedName(ctx)).Thumbnail {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		writeJPEG(w, r, f, previewSize(r, view))
 	case filetype.ViewAudio:
-		pic, ok := cover.Find(f, ctx.fileInfo.Name())
+		pic, ok := cover.Find(f, typedName(ctx))
 		if !ok {
 			w.WriteHeader(http.StatusNoContent)
 			return

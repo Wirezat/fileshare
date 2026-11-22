@@ -135,3 +135,17 @@ func TestWithoutViewParamTheFileIsServedAsIs(t *testing.T) {
 		t.Errorf("body = %q, want the raw file", body)
 	}
 }
+
+func TestProbeViewResolvesFilesWithoutExtensionByTheirContent(t *testing.T) {
+	cases := []struct{ name, content, want string }{
+		{"clip", "\x00\x00\x00\x18ftypqt  \x00\x00\x00\x00", `{"view":"video"}`},
+		{"photo", "\x89PNG\r\n\x1a\n....", `{"view":"image"}`},
+		{"notes", "plain words", `{"view":"probe"}`},
+	}
+	for _, tc := range cases {
+		rec := viewOf(t, textShare(t, tc.name, tc.content), "probe")
+		if got := strings.TrimSpace(rec.Body.String()); rec.Code != http.StatusOK || got != tc.want {
+			t.Errorf("%s: status %d, body %q, want %s", tc.name, rec.Code, got, tc.want)
+		}
+	}
+}

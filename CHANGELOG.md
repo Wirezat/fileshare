@@ -31,6 +31,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Text and source files are shown with syntax colors in the lightbox, in light and dark mode. The colors are computed in the browser, so large files do not load the server, and the lightbox reads up to 2 MiB of a text file.
 
+- m4a and opus files play as audio, m4a shows its embedded cover, and SVG files show as images, also on cards. Files without an extension are recognized by their content (images, videos, audio, PDF) and open and preview like the format they are.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

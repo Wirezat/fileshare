@@ -94,7 +94,7 @@ func serveTextView(w http.ResponseWriter, r *http.Request, ctx *requestContext) 
 		http.Error(w, "Unsupported Media Type", http.StatusUnsupportedMediaType)
 	case view == filetype.ViewMarkdown:
 		writeFragment(w, r, ctx, renderedMarkdown)
-	case view == filetype.ViewProbe || filetype.Lookup(ctx.fileInfo.Name()).Kind == filetype.Text:
+	case view == filetype.ViewProbe || filetype.Lookup(typedName(ctx)).Kind == filetype.Text:
 		writeFragment(w, r, ctx, escapedPre)
 	default:
 		http.NotFound(w, r)

@@ -1,7 +1,9 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -14,9 +16,28 @@ func officeOn(ctx *requestContext) bool {
 	return ctx.fileData.Office != config.OfficeOff && ctx.config.OfficeReady()
 }
 
+// typedName returns the name of the requested file, with the extension of the format its first bytes show appended
+// when the name carries no known extension.
+func typedName(ctx *requestContext) string {
+	name := ctx.fileInfo.Name()
+	if filetype.ViewFor(name, false) != filetype.ViewProbe {
+		return name
+	}
+	f, err := os.Open(ctx.diskPath)
+	if err != nil {
+		return name
+	}
+	defer f.Close()
+	head, _ := io.ReadAll(io.LimitReader(f, filetype.DetectBytes))
+	if ext := filetype.Detect(head); ext != "" {
+		return name + "." + ext
+	}
+	return name
+}
+
 // fileView returns the filetype view of the requested file in its share.
 func fileView(ctx *requestContext) string {
-	return filetype.ViewFor(ctx.fileInfo.Name(), officeOn(ctx))
+	return filetype.ViewFor(typedName(ctx), officeOn(ctx))
 }
 
 // wantsPreview reports whether the request carries a non-empty preview parameter.
@@ -47,9 +68,12 @@ func notModified(w http.ResponseWriter, r *http.Request, info os.FileInfo) bool 
 	return false
 }
 
-// serveViewVariant answers ?view=text, source, frame and office; any other value gets 404.
+// serveViewVariant answers ?view=probe, text, source, frame and office; any other value gets 404.
 func (s *Server) serveViewVariant(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	switch r.URL.Query().Get("view") {
+	case "probe":
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"view": fileView(ctx)})
 	case "text":
 		serveTextView(w, r, ctx)
 	case "source":

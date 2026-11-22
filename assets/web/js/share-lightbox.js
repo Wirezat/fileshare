@@ -3,7 +3,7 @@ const lightbox = { entry: null, rendered: true, token: null, returnFocus: null }
 const CARD_PREVIEW_MAX = 1200;
 const CONVERTED_MAX = 2400;
 const SWIPE_MIN = 50;
-const TEXT_VIEWS = new Set(["text", "markdown", "html", "probe"]);
+const TEXT_VIEWS = new Set(["text", "markdown", "html"]);
 const SOURCE_ICON = "M8 6l-6 6 6 6M16 6l6 6-6 6";
 const RENDERED_ICON = "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z";
 
@@ -82,6 +82,27 @@ async function highlightPre(pre, name, token) {
 async function highlightCardLines(pre, name) {
     const html = await cardHighlighter.highlight(pre.textContent, name);
     if (html !== null && pre.isConnected) pre.innerHTML = html;
+}
+
+/* Asks the server which view a file shows judging by its first bytes.
+   @returns {Promise<string>} the view name, "probe" when the file stays unknown or the request failed */
+async function probeView(entry) {
+    try {
+        const res = await fetch(entry.href + "?view=probe");
+        return res.ok ? (await res.json()).view : "probe";
+    } catch {
+        return "probe";
+    }
+}
+
+/* Shows an entry without a known extension in the view its content points to; unknown content is shown as text. */
+async function renderProbed(d) {
+    const token = lightbox.token = {};
+    showMessage("share.lightbox.loading");
+    const view = await probeView(d);
+    if (lightbox.token !== token) return;
+    if (view === "probe") showFragment(d, "text");
+    else renderEntry({ ...d, view });
 }
 
 /* Loads the ?view=<view> fragment of entry into the lightbox; an unknown binary file shows the info view. */
@@ -180,9 +201,11 @@ function renderEntry(d) {
         case "html":
             body.appendChild(lightboxFrame(d.href + "?view=frame", d.name, true));
             break;
+        case "probe":
+            renderProbed(d);
+            break;
         case "markdown":
         case "text":
-        case "probe":
             showFragment(d, "text");
             break;
         default:
@@ -294,6 +317,10 @@ function cardPixels(box) {
 function previewCard(card, d) {
     const box = card.querySelector(".card-preview");
     if (!box || d.size === 0) return;
+    if (d.view === "probe") {
+        probeView(d).then(view => previewCard(card, { ...d, view: view === "probe" ? "text" : view }));
+        return;
+    }
     const shown = () => box.classList.add("has-preview");
     if (d.view === "image" || d.view === "converted" || d.view === "audio") {
         const img = Object.assign(document.createElement("img"), { className: "card-thumb", alt: "", decoding: "async" });
