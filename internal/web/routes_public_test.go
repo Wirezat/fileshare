@@ -342,7 +342,7 @@ func TestChunkSizeIsCappedByMaxPostSize(t *testing.T) {
 func TestStaticFilesAreRevalidated(t *testing.T) {
 	e := newEnv(t, baseConfig())
 	cookie := e.cookie(t)
-	for _, p := range []string{"/static/share.js", "/static/share-media.js", "/static/share-lightbox.js", "/static/share.css", "/static/highlight.css", "/static/highlight.min.js", "/static/share-highlight-worker.js", "/static/ui/index.css", "/admin/static/js/settings.js"} {
+	for _, p := range []string{"/static/share.js", "/static/share-media.js", "/static/share-lightbox.js", "/static/share.css", "/static/highlight.css", "/static/share-highlight-worker.js", "/static/ui/index.css", "/admin/static/js/settings.js"} {
 		rec := send(e.handler, http.MethodGet, p, nil, asFetch, withCookie(cookie))
 		if got := rec.Header().Get("Cache-Control"); rec.Code != http.StatusOK || got != "no-cache" {
 			t.Errorf("%s: %d, Cache-Control = %q, want 200 and no-cache", p, rec.Code, got)

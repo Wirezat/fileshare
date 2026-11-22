@@ -16,6 +16,7 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$OUT_DIR"
 
 cd "$REPO_ROOT"
+sh scripts/build-vendor.sh "$STAGE/vendor-js"
 for ARCH in amd64 arm64; do
     NAME="fileshare-v$VERSION-linux-$ARCH"
     mkdir -p "$STAGE/$NAME"
@@ -23,6 +24,7 @@ for ARCH in amd64 arm64; do
     git ls-files --recurse-submodules assets scripts configs README.md LICENSE \
         | grep -v '/\.gitignore$' \
         | tar -cf - -T - | tar -xf - -C "$STAGE/$NAME"
+    cp -r "$STAGE/vendor-js/." "$STAGE/$NAME/assets/web/js/"
     tar -czf "$OUT_DIR/$NAME.tar.gz" -C "$STAGE" "$NAME"
     echo "$OUT_DIR/$NAME.tar.gz"
 done

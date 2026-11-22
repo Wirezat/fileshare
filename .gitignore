@@ -15,6 +15,10 @@ fileshare-architektur.md
 diff.txt
 docs/
 
+# Third-party scripts, built by scripts/build-vendor.sh
+assets/web/js/highlight.min.js
+assets/web/js/highlight.min.js.LICENSE
+
 # Logs
 *.log
 
