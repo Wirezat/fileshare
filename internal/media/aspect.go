@@ -12,7 +12,6 @@ import (
 
 const (
 	bmffMaxBoxes   = 64
-	bmffMetaMax    = 4 << 20
 	tkhdMax        = 128
 	svgHeadMax     = 64 << 10
 	ebmlMaxTop     = 64
@@ -126,12 +125,8 @@ func boxes(b []byte, fn func(typ string, payload []byte) bool) {
 // heifSize returns the largest image size of the ispe properties in the meta box of the HEIF or AVIF file r,
 // swapped when an irot property turns it by 90 or 270 degrees.
 func heifSize(r io.ReadSeeker) (w, h float64, ok bool) {
-	n, ok := bmffChild(r, "meta", 0)
-	if !ok || n < 4 || n > bmffMetaMax {
-		return 0, 0, false
-	}
-	meta := make([]byte, n)
-	if _, err := io.ReadFull(r, meta); err != nil {
+	meta, ok := heifMeta(r)
+	if !ok {
 		return 0, 0, false
 	}
 	rotated := false

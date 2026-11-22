@@ -199,3 +199,17 @@ func TestEncodeThumbnailDecodesAvifAndHeic(t *testing.T) {
 		}
 	}
 }
+
+func TestEncodeThumbnailUsesTheExifThumbnailOfOversizedHeic(t *testing.T) {
+	src, err := os.ReadFile("testdata/large-exif-thumb.heic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := EncodeThumbnail(context.Background(), bytes.NewReader(src), 1200)
+	if err != nil {
+		t.Fatalf("5000x4000 HEIC with an Exif thumbnail: %v", err)
+	}
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(out)); err != nil || cfg.Width != 160 || cfg.Height != 128 {
+		t.Errorf("got %dx%d (%v), want the 160x128 Exif thumbnail", cfg.Width, cfg.Height, err)
+	}
+}
