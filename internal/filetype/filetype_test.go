@@ -57,7 +57,7 @@ func TestViewFor(t *testing.T) {
 		{"a.py", ViewText, ViewText},
 		{"a.zip", ViewInfo, ViewInfo},
 		{"Makefile", ViewProbe, ViewProbe},
-		{"a.svg", ViewProbe, ViewProbe},
+		{"a.svg", ViewImage, ViewImage},
 	}
 	for _, tc := range cases {
 		if got := ViewFor(tc.name, false); got != tc.off {

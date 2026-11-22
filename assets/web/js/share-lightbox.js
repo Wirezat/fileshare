@@ -299,7 +299,7 @@ function previewCard(card, d) {
         const img = Object.assign(document.createElement("img"), { className: "card-thumb", alt: "", decoding: "async" });
         img.addEventListener("load", shown);
         img.addEventListener("error", () => img.remove());
-        img.src = `${d.href}?preview=1&size=${cardPixels(box)}`;
+        img.src = /\.svg$/i.test(d.name) ? d.href : `${d.href}?preview=1&size=${cardPixels(box)}`;
         box.appendChild(img);
     }
     if (d.view === "audio") {

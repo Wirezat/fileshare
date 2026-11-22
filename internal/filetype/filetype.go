@@ -68,6 +68,7 @@ func buildTable() map[string]Type {
 		}
 	}
 	add(Type{Kind: Image, Icon: IconImage, Thumbnail: true, view: ViewImage}, "jpg", "jpeg", "png", "gif", "webp", "avif")
+	add(Type{Kind: Image, Icon: IconImage, view: ViewImage}, "svg")
 	add(Type{Kind: Image, Icon: IconImage, Thumbnail: true, view: ViewConverted}, "heic", "heif")
 	add(Type{Kind: Video, Icon: IconVideo, view: ViewVideo}, "mp4", "mov", "webm", "mkv", "avi", "wmv")
 	add(Type{Kind: Audio, Icon: IconAudio, view: ViewAudio}, "mp3", "wav", "flac", "aac", "ogg", "m4a", "opus")
