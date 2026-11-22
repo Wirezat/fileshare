@@ -182,3 +182,24 @@ func TestRAFPreviewFromItsHeader(t *testing.T) {
 		t.Errorf("err %v, want the red embedded JPEG", err)
 	}
 }
+
+func TestPSDPreviewFromItsThumbnailResource(t *testing.T) {
+	thumb := solidJPEG(400, 200, red)
+	be := binary.BigEndian
+	resource := append([]byte("8BIM\x04\x0c\x00\x00"), be.AppendUint32(nil, uint32(28+len(thumb)))...)
+	header := make([]byte, 28)
+	be.PutUint32(header[20:], uint32(len(thumb)))
+	resource = append(append(resource, header...), thumb...)
+	if len(resource)%2 == 1 {
+		resource = append(resource, 0)
+	}
+	psd := append([]byte("8BPS\x00\x01"), make([]byte, 20)...)
+	psd = be.AppendUint32(psd, 0)
+	psd = be.AppendUint32(psd, uint32(len(resource)))
+	psd = append(psd, resource...)
+
+	out, err := EncodeThumbnail(context.Background(), bytes.NewReader(psd), 200)
+	if err != nil || !centerIsRed(t, out) {
+		t.Errorf("err %v, want the red thumbnail", err)
+	}
+}

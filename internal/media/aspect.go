@@ -29,8 +29,8 @@ const (
 )
 
 // AspectRatio returns width divided by height of the image or video in r as it is shown, read from its header
-// and chosen by name's extension: jpg, png, gif, webp, heic, heif, avif, svg, mp4, m4v, mov, mkv, webm or a camera
-// raw format, whose largest embedded preview counts.
+// and chosen by name's extension: jpg, png, gif, webp, heic, heif, avif, svg, mp4, m4v, mov, mkv, webm, psd or a
+// camera raw format; for psd and raw files their largest embedded preview counts.
 // A JPEG's Exif orientation and a HEIF rotation or video track rotation by 90 degrees are applied.
 // ok is false for any other format or a header without a usable size.
 func AspectRatio(r io.ReadSeeker, name string) (ratio float64, ok bool) {
@@ -56,7 +56,7 @@ func AspectRatio(r io.ReadSeeker, name string) (ratio float64, ok bool) {
 		w, h, ok = mp4Size(r)
 	case "mkv", "webm":
 		w, h, ok = matroskaSize(r)
-	case "dng", "cr2", "cr3", "nef", "nrw", "arw", "orf", "rw2", "raf", "pef", "srw":
+	case "dng", "cr2", "cr3", "nef", "nrw", "arw", "orf", "rw2", "raf", "pef", "srw", "psd":
 		if p, found := findPreview(r); found {
 			w, h = float64(p.w), float64(p.h)
 			if p.orientation >= 5 {

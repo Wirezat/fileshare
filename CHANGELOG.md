@@ -37,6 +37,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Camera raw files (dng, cr2, cr3, nef, nrw, arw, orf, rw2, raf, pef, srw) show their embedded preview on cards and in the lightbox, turned upright.
 
+- Photoshop files (psd) show their embedded thumbnail on cards and in the lightbox.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed
