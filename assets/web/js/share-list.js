@@ -169,10 +169,18 @@ function spacerRow() {
     return row;
 }
 
+/* Stops the image, audio and video requests that the preview of node has in flight. */
+function cancelPreview(node) {
+    node.querySelectorAll("img").forEach(img => img.removeAttribute("src"));
+    node.querySelectorAll("video, audio").forEach(media => { media.removeAttribute("src"); media.load(); });
+}
+
 /* Removes the node of listing.visible[index] from the page. */
 function dropNode(index) {
     const node = listView.nodes.get(index);
     previewObserver?.unobserve(node);
+    clearTimeout(previewTimers.get(node));
+    cancelPreview(node);
     node.remove();
     listView.nodes.delete(index);
 }
