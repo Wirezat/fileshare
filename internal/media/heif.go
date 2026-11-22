@@ -8,6 +8,7 @@ import (
 const (
 	heifMetaMax     = 4 << 20
 	heifExifMax     = 1 << 20
+	heifFileMax     = 64 << 20
 	heifBoxHeader   = 8
 	heifFullHeader  = 4
 	heifExifTypeLen = 4
@@ -206,4 +207,160 @@ func (c *cursorBytes) skip(n int) bool {
 	}
 	c.b = c.b[n:]
 	return true
+}
+
+// heifThumbnailItem returns the HEIF or AVIF file in r with its thumbnail item made the primary image, when the
+// thumbnail's long edge reaches maxEdge or the primary image exceeds FitsDecodeLimit; ok is false otherwise.
+// It reads files of at most heifFileMax bytes.
+func heifThumbnailItem(r io.ReadSeeker, maxEdge int) (file []byte, ok bool) {
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return nil, false
+	}
+	if typ, _, ok := bmffNext(r); !ok || typ != "ftyp" {
+		return nil, false
+	}
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return nil, false
+	}
+	meta, ok := heifMeta(r)
+	if !ok {
+		return nil, false
+	}
+	metaEnd, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, false
+	}
+	pitmAt, primary, idSize, ok := primaryItem(meta)
+	if !ok {
+		return nil, false
+	}
+	children := isoChildren(meta[heifFullHeader:])
+	thumb, ok := thumbnailOf(children["iref"], primary)
+	if !ok {
+		return nil, false
+	}
+	sizes := itemSizes(children["iprp"])
+	tw, th := sizes[thumb][0], sizes[thumb][1]
+	pw, ph := sizes[primary][0], sizes[primary][1]
+	if max(tw, th) < maxEdge && FitsDecodeLimit(pw, ph) {
+		return nil, false
+	}
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return nil, false
+	}
+	file, err = io.ReadAll(io.LimitReader(r, heifFileMax+1))
+	if err != nil || len(file) > heifFileMax {
+		return nil, false
+	}
+	at := int(metaEnd) - len(meta) + pitmAt
+	if idSize == 2 {
+		binary.BigEndian.PutUint16(file[at:], uint16(thumb))
+	} else {
+		binary.BigEndian.PutUint32(file[at:], thumb)
+	}
+	return file, true
+}
+
+// primaryItem returns the offset in the meta payload of the item ID in its pitm box, that ID and its size in bytes.
+func primaryItem(meta []byte) (at int, id uint32, idSize int, ok bool) {
+	off := heifFullHeader
+	for off+heifBoxHeader <= len(meta) {
+		size := int(binary.BigEndian.Uint32(meta[off:]))
+		if size < heifBoxHeader || off+size > len(meta) {
+			return 0, 0, 0, false
+		}
+		if string(meta[off+4:off+8]) == "pitm" && size >= heifBoxHeader+heifFullHeader+2 {
+			at = off + heifBoxHeader + heifFullHeader
+			if meta[off+heifBoxHeader] == 0 {
+				return at, uint32(binary.BigEndian.Uint16(meta[at:])), 2, true
+			}
+			if size >= heifBoxHeader+heifFullHeader+4 {
+				return at, binary.BigEndian.Uint32(meta[at:]), 4, true
+			}
+			return 0, 0, 0, false
+		}
+		off += size
+	}
+	return 0, 0, 0, false
+}
+
+// thumbnailOf returns the ID of the item that the iref payload marks as thumbnail of item primary.
+func thumbnailOf(iref []byte, primary uint32) (uint32, bool) {
+	if len(iref) < heifFullHeader {
+		return 0, false
+	}
+	idSize := 2
+	if iref[0] != 0 {
+		idSize = 4
+	}
+	for typ, ref := range isoBoxes(iref[heifFullHeader:]) {
+		if typ != "thmb" {
+			continue
+		}
+		c := cursorBytes{b: ref}
+		from, ok1 := c.uint(idSize)
+		count, ok2 := c.uint(2)
+		if !ok1 || !ok2 {
+			continue
+		}
+		for range count {
+			if to, ok := c.uint(idSize); ok && uint32(to) == primary {
+				return uint32(from), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// itemSizes returns the width and height of each item that the ipma box in the iprp payload links to an ispe
+// property of its ipco box.
+func itemSizes(iprp []byte) map[uint32][2]int {
+	children := isoChildren(iprp)
+	var props [][2]int
+	for typ, p := range isoBoxes(children["ipco"]) {
+		size := [2]int{}
+		if typ == "ispe" && len(p) >= 12 {
+			size = [2]int{int(binary.BigEndian.Uint32(p[4:])), int(binary.BigEndian.Uint32(p[8:]))}
+		}
+		props = append(props, size)
+	}
+	sizes := map[uint32][2]int{}
+	ipma := children["ipma"]
+	if len(ipma) < heifFullHeader {
+		return sizes
+	}
+	idSize, wide := 2, ipma[3]&1 == 1
+	if ipma[0] != 0 {
+		idSize = 4
+	}
+	c := cursorBytes{b: ipma[heifFullHeader:]}
+	entries, ok := c.uint(4)
+	for i := uint64(0); ok && i < entries; i++ {
+		id, ok1 := c.uint(idSize)
+		count, ok2 := c.uint(1)
+		if !ok1 || !ok2 {
+			break
+		}
+		for range count {
+			var index uint64
+			if wide {
+				index, ok = c.uint(2)
+				index &= 0x7FFF
+			} else {
+				index, ok = c.uint(1)
+				index &= 0x7F
+			}
+			if ok && index >= 1 && int(index) <= len(props) && props[index-1] != [2]int{} {
+				sizes[uint32(id)] = props[index-1]
+			}
+		}
+	}
+	return sizes
+}
+
+// isoBoxes yields the type and payload of each box packed in b; a box that does not fit ends the sequence.
+func isoBoxes(b []byte) func(yield func(string, []byte) bool) {
+	return func(yield func(string, []byte) bool) {
+		boxes(b, yield)
+	}
 }

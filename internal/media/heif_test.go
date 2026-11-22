@@ -3,6 +3,8 @@ package media
 import (
 	"bytes"
 	"encoding/binary"
+	"image"
+	"os"
 	"testing"
 )
 
@@ -64,5 +66,24 @@ func TestHEIFExifThumbnail(t *testing.T) {
 func TestHEIFExifThumbnailWithoutExifItem(t *testing.T) {
 	if _, ok := HEIFExifThumbnail(bytes.NewReader(bmffBox("ftyp", []byte("avif\x00\x00\x00\x00")))); ok {
 		t.Error("a file without meta box reported a thumbnail")
+	}
+}
+
+func TestHEIFThumbnailItemServesPreviewsUpToItsSize(t *testing.T) {
+	for _, name := range []string{"testdata/thumb-item.heic", "testdata/thumb-item.avif"} {
+		src, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, ok := heifThumbnailItem(bytes.NewReader(src), 600)
+		if !ok {
+			t.Fatalf("%s: no thumbnail item for a 600 px preview", name)
+		}
+		if cfg, _, err := image.DecodeConfig(bytes.NewReader(file)); err != nil || cfg.Width != 640 || cfg.Height != 480 {
+			t.Errorf("%s: primary image is %dx%d (%v), want the 640x480 thumbnail", name, cfg.Width, cfg.Height, err)
+		}
+		if _, ok := heifThumbnailItem(bytes.NewReader(src), 1000); ok {
+			t.Errorf("%s: the 640 px thumbnail item was used for a 1000 px preview", name)
+		}
 	}
 }

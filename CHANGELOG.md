@@ -25,7 +25,7 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Every file opens in a lightbox and has an icon. Where possible it also has a card preview: images, the cover of mp3, flac and ogg files, the first lines of text, video and audio players, and Markdown, HTML, source code, PDF and Office documents in a matching view. Office files can be edited from the lightbox in shares with edit access.
 
-- Photos get card previews from phones and cameras too: the limit counts pixels (16.8 MP) instead of edge length, bigger photos show their embedded Exif thumbnail, rotated photos stand upright, and HEIC and AVIF photos work as well (the lightbox shows HEIC as a JPEG of up to 2400 px).
+- Photos get card previews from phones and cameras too: the limit counts pixels (16.8 MP) instead of edge length, bigger photos show their embedded Exif thumbnail, rotated photos stand upright, and HEIC and AVIF photos work as well (the lightbox shows HEIC as a JPEG of up to 2400 px). HEIC and AVIF photos use their embedded thumbnail for cards when it is large enough, and always when the photo is over the limit.
 
 - Shares with tens of thousands of entries open fast and scroll smoothly. The page carries the listing as compressed data and only the rows around the viewport are in the page. Previews start once a card stays in view. Filter, selection, ZIP download and the lightbox work on the whole listing. A share with 21,746 entries went from 35 MB to 320 KB and from several seconds to 1.6 s. The listing needs JavaScript.
 

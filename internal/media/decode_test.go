@@ -213,3 +213,17 @@ func TestEncodeThumbnailUsesTheExifThumbnailOfOversizedHeic(t *testing.T) {
 		t.Errorf("got %dx%d (%v), want the 160x128 Exif thumbnail", cfg.Width, cfg.Height, err)
 	}
 }
+
+func TestEncodeThumbnailUsesTheThumbnailItemOfOversizedHeic(t *testing.T) {
+	src, err := os.ReadFile("testdata/large-thumb-item.heic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := EncodeThumbnail(context.Background(), bytes.NewReader(src), 1200)
+	if err != nil {
+		t.Fatalf("5000x4000 HEIC with a thumbnail item: %v", err)
+	}
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(out)); err != nil || cfg.Width != 640 || cfg.Height != 512 {
+		t.Errorf("got %dx%d (%v), want the 640x512 thumbnail item", cfg.Width, cfg.Height, err)
+	}
+}
