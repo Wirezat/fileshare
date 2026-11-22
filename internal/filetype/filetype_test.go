@@ -46,6 +46,8 @@ func TestViewFor(t *testing.T) {
 	}{
 		{"a.png", ViewImage, ViewImage},
 		{"a.heic", ViewConverted, ViewConverted},
+		{"a.nef", ViewConverted, ViewConverted},
+		{"a.CR3", ViewConverted, ViewConverted},
 		{"a.mov", ViewVideo, ViewVideo},
 		{"a.ogg", ViewAudio, ViewAudio},
 		{"a.pdf", ViewPDF, ViewPDF},
@@ -109,6 +111,8 @@ func TestDetect(t *testing.T) {
 		{"m4b", ftyp("M4B "), "m4b"},
 		{"m4v", ftyp("M4V "), "m4v"},
 		{"heic", ftyp("heic"), "heic"},
+		{"cr3", ftyp("crx "), "cr3"},
+		{"raf", []byte("FUJIFILMCCD-RAW 0201"), "raf"},
 		{"avif", ftyp("avif"), "avif"},
 		{"matroska", []byte("\x1a\x45\xdf\xa3\x01\x00\x00\x00B\x82\x88matroska"), "mkv"},
 		{"webm", []byte("\x1a\x45\xdf\xa3\x01\x00\x00\x00B\x82\x84webm"), "webm"},

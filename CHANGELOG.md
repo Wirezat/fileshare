@@ -35,6 +35,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - A toggle shows card previews in their own aspect ratio instead of the fixed crop. The cards have their size from the start, also in long folders.
 
+- Camera raw files (dng, cr2, cr3, nef, nrw, arw, orf, rw2, raf, pef, srw) show their embedded preview on cards and in the lightbox, turned upright.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

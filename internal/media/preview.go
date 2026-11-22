@@ -22,7 +22,7 @@ type preview struct {
 }
 
 // findPreview returns the largest decodable JPEG preview that the image file in r carries: the Exif thumbnail of
-// a JPEG, WebP or HEIF file. Its orientation is the one the file gives for it, else the one of the preview itself.
+// a JPEG, WebP or HEIF file, or a preview of a camera raw file (TIFF-based, CR3 or RAF). Its orientation is the one the file gives for it, else the one of the preview itself.
 // Previews over FitsDecodeLimit or 32 MiB do not count; ok is false when none is left.
 func findPreview(r io.ReadSeeker) (best preview, ok bool) {
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
@@ -37,6 +37,12 @@ func findPreview(r io.ReadSeeker) (best preview, ok bool) {
 		found = jpegPreviews(r)
 	case len(h) >= 12 && string(h[:4]) == "RIFF" && string(h[8:12]) == "WEBP":
 		found = webpPreviews(r)
+	case len(h) >= 12 && string(h[4:12]) == "ftypcrx ":
+		found = cr3Previews(r)
+	case bytes.HasPrefix(h, []byte("FUJIFILMCCD-RAW")):
+		found = rafPreviews(r)
+	case len(h) >= 8 && (string(h[:4]) == "II*\x00" || string(h[:4]) == "MM\x00*" || string(h[:4]) == "IIRO" || string(h[:4]) == "IIU\x00" || string(h[:4]) == "MMOR"):
+		found = tiffRawPreviews(r, h)
 	case len(h) >= 8 && string(h[4:8]) == "ftyp":
 		if p, ok := heifExifPreview(r); ok {
 			found = []preview{p}

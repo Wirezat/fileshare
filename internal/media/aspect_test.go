@@ -102,3 +102,11 @@ func TestAspectRatioOfMatroskaFromItsVideoTrack(t *testing.T) {
 		t.Errorf("AspectRatio = %v, %v; want %v for a 640x360 video track", got, ok, 640.0/360)
 	}
 }
+
+func TestAspectRatioOfRawFromItsPreview(t *testing.T) {
+	raw := tiffRaw(solidJPEG(160, 120, blue), solidJPEG(800, 600, red))
+
+	if got, ok := AspectRatio(bytes.NewReader(raw), "photo.nef"); !ok || got != 0.75 {
+		t.Errorf("AspectRatio = %v, %v; want 0.75 for an 800x600 preview turned by 90 degrees", got, ok)
+	}
+}

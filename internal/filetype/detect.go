@@ -16,6 +16,7 @@ var signatures = []signature{
 	{0, "\xff\xd8\xff", "jpg"},
 	{0, "GIF8", "gif"},
 	{0, "%PDF-", "pdf"},
+	{0, "FUJIFILMCCD-RAW", "raf"},
 	{0, "fLaC", "flac"},
 	{0, "ID3", "mp3"},
 	{0, "\xff\xfb", "mp3"},
@@ -30,7 +31,7 @@ var signatures = []signature{
 }
 
 var ftypBrands = map[string]string{
-	"M4A ": "m4a", "M4B ": "m4b", "M4V ": "m4v", "qt  ": "mov",
+	"M4A ": "m4a", "M4B ": "m4b", "M4V ": "m4v", "qt  ": "mov", "crx ": "cr3",
 	"heic": "heic", "heix": "heic", "mif1": "heic", "msf1": "heic",
 	"avif": "avif", "avis": "avif",
 }
