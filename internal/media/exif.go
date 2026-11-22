@@ -16,22 +16,18 @@ const (
 	jpegMarkerExif      = 0xE1
 )
 
-// ExifThumbnail returns the JPEG thumbnail that the Exif data of the JPEG in r points to from its IFD1;
-// ok is false when there is none.
-func ExifThumbnail(r io.ReadSeeker) (thumb []byte, ok bool) {
-	t, ok := exifTIFF(r)
-	if !ok {
-		return nil, false
-	}
-	return tiffThumbnail(t)
-}
-
 // ExifOrientation returns the Exif orientation (1 to 8) of the JPEG in r, 1 when it has none or an invalid one.
 func ExifOrientation(r io.ReadSeeker) int {
-	t, ok := exifTIFF(r)
+	t, _, ok := exifTIFF(r)
 	if !ok {
 		return 1
 	}
+	return tiffOrientation(t)
+}
+
+// tiffOrientation returns the orientation tag (1 to 8) of IFD0 of the TIFF structure t, 1 when it has none
+// or an invalid one.
+func tiffOrientation(t []byte) int {
 	bo, ok := tiffByteOrder(t)
 	if !ok {
 		return 1
@@ -55,53 +51,55 @@ func ExifOrientation(r io.ReadSeeker) int {
 	return 1
 }
 
-// exifTIFF returns the TIFF structure of the Exif segment of the JPEG in r, reading at most exifHeaderMax bytes
-// from the start of r; ok is false when r is no JPEG or has no Exif segment before its image data.
-func exifTIFF(r io.ReadSeeker) (t []byte, ok bool) {
+// exifTIFF returns the TIFF structure of the Exif segment of the JPEG in r and its offset in the file, reading at
+// most exifHeaderMax bytes from the start of r; ok is false when r is no JPEG or has no Exif segment before its
+// image data.
+func exifTIFF(r io.ReadSeeker) (t []byte, at int64, ok bool) {
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
-		return nil, false
+		return nil, 0, false
 	}
 	br := bufio.NewReader(io.LimitReader(r, exifHeaderMax))
 	var soi [2]byte
 	if _, err := io.ReadFull(br, soi[:]); err != nil || soi != [2]byte{0xFF, 0xD8} {
-		return nil, false
+		return nil, 0, false
 	}
+	pos := int64(2)
 	for {
 		var hdr [4]byte
 		if _, err := io.ReadFull(br, hdr[:]); err != nil || hdr[0] != 0xFF || hdr[1] == jpegMarkerStartScan {
-			return nil, false
+			return nil, 0, false
 		}
 		n := int(binary.BigEndian.Uint16(hdr[2:])) - 2
 		if n < 0 {
-			return nil, false
+			return nil, 0, false
 		}
 		seg := make([]byte, n)
 		if _, err := io.ReadFull(br, seg); err != nil {
-			return nil, false
+			return nil, 0, false
 		}
 		if hdr[1] == jpegMarkerExif && bytes.HasPrefix(seg, []byte("Exif\x00\x00")) && len(seg) >= 14 {
-			return seg[6:], true
+			return seg[6:], pos + 4 + 6, true
 		}
+		pos += 4 + int64(n)
 	}
 }
 
-// tiffThumbnail returns a copy of the JPEG that IFD1 of the TIFF structure t locates by offset and length;
+// tiffThumbnail returns the offset in t and the length of the JPEG that IFD1 of the TIFF structure t locates;
 // ok is false when t is malformed or has no such JPEG.
-func tiffThumbnail(t []byte) (thumb []byte, ok bool) {
+func tiffThumbnail(t []byte) (off, length int, ok bool) {
 	bo, ok := tiffByteOrder(t)
 	if !ok {
-		return nil, false
+		return 0, 0, false
 	}
 	ifd1, ok := nextIFD(t, bo, int(bo.Uint32(t[4:])))
 	if !ok || ifd1 == 0 || ifd1+2 > len(t) {
-		return nil, false
+		return 0, 0, false
 	}
-	var off, length int
 	count := int(bo.Uint16(t[ifd1:]))
 	for i := range count {
 		e := ifd1 + 2 + 12*i
 		if e+12 > len(t) {
-			return nil, false
+			return 0, 0, false
 		}
 		switch bo.Uint16(t[e:]) {
 		case exifTagThumbOffset:
@@ -111,9 +109,9 @@ func tiffThumbnail(t []byte) (thumb []byte, ok bool) {
 		}
 	}
 	if off <= 0 || length <= 0 || off > len(t) || length > len(t)-off || !bytes.HasPrefix(t[off:], []byte{0xFF, 0xD8}) {
-		return nil, false
+		return 0, 0, false
 	}
-	return bytes.Clone(t[off : off+length]), true
+	return off, length, true
 }
 
 // tiffByteOrder returns the byte order the TIFF structure t declares; ok is false when t is too short or declares none.

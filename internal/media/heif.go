@@ -14,33 +14,38 @@ const (
 	heifExifTypeLen = 4
 )
 
-// HEIFExifThumbnail returns the JPEG thumbnail that the Exif item of the HEIC, HEIF or AVIF file in r points to
-// from its IFD1; ok is false when the file has no such item or thumbnail. It reads a meta box of at most 4 MiB
-// and an Exif item of at most 1 MiB.
-func HEIFExifThumbnail(r io.ReadSeeker) (thumb []byte, ok bool) {
+// heifExifPreview returns the JPEG thumbnail that IFD1 of the Exif item of the HEIC, HEIF or AVIF file in r
+// locates, turned by the orientation of that Exif data. It reads a meta box of at most 4 MiB and an Exif item of
+// at most 1 MiB.
+func heifExifPreview(r io.ReadSeeker) (preview, bool) {
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
-		return nil, false
+		return preview{}, false
 	}
 	meta, ok := heifMeta(r)
 	if !ok {
-		return nil, false
+		return preview{}, false
 	}
 	offset, length, ok := exifItemLocation(meta)
 	if !ok || length <= heifExifTypeLen || length > heifExifMax {
-		return nil, false
+		return preview{}, false
 	}
 	if _, err := r.Seek(int64(offset), io.SeekStart); err != nil {
-		return nil, false
+		return preview{}, false
 	}
 	item, err := io.ReadAll(io.LimitReader(r, int64(length)))
 	if err != nil || uint64(len(item)) != length {
-		return nil, false
+		return preview{}, false
 	}
 	tiffStart := heifExifTypeLen + uint64(binary.BigEndian.Uint32(item))
 	if tiffStart >= uint64(len(item)) {
-		return nil, false
+		return preview{}, false
 	}
-	return tiffThumbnail(item[tiffStart:])
+	t := item[tiffStart:]
+	off, n, ok := tiffThumbnail(t)
+	if !ok {
+		return preview{}, false
+	}
+	return preview{at: int64(offset+tiffStart) + int64(off), n: int64(n), orientation: tiffOrientation(t)}, true
 }
 
 // heifMeta returns the payload of the top-level meta box of r, at most heifMetaMax bytes, skipping the boxes before it.

@@ -55,16 +55,16 @@ func heifWithExif(item []byte) []byte {
 }
 
 func TestHEIFExifThumbnail(t *testing.T) {
-	thumb := append([]byte{0xFF, 0xD8, 0xFF}, bytes.Repeat([]byte("x"), 100)...)
+	thumb := solidJPEG(160, 120, red)
 
-	got, ok := HEIFExifThumbnail(bytes.NewReader(heifWithExif(exifItem(thumb))))
-	if !ok || !bytes.Equal(got, thumb) {
-		t.Fatalf("HEIFExifThumbnail = %d bytes, %v; want the %d-byte thumbnail", len(got), ok, len(thumb))
+	p, ok := findPreview(bytes.NewReader(heifWithExif(exifItem(thumb))))
+	if !ok || p.n != int64(len(thumb)) || p.w != 160 || p.h != 120 {
+		t.Fatalf("findPreview = %+v, %v; want the %d-byte 160x120 thumbnail", p, ok, len(thumb))
 	}
 }
 
 func TestHEIFExifThumbnailWithoutExifItem(t *testing.T) {
-	if _, ok := HEIFExifThumbnail(bytes.NewReader(bmffBox("ftyp", []byte("avif\x00\x00\x00\x00")))); ok {
+	if _, ok := findPreview(bytes.NewReader(bmffBox("ftyp", []byte("avif\x00\x00\x00\x00")))); ok {
 		t.Error("a file without meta box reported a thumbnail")
 	}
 }
