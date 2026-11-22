@@ -27,6 +27,7 @@ type Period struct {
 	DownloadsIncomplete int64            `json:"downloadsIncomplete"`
 	Uploads             int64            `json:"uploads"`
 	UploadsAbandoned    int64            `json:"uploadsAbandoned"`
+	Saves               int64            `json:"saves"`
 	BytesDown           int64            `json:"bytesDown"`
 	BytesUp             int64            `json:"bytesUp"`
 	SpeedDown           Speed            `json:"speedDown"`
@@ -56,12 +57,14 @@ type DayRow struct {
 	Date      string `json:"date"`
 	Downloads int64  `json:"downloads"`
 	Uploads   int64  `json:"uploads"`
+	Saves     int64  `json:"saves"`
 	Visitors  int64  `json:"visitors"`
 }
 
 type ShareRow struct {
 	Name       string    `json:"name"`
 	Downloads  int64     `json:"downloads"`
+	Saves      int64     `json:"saves"`
 	Visitors   int64     `json:"visitors"`
 	LastAccess time.Time `json:"lastAccess"`
 	Deleted    bool      `json:"deleted"`
@@ -101,7 +104,7 @@ func (s *Stats) Report(exists func(share string) bool) Report {
 			for h, n := range d.Hours {
 				hours[wd][h] += n
 			}
-			row.Downloads, row.Uploads, row.Visitors = d.Downloads, d.Uploads, round(d.Visitors.Estimate())
+			row.Downloads, row.Uploads, row.Saves, row.Visitors = d.Downloads, d.Uploads, d.Saves, round(d.Visitors.Estimate())
 		}
 		r.Days = append(r.Days, row)
 	}
@@ -144,6 +147,7 @@ func (c *counters) add(o counters) {
 	c.DownloadsIncomplete += o.DownloadsIncomplete
 	c.Uploads += o.Uploads
 	c.UploadsAbandoned += o.UploadsAbandoned
+	c.Saves += o.Saves
 	c.BytesDown += o.BytesDown
 	c.BytesUp += o.BytesUp
 	c.SpeedDown.merge(o.SpeedDown)
@@ -193,6 +197,7 @@ func periodFrom(c counters, visitors float64, p peak) Period {
 		DownloadsIncomplete: c.DownloadsIncomplete,
 		Uploads:             c.Uploads,
 		UploadsAbandoned:    c.UploadsAbandoned,
+		Saves:               c.Saves,
 		BytesDown:           c.BytesDown,
 		BytesUp:             c.BytesUp,
 		SpeedDown:           c.SpeedDown.report(),
@@ -220,21 +225,22 @@ func (s *Stats) topShares(keys []string, exists func(string) bool) (total, recen
 	total, recent = []ShareRow{}, []ShareRow{}
 	for name, sh := range s.f.Shares {
 		deleted := !exists(name)
-		if sh.Downloads > 0 || !sh.Visitors.Empty() {
-			total = append(total, ShareRow{name, sh.Downloads, round(sh.Visitors.Estimate()), sh.LastAccess, deleted})
+		if sh.Downloads > 0 || sh.Saves > 0 || !sh.Visitors.Empty() {
+			total = append(total, ShareRow{name, sh.Downloads, sh.Saves, round(sh.Visitors.Estimate()), sh.LastAccess, deleted})
 		}
 		visitors := newSketch(sharePrecision)
-		var downloads int64
+		var downloads, saves int64
 		active := false
 		for _, k := range keys {
 			if d, ok := sh.Days[k]; ok {
 				active = true
 				downloads += d.Downloads
+				saves += d.Saves
 				visitors.Merge(d.Visitors.Sketch)
 			}
 		}
 		if active {
-			recent = append(recent, ShareRow{name, downloads, round(visitors.Estimate()), sh.LastAccess, deleted})
+			recent = append(recent, ShareRow{name, downloads, saves, round(visitors.Estimate()), sh.LastAccess, deleted})
 		}
 	}
 	return topShareRows(total), topShareRows(recent)

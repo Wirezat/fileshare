@@ -64,6 +64,7 @@ function tiles(r, p) {
             state.period === 'recent' ? tf('stats.tile.visitors_today', { n: num(today.visitors) }) : t('stats.tile.visitors_all')),
         tile(t('stats.tile.downloads'), num(p.downloads), tf('stats.tile.zip', { n: num(p.zipDownloads) })),
         tile(t('stats.tile.uploads'), num(p.uploads), t('stats.tile.files')),
+        tile(t('stats.tile.saves'), num(p.saves), t('stats.tile.saves_hint')),
         tile(t('stats.tile.down'), bytes(p.bytesDown), '↓'),
         tile(t('stats.tile.up'), bytes(p.bytesUp), '↑'),
         tile(t('stats.tile.aborts'),
@@ -246,8 +247,8 @@ const shareName = (name, deleted) => deleted ? `/${name} (${t('stats.deleted')})
 
 function topShares(p) {
     return table(
-        [[t('stats.col.share')], [t('stats.col.downloads'), 'n'], [t('stats.col.visitors'), 'n'], [t('stats.col.last'), 'n']],
-        p.topShares.map(s => [[shareName(s.name, s.deleted)], [num(s.downloads), 'n'], [num(s.visitors), 'n'], [ago(s.lastAccess), 'n muted']]))
+        [[t('stats.col.share')], [t('stats.col.downloads'), 'n'], [t('stats.col.saves'), 'n'], [t('stats.col.visitors'), 'n'], [t('stats.col.last'), 'n']],
+        p.topShares.map(s => [[shareName(s.name, s.deleted)], [num(s.downloads), 'n'], [num(s.saves), 'n'], [num(s.visitors), 'n'], [ago(s.lastAccess), 'n muted']]))
 }
 
 function topFiles(p) {

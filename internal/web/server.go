@@ -84,6 +84,7 @@ type Server struct {
 	streamsDone  chan struct{}
 	closeStreams sync.Once
 	aspects      aspectCache
+	saveMu       sync.Mutex
 }
 
 // New parses all page templates under d.Assets and returns a server, or the first parse error.

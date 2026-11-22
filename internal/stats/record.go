@@ -290,6 +290,19 @@ func (s *Stats) UploadPublished(key string) {
 	s.changed()
 }
 
+// Saved counts a text file of share saved from the browser.
+func (s *Stats) Saved(share string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key, d := s.dayAt(s.now())
+	s.f.Total.Saves++
+	d.Saves++
+	sh := s.share(share)
+	sh.Saves++
+	sh.day(key).Saves++
+	s.changed()
+}
+
 // UploadAbandoned counts the upload named key as removed without being published.
 func (s *Stats) UploadAbandoned(key string) {
 	s.mu.Lock()

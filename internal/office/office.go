@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wirezat/fileshare/internal/atomicfile"
 	"github.com/Wirezat/fileshare/internal/filetype"
 )
 
@@ -178,21 +178,9 @@ func ParseCallback(authHeader string, body []byte, secret string) (Callback, boo
 // ReplaceFromURL downloads url and swaps it in for the file at path, keeping
 // its mode and writing through any symlink; limit caps the size, 0 means 1 GiB.
 func ReplaceFromURL(path, url string, limit int64) error {
-	target, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return err
-	}
-	info, err := os.Stat(target)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		return errors.New("save target is a directory")
-	}
 	if limit <= 0 {
 		limit = 1 << 30
 	}
-
 	client := http.Client{Timeout: 2 * time.Minute}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -202,26 +190,5 @@ func ReplaceFromURL(path, url string, limit int64) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("document server answered %s", resp.Status)
 	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(target), ".office-*.tmp")
-	if err != nil {
-		return err
-	}
-	n, err := io.Copy(tmp, io.LimitReader(resp.Body, limit+1))
-	if err == nil && n > limit {
-		err = fmt.Errorf("saved document exceeds %d bytes", limit)
-	}
-	if err == nil {
-		err = tmp.Chmod(info.Mode().Perm())
-	}
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Rename(tmp.Name(), target)
-	}
-	if err != nil {
-		os.Remove(tmp.Name())
-	}
-	return err
+	return atomicfile.Replace(path, resp.Body, limit)
 }

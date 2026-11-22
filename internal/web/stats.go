@@ -17,12 +17,14 @@ type statsService interface {
 	PageView(userAgent string)
 	Download(d stats.Download) func(sent int64, complete bool)
 	Report(exists func(share string) bool) stats.Report
+	Saved(share string)
 }
 
 type noStats struct{}
 
 func (noStats) Visit(string, string, string) {}
 func (noStats) PageView(string)              {}
+func (noStats) Saved(string)                 {}
 func (noStats) Download(stats.Download) func(int64, bool) {
 	return func(int64, bool) {}
 }

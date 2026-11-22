@@ -41,6 +41,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Office documents in shares with edit access are edited inside the lightbox, which widens to almost the whole window (the whole screen on phones). Closing it after changes says that they are being saved.
 
+- Text files in shares with edit access can be saved from the browser (`PUT` on the file, with the `ETag` of the loaded version in `If-Match`). A file changed in the meantime is not overwritten, the upload size limit applies, and the admin statistics count the saves per share.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

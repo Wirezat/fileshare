@@ -621,3 +621,17 @@ func TestCloneSharesNothing(t *testing.T) {
 		t.Error("changes after clone reached the copy")
 	}
 }
+
+func TestSaveCounting(t *testing.T) {
+	s, _, _ := openTest(t)
+	s.Saved("docs")
+	s.Saved("docs")
+
+	r := s.Report(all)
+	if r.Total.Saves != 2 || r.Recent.Saves != 2 || r.Days[len(r.Days)-1].Saves != 2 {
+		t.Errorf("saves total %d, recent %d, today %d; want 2", r.Total.Saves, r.Recent.Saves, r.Days[len(r.Days)-1].Saves)
+	}
+	if len(r.Total.TopShares) != 1 || r.Total.TopShares[0].Saves != 2 || r.Recent.TopShares[0].Saves != 2 {
+		t.Errorf("share rows %+v / %+v, want docs with 2 saves", r.Total.TopShares, r.Recent.TopShares)
+	}
+}

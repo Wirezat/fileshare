@@ -45,6 +45,8 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 		s.handleGet(w, r, ctx)
+	case http.MethodPut:
+		s.handleSave(w, r, ctx)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
@@ -52,8 +54,8 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 // prepareRequest resolves the request to a share and file, or writes the HTTP error and returns false.
 func (s *Server) prepareRequest(w http.ResponseWriter, r *http.Request) (*requestContext, bool) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD")
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPut {
+		w.Header().Set("Allow", "GET, HEAD, PUT")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return nil, false
 	}
@@ -113,6 +115,8 @@ func (s *Server) resolveErr(w http.ResponseWriter, r *http.Request, subpath stri
 		} else {
 			s.serveExpiredPage(w, subpath)
 		}
+	case errors.Is(err, share.ErrLocked) && r.Method == http.MethodPut:
+		http.Error(w, "Forbidden", http.StatusForbidden)
 	case errors.Is(err, share.ErrLocked):
 		s.serveGatePage(w, gateData{
 			Subpath:    subpath,
@@ -153,7 +157,7 @@ func opensFileShare(r *http.Request, ctx *requestContext) bool {
 
 func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	if ctx.machine || !isFileDownload(r, ctx) {
-		serveShareFile(w, r, ctx.diskPath)
+		serveShareFile(w, r, ctx)
 		return
 	}
 	dw := s.countDownload(w, stats.Download{
@@ -163,15 +167,16 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, ctx *requestC
 		UserAgent: r.UserAgent(),
 	})
 	defer dw.finish(true)
-	serveShareFile(dw, r, ctx.diskPath)
+	serveShareFile(dw, r, ctx)
 }
 
-// serveShareFile hands out the shared file inside a CSP sandbox.
-func serveShareFile(w http.ResponseWriter, r *http.Request, diskPath string) {
-	if filetype.Lookup(diskPath).Kind != filetype.PDF {
+// serveShareFile hands out the shared file inside a CSP sandbox, tagged with the entity tag a save needs.
+func serveShareFile(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
+	if filetype.Lookup(ctx.diskPath).Kind != filetype.PDF {
 		w.Header().Set("Content-Security-Policy", "sandbox")
 	}
-	http.ServeFile(w, r, diskPath)
+	w.Header().Set("ETag", fileETag(ctx.fileInfo))
+	http.ServeFile(w, r, ctx.diskPath)
 }
 
 // resolveUploadTarget returns the share in the request URL if it accepts uploads, or writes the HTTP error.

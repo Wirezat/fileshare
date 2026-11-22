@@ -37,6 +37,7 @@ type counters struct {
 	DownloadsIncomplete int64            `json:"downloadsIncomplete"`
 	Uploads             int64            `json:"uploads"`
 	UploadsAbandoned    int64            `json:"uploadsAbandoned"`
+	Saves               int64            `json:"saves,omitempty"`
 	BytesDown           int64            `json:"bytesDown"`
 	BytesUp             int64            `json:"bytesUp"`
 	SpeedDown           speed            `json:"speedDown"`
@@ -68,6 +69,7 @@ type day struct {
 
 type shareStats struct {
 	Downloads  int64                 `json:"downloads"`
+	Saves      int64                 `json:"saves,omitempty"`
 	LastAccess time.Time             `json:"lastAccess"`
 	Visitors   sketch                `json:"visitors"`
 	Days       map[string]*shareDay  `json:"days,omitempty"`
@@ -76,6 +78,7 @@ type shareStats struct {
 
 type shareDay struct {
 	Downloads int64  `json:"downloads"`
+	Saves     int64  `json:"saves,omitempty"`
 	Visitors  sketch `json:"visitors"`
 }
 
@@ -133,7 +136,7 @@ func (f *file) clone() *file {
 		c.Visitors = sh.Visitors.clone()
 		c.Days = make(map[string]*shareDay, len(sh.Days))
 		for k, d := range sh.Days {
-			c.Days[k] = &shareDay{Downloads: d.Downloads, Visitors: d.Visitors.clone()}
+			c.Days[k] = &shareDay{Downloads: d.Downloads, Saves: d.Saves, Visitors: d.Visitors.clone()}
 		}
 		c.Files = make(map[string]*fileStats, len(sh.Files))
 		for path, fs := range sh.Files {
