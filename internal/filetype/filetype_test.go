@@ -106,6 +106,8 @@ func TestDetect(t *testing.T) {
 		{"quicktime", ftyp("qt  "), "mov"},
 		{"mp4", ftyp("mp42"), "mp4"},
 		{"m4a", ftyp("M4A "), "m4a"},
+		{"m4b", ftyp("M4B "), "m4b"},
+		{"m4v", ftyp("M4V "), "m4v"},
 		{"heic", ftyp("heic"), "heic"},
 		{"avif", ftyp("avif"), "avif"},
 		{"matroska", []byte("\x1a\x45\xdf\xa3\x01\x00\x00\x00B\x82\x88matroska"), "mkv"},

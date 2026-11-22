@@ -174,6 +174,7 @@ function renderEntry(d) {
         }
         case "video": {
             const video = document.createElement("video");
+            setVideoPoster(video, `${d.href}?preview=1&size=${CARD_PREVIEW_MAX}`);
             video.src = d.href;
             body.appendChild(mediaPlayer(video, []));
             break;
@@ -314,6 +315,13 @@ function cardPixels(box) {
     return Math.min(CARD_PREVIEW_MAX, Math.ceil(Math.max(box.clientWidth * natural, box.clientHeight) * (window.devicePixelRatio || 1)));
 }
 
+/* Shows the embedded cover at url as poster of video once it has loaded; without a cover the first frame stays. */
+function setVideoPoster(video, url) {
+    const cover = new Image();
+    cover.addEventListener("load", () => { video.poster = url; });
+    cover.src = url;
+}
+
 /* Gives the preview box of card the aspect ratio w/h of its loaded medium when the listing did not know it
    or knew another one, and lays the list out anew. */
 function setCardRatio(card, box, w, h) {
@@ -345,6 +353,7 @@ function previewCard(card, d) {
         box.append(audio, createMediaMenu(audio, "card"));
     } else if (d.view === "video") {
         const video = Object.assign(document.createElement("video"), { className: "card-thumb", preload: "metadata", playsInline: true, src: d.href });
+        setVideoPoster(video, `${d.href}?preview=1&size=${cardPixels(box)}`);
         video.addEventListener("loadedmetadata", () => setCardRatio(card, box, video.videoWidth, video.videoHeight));
         video.addEventListener("loadeddata", shown);
         box.append(video, createMediaMenu(video, "card"));

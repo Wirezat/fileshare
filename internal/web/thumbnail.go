@@ -32,12 +32,12 @@ func previewSize(r *http.Request, view string) int {
 	return min(max(n, previewMinSize), limit)
 }
 
-// servePreviewVariant answers ?preview: a JPEG for images and audio covers, the first lines for text,
-// 204 when there is nothing to show and 404 for views without a preview.
+// servePreviewVariant answers ?preview: a JPEG for images and the covers of audio and video files, the first lines
+// for text, 204 when there is nothing to show and 404 for views without a preview.
 func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx *requestContext) {
 	view := fileView(ctx)
 	switch view {
-	case filetype.ViewImage, filetype.ViewConverted, filetype.ViewAudio, filetype.ViewText, filetype.ViewMarkdown, filetype.ViewHTML, filetype.ViewProbe:
+	case filetype.ViewImage, filetype.ViewConverted, filetype.ViewAudio, filetype.ViewVideo, filetype.ViewText, filetype.ViewMarkdown, filetype.ViewHTML, filetype.ViewProbe:
 	default:
 		http.NotFound(w, r)
 		return
@@ -59,7 +59,7 @@ func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx
 			return
 		}
 		writeJPEG(w, r, f, previewSize(r, view))
-	case filetype.ViewAudio:
+	case filetype.ViewAudio, filetype.ViewVideo:
 		pic, ok := cover.Find(f, typedName(ctx))
 		if !ok {
 			w.WriteHeader(http.StatusNoContent)

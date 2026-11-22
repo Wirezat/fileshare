@@ -31,7 +31,7 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Text and source files are shown with syntax colors in the lightbox, in light and dark mode. The colors are computed in the browser, so large files do not load the server, and the lightbox reads up to 2 MiB of a text file.
 
-- m4a and opus files play as audio, m4a shows its embedded cover, and SVG files show as images, also on cards. Files without an extension are recognized by their content (images, videos, audio, PDF) and open and preview like the format they are.
+- m4a, m4b and opus files play as audio, m4v as video, and SVG files show as images, also on cards. Audio and video files show their embedded cover (m4a, m4b, aac, mp4, mov, mkv, webm), videos as the picture before playback. Files without an extension are recognized by their content (images, videos, audio, PDF) and open and preview like the format they are.
 
 - A toggle shows card previews in their own aspect ratio instead of the fixed crop. The cards have their size from the start, also in long folders.
 

@@ -14,8 +14,8 @@ const (
 	typePNG          = 14
 )
 
-// findMP4 returns the first picture of the covr atom in the moov box of the MP4 stream r.
-// Top-level boxes before moov are skipped, a moov box over 16 MiB gives false.
+// findMP4 returns the first picture of the covr atom in moov > udta of the MP4 or QuickTime stream r.
+// Boxes before moov and before udta are skipped, a udta box over 16 MiB gives false.
 func findMP4(r io.Reader) ([]byte, bool) {
 	for range maxTopLevelBoxes {
 		head, ok := readN(r, boxHeader)
@@ -28,14 +28,7 @@ func findMP4(r io.Reader) ([]byte, bool) {
 		}
 		payload := size - boxHeader
 		if string(head[4:8]) == "moov" {
-			if payload > maxMetadata {
-				return nil, false
-			}
-			body, ok := readN(r, int64(payload))
-			if !ok {
-				return nil, false
-			}
-			return coverInMoov(body)
+			return findUdta(r, payload)
 		}
 		if !skip(r, int64(payload)) {
 			return nil, false
@@ -54,10 +47,44 @@ func skip(r io.Reader, n int64) bool {
 	return err == nil && copied == n
 }
 
-// coverInMoov walks moov > udta > meta > ilst > covr > data and returns the first JPEG or PNG picture.
-func coverInMoov(moov []byte) ([]byte, bool) {
-	box := moov
-	for _, name := range []string{"udta", "meta", "ilst", "covr"} {
+// findUdta reads the boxes of the moov payload of length n at r and returns the cover in its udta box.
+func findUdta(r io.Reader, n uint64) ([]byte, bool) {
+	for range maxTopLevelBoxes {
+		if n < boxHeader {
+			return nil, false
+		}
+		head, ok := readN(r, boxHeader)
+		if !ok {
+			return nil, false
+		}
+		size := uint64(binary.BigEndian.Uint32(head[:4]))
+		if size < boxHeader || size > n {
+			return nil, false
+		}
+		n -= size
+		payload := size - boxHeader
+		if string(head[4:8]) != "udta" {
+			if !skip(r, int64(payload)) {
+				return nil, false
+			}
+			continue
+		}
+		if payload > maxMetadata {
+			return nil, false
+		}
+		body, ok := readN(r, int64(payload))
+		if !ok {
+			return nil, false
+		}
+		return coverInUdta(body)
+	}
+	return nil, false
+}
+
+// coverInUdta walks udta > meta > ilst > covr > data and returns the first JPEG or PNG picture.
+func coverInUdta(udta []byte) ([]byte, bool) {
+	box := udta
+	for _, name := range []string{"meta", "ilst", "covr"} {
 		inner, ok := childBox(box, name)
 		if !ok {
 			return nil, false

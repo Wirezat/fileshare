@@ -30,7 +30,7 @@ var signatures = []signature{
 }
 
 var ftypBrands = map[string]string{
-	"M4A ": "m4a", "qt  ": "mov",
+	"M4A ": "m4a", "M4B ": "m4b", "M4V ": "m4v", "qt  ": "mov",
 	"heic": "heic", "heix": "heic", "mif1": "heic", "msf1": "heic",
 	"avif": "avif", "avis": "avif",
 }

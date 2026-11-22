@@ -206,12 +206,67 @@ func TestFindM4ACoverBehindMediaData(t *testing.T) {
 	}
 }
 
-func TestFindM4ARefusesMoovOver16MiB(t *testing.T) {
-	file := append(mp4Box("ftyp", []byte("M4A ")), binary.BigEndian.AppendUint32(nil, maxMetadata+9)...)
-	file = append(file, "moov"...)
+func TestFindMP4CoverBehindALargeTrack(t *testing.T) {
+	picture := append([]byte("\x89PNG"), bytes.Repeat([]byte("x"), 300)...)
+	data := mp4Box("data", []byte{0, 0, 0, 14, 0, 0, 0, 0}, picture)
+	udta := mp4Box("udta", mp4Box("meta", []byte{0, 0, 0, 0}, mp4Box("ilst", mp4Box("covr", data))))
+	file := append(mp4Box("ftyp", []byte("isom")), mp4Box("moov", mp4Box("trak", make([]byte, maxMetadata+1)), udta)...)
+
+	got, ok := Find(bytes.NewReader(file), "film.mp4")
+	if !ok || !bytes.Equal(got, picture) {
+		t.Fatalf("Find = %d bytes, %v; want the %d-byte picture", len(got), ok, len(picture))
+	}
+}
+
+func TestFindMP4RefusesUdtaOver16MiB(t *testing.T) {
+	udta := append(binary.BigEndian.AppendUint32(nil, maxMetadata+9), "udta"...)
+	file := append(mp4Box("ftyp", []byte("M4A ")), mp4Box("moov", udta)...)
 
 	if _, ok := Find(bytes.NewReader(file), "song.m4a"); ok {
-		t.Error("moov over 16 MiB was read")
+		t.Error("udta over 16 MiB was read")
+	}
+}
+
+func TestFindMP4VideoAndAacWithTag(t *testing.T) {
+	picture := append([]byte("\x89PNG"), bytes.Repeat([]byte("x"), 100)...)
+	for _, name := range []string{"clip.mp4", "clip.m4v", "book.m4b", "clip.mov"} {
+		if got, ok := Find(bytes.NewReader(m4aFile(picture, 100)), name); !ok || !bytes.Equal(got, picture) {
+			t.Errorf("Find(%s) = %d bytes, %v; want the picture", name, len(got), ok)
+		}
+	}
+	tag := id3Tag(3, 0, apicV23(3, picture))
+	if got, ok := Find(bytes.NewReader(append(tag, "\xff\xf1frames"...)), "song.aac"); !ok || !bytes.Equal(got, picture) {
+		t.Errorf("Find(aac with ID3 tag) = %d bytes, %v; want the picture", len(got), ok)
+	}
+}
+
+func ebml(id []byte, payload ...[]byte) []byte {
+	body := bytes.Join(payload, nil)
+	out := append(append([]byte(nil), id...), 0x01)
+	size := binary.BigEndian.AppendUint64(nil, uint64(len(body)))
+	return append(append(out, size[1:]...), body...)
+}
+
+func TestFindMatroskaAttachmentBehindClustersViaSeekHead(t *testing.T) {
+	picture := append([]byte("\xff\xd8\xff"), bytes.Repeat([]byte("x"), 200)...)
+	attachments := ebml([]byte{0x19, 0x41, 0xA4, 0x69},
+		ebml([]byte{0x61, 0xA7},
+			ebml([]byte{0x46, 0x6E}, []byte("cover.jpg")),
+			ebml([]byte{0x46, 0x60}, []byte("image/jpeg")),
+			ebml([]byte{0x46, 0x5C}, picture)))
+	cluster := ebml([]byte{0x1F, 0x43, 0xB6, 0x75}, make([]byte, 5000))
+	seekHead := func(pos uint64) []byte {
+		return ebml([]byte{0x11, 0x4D, 0x9B, 0x74}, ebml([]byte{0x4D, 0xBB},
+			ebml([]byte{0x53, 0xAB}, []byte{0x19, 0x41, 0xA4, 0x69}),
+			ebml([]byte{0x53, 0xAC}, binary.BigEndian.AppendUint64(nil, pos))))
+	}
+	head := seekHead(0)
+	segment := ebml([]byte{0x18, 0x53, 0x80, 0x67}, seekHead(uint64(len(head)+len(cluster))), cluster, attachments)
+	file := append(ebml([]byte{0x1A, 0x45, 0xDF, 0xA3}, ebml([]byte{0x42, 0x82}, []byte("matroska"))), segment...)
+
+	got, ok := Find(bytes.NewReader(file), "film.mkv")
+	if !ok || !bytes.Equal(got, picture) {
+		t.Fatalf("Find = %d bytes, %v; want the %d-byte picture", len(got), ok, len(picture))
 	}
 }
 

@@ -123,6 +123,32 @@ func TestCardPreviewAudioCover(t *testing.T) {
 	}
 }
 
+func mp4Atom(typ string, payload ...[]byte) []byte {
+	body := bytes.Join(payload, nil)
+	return append(binary.BigEndian.AppendUint32(nil, uint32(8+len(body))), append([]byte(typ), body...)...)
+}
+
+func TestCardPreviewVideoCover(t *testing.T) {
+	e, dir := previewEnv(t)
+	var pic bytes.Buffer
+	png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 80, 40)))
+	covr := mp4Atom("covr", mp4Atom("data", []byte{0, 0, 0, 14, 0, 0, 0, 0}, pic.Bytes()))
+	moov := mp4Atom("moov", mp4Atom("udta", mp4Atom("meta", []byte{0, 0, 0, 0}, mp4Atom("ilst", covr))))
+	os.WriteFile(filepath.Join(dir, "film.mp4"), append(mp4Atom("ftyp", []byte("isom")), moov...), 0o600)
+	os.WriteFile(filepath.Join(dir, "plain.mp4"), mp4Atom("ftyp", []byte("isom")), 0o600)
+
+	rec := get(t, e, "/docs/film.mp4?preview=1&size=300")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cover: status %d", rec.Code)
+	}
+	if w, h := jpegSize(t, rec.Body.Bytes()); w != 80 || h != 40 {
+		t.Errorf("cover is %dx%d, want 80x40", w, h)
+	}
+	if rec := get(t, e, "/docs/plain.mp4?preview=1"); rec.Code != http.StatusNoContent {
+		t.Errorf("mp4 without cover: status %d, want 204", rec.Code)
+	}
+}
+
 func TestCardPreviewFirstLines(t *testing.T) {
 	e, dir := previewEnv(t)
 	var lines, want []string
@@ -152,7 +178,7 @@ func TestCardPreviewBinaryIsNoContent(t *testing.T) {
 
 func TestCardPreviewOtherViewsAreNotFound(t *testing.T) {
 	e, dir := previewEnv(t)
-	for _, name := range []string{"a.pdf", "a.zip", "a.mp4"} {
+	for _, name := range []string{"a.pdf", "a.zip"} {
 		os.WriteFile(filepath.Join(dir, name), []byte("data"), 0o600)
 		if rec := get(t, e, "/docs/"+name+"?preview=1"); rec.Code != http.StatusNotFound {
 			t.Errorf("%s: status %d, want 404", name, rec.Code)

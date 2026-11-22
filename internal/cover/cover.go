@@ -12,19 +12,22 @@ const (
 	frontCover  = 3
 )
 
-// Find returns the picture embedded in the mp3, flac, ogg, opus or m4a file read from r, chosen by name's extension.
+// Find returns the picture embedded in the mp3, aac, flac, ogg, opus, m4a, m4b, m4v, mp4, mov, mkv or webm file
+// read from r, chosen by name's extension.
 // A front cover wins over other pictures; any other format, a missing picture or a malformed file gives false.
 // It reads at most 16 MiB of metadata.
 func Find(r io.Reader, name string) ([]byte, bool) {
 	switch strings.ToLower(strings.TrimPrefix(filepath.Ext(name), ".")) {
-	case "mp3":
+	case "mp3", "aac":
 		return findID3(r)
 	case "flac":
 		return findFLAC(r)
 	case "ogg", "opus":
 		return findOgg(r)
-	case "m4a":
+	case "m4a", "m4b", "m4v", "mp4", "mov":
 		return findMP4(r)
+	case "mkv", "webm":
+		return findMatroska(r)
 	}
 	return nil, false
 }
