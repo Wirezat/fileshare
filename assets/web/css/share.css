@@ -169,6 +169,9 @@ button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
 }
 
 .card-thumb { object-fit: cover; }
+.cards-natural .file-grid { align-items: start; }
+.cards-natural .card-preview.has-ratio { height: auto; aspect-ratio: var(--ar); min-height: 80px; max-height: 70vh; }
+.cards-natural .card-thumb { object-fit: contain; }
 .card-preview audio { display: none; }
 
 .card-lines {

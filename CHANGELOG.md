@@ -33,6 +33,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - m4a and opus files play as audio, m4a shows its embedded cover, and SVG files show as images, also on cards. Files without an extension are recognized by their content (images, videos, audio, PDF) and open and preview like the format they are.
 
+- A toggle shows card previews in their own aspect ratio instead of the fixed crop. The cards have their size from the start, also in long folders.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

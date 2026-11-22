@@ -310,7 +310,18 @@ function initEntryClicks() {
 /* Returns the pixel size to request for a preview filling box: its long edge in device pixels, at most 1200.
    @returns {number} */
 function cardPixels(box) {
-    return Math.min(CARD_PREVIEW_MAX, Math.ceil(Math.max(box.clientWidth, box.clientHeight) * (window.devicePixelRatio || 1)));
+    const natural = box.closest(".cards-natural") ? 2 : 1;
+    return Math.min(CARD_PREVIEW_MAX, Math.ceil(Math.max(box.clientWidth * natural, box.clientHeight) * (window.devicePixelRatio || 1)));
+}
+
+/* Gives the preview box of card the aspect ratio w/h of its loaded medium when the listing did not know it
+   or knew another one, and lays the list out anew. */
+function setCardRatio(card, box, w, h) {
+    const entry = entryAt(card);
+    if (!entry || !(w > 0 && h > 0) || Math.abs((entry.ar || 0) - w / h) < 0.01) return;
+    entry.ar = w / h;
+    applyCardRatio(box, entry.ar);
+    relayoutList();
 }
 
 /* Loads the preview of entry d into its card according to its view; on 204 or error the icon stays. */
@@ -324,7 +335,7 @@ function previewCard(card, d) {
     const shown = () => box.classList.add("has-preview");
     if (d.view === "image" || d.view === "converted" || d.view === "audio") {
         const img = Object.assign(document.createElement("img"), { className: "card-thumb", alt: "", decoding: "async" });
-        img.addEventListener("load", shown);
+        img.addEventListener("load", () => { setCardRatio(card, box, img.naturalWidth, img.naturalHeight); shown(); });
         img.addEventListener("error", () => img.remove());
         img.src = /\.svg$/i.test(d.name) ? d.href : `${d.href}?preview=1&size=${cardPixels(box)}`;
         box.appendChild(img);
@@ -334,6 +345,7 @@ function previewCard(card, d) {
         box.append(audio, createMediaMenu(audio, "card"));
     } else if (d.view === "video") {
         const video = Object.assign(document.createElement("video"), { className: "card-thumb", preload: "metadata", playsInline: true, src: d.href });
+        video.addEventListener("loadedmetadata", () => setCardRatio(card, box, video.videoWidth, video.videoHeight));
         video.addEventListener("loadeddata", shown);
         box.append(video, createMediaMenu(video, "card"));
     } else if (TEXT_VIEWS.has(d.view)) {

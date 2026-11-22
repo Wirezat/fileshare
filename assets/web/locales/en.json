@@ -232,6 +232,7 @@
   "share.lightbox.failed": "Preview failed.",
   "share.lightbox.prev": "Previous file",
   "share.lightbox.next": "Next file",
+  "share.cards.natural": "Show previews in their original format",
   "share.media.play": "Play",
   "share.media.pause": "Pause",
   "share.media.seek": "Position",

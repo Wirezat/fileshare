@@ -38,6 +38,15 @@ function selectBox(entry, className) {
     return box;
 }
 
+const CARD_RATIO_MIN = 80;
+const CARD_RATIO_MAX_VH = 0.7;
+
+/* Shows the preview box of a card in the aspect ratio ar (width / height) when the natural card format is on. */
+function applyCardRatio(box, ar) {
+    box.style.setProperty("--ar", String(ar));
+    box.classList.add("has-ratio");
+}
+
 /* Builds the card of entry at position index of listing.visible and registers files for their preview.
    @returns {HTMLLIElement} */
 function cardNode(entry, index) {
@@ -45,6 +54,7 @@ function cardNode(entry, index) {
     card.dataset.index = String(index);
     const preview = entry.dir ? entryLink(entry) : document.createElement("div");
     preview.className = "card-preview card-preview-icon";
+    if (!entry.dir && entry.ar > 0) applyCardRatio(preview, entry.ar);
     preview.appendChild(Object.assign(document.createElement("span"), { className: "card-icon", textContent: entry.icon }));
     const name = Object.assign(document.createElement("div"), { className: "card-name", title: entry.name });
     const link = entryLink(entry);
@@ -92,17 +102,42 @@ function rowNode(entry, index) {
 }
 
 const LIST_BUFFER_ROWS = 3;
-const listView = { nodes: new Map(), rowHeight: 0, columns: 1, width: 0, stale: false, scheduled: false, top: null, bottom: null };
+const listView = { nodes: new Map(), tops: null, columns: 1, width: 0, viewHeight: 0, stale: false, scheduled: false, top: null, bottom: null };
+
+/* Returns the offset of each row of count items laid out in columns from the list top, followed by the end of
+   the last row; heightOf(i) is the height of item i, a row is as high as its highest item plus gap.
+   @returns {number[]} rows + 1 ascending offsets */
+function rowTops(count, columns, gap, heightOf) {
+    const tops = [0];
+    for (let from = 0; from < count; from += columns) {
+        let height = 0;
+        for (let i = from; i < Math.min(count, from + columns); i++) height = Math.max(height, heightOf(i));
+        tops.push(tops[tops.length - 1] + height + gap);
+    }
+    return tops;
+}
+
+/* Returns the row of tops whose span holds offset y, the first or last row for offsets outside.
+   @returns {number} */
+function rowAt(tops, y) {
+    let lo = 0, hi = tops.length - 2;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (tops[mid] <= y) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+}
 
 /* Returns the rows to render: those overlapping the viewport of a scroll container at scrollTop with
-   viewportHeight, for a list starting listTop into its content with rowCount rows of rowHeight, plus buffer rows.
+   viewportHeight, for a list starting listTop into its content with rows at the offsets tops, plus buffer rows.
    @returns {{first: number, last: number}} inclusive row range, last < first when nothing is to be rendered;
    a scrollTop past the end gives the last row */
-function listWindow(scrollTop, viewportHeight, listTop, rowHeight, rowCount, buffer) {
-    if (rowCount === 0) return { first: 0, last: -1 };
+function listWindow(scrollTop, viewportHeight, listTop, tops, buffer) {
+    const rowCount = tops.length - 1;
+    if (rowCount <= 0) return { first: 0, last: -1 };
     const top = scrollTop - listTop;
-    const first = Math.max(0, Math.floor(Math.max(0, top) / rowHeight) - buffer);
-    const last = Math.min(rowCount - 1, Math.ceil((top + viewportHeight) / rowHeight) - 1 + buffer);
+    const first = Math.max(0, rowAt(tops, Math.max(0, top)) - buffer);
+    const last = Math.min(rowCount - 1, rowAt(tops, top + viewportHeight) + buffer);
     return { first: Math.min(first, Math.max(last, 0)), last };
 }
 
@@ -142,15 +177,33 @@ function dropNode(index) {
     listView.nodes.delete(index);
 }
 
-/* Measures row height and column count of the shown view on a probe node of the first entry. */
+/* Measures the shown view on a probe node of the first entry and computes the row offsets: every row as high
+   as the probe, in the natural card format as high as its highest card by the aspect ratios of the entries. */
 function measureList(container, table) {
-    const probe = (table ? rowNode : cardNode)(listing.visible[0], 0);
+    const probe = (table ? rowNode : cardNode)({ ...listing.visible[0], ar: 0 }, 0);
     container.prepend(probe);
     const gap = table ? 0 : parseFloat(getComputedStyle(container).rowGap) || 0;
-    listView.rowHeight = probe.getBoundingClientRect().height + gap;
+    const height = probe.getBoundingClientRect().height;
+    const box = table ? null : probe.querySelector(".card-preview");
+    const boxWidth = box?.clientWidth ?? 0, boxHeight = box?.getBoundingClientRect().height ?? 0;
     listView.columns = table ? 1 : Math.max(1, getComputedStyle(container).gridTemplateColumns.split(" ").length);
+    listView.viewHeight = window.innerHeight;
     previewObserver?.unobserve(probe);
     probe.remove();
+    const natural = !table && !!$("file-list")?.classList.contains("cards-natural");
+    const maxBox = CARD_RATIO_MAX_VH * window.innerHeight;
+    const heightOf = !natural ? () => height : i => {
+        const e = listing.visible[i];
+        if (e.dir || !(e.ar > 0)) return height;
+        return height - boxHeight + Math.min(maxBox, Math.max(CARD_RATIO_MIN, boxWidth / e.ar));
+    };
+    listView.tops = rowTops(listing.visible.length, listView.columns, gap, heightOf);
+}
+
+/* Lays the list out anew at the next frame, keeping the first visible entry in place. */
+function relayoutList() {
+    listView.stale = true;
+    scheduleWindow();
 }
 
 /* Renders the entries of listing.visible that fall into the window of the shown view and removes the rest;
@@ -160,18 +213,23 @@ function renderWindow() {
     if (!container || !listing.visible.length) return;
     const scroller = listScroller();
     let anchor = null;
-    if (listView.stale && listView.rowHeight) {
-        const offset = Math.max(0, scroller.scrollTop - listTopOf(container, scroller)) / listView.rowHeight;
-        anchor = { index: Math.floor(offset) * listView.columns, within: offset % 1 };
+    const y = scroller.scrollTop - listTopOf(container, scroller);
+    if (listView.stale && listView.tops && y > 0) {
+        const row = rowAt(listView.tops, y);
+        const span = listView.tops[row + 1] - listView.tops[row];
+        anchor = { index: row * listView.columns, within: span > 0 ? Math.min(1, (y - listView.tops[row]) / span) : 0 };
     }
-    if (listView.stale || !listView.rowHeight) measureList(container, table);
+    if (listView.stale || !listView.tops) measureList(container, table);
     listView.stale = false;
-    const { rowHeight, columns, nodes } = listView;
-    const rows = Math.ceil(listing.visible.length / columns);
+    const { tops, columns, nodes } = listView;
+    const rows = tops.length - 1;
     const listTop = listTopOf(container, scroller);
-    const scrollTop = anchor === null ? scroller.scrollTop
-        : listTop + (Math.floor(anchor.index / columns) + anchor.within) * rowHeight;
-    const { first, last } = listWindow(scrollTop, scroller.clientHeight, listTop, rowHeight, rows, LIST_BUFFER_ROWS);
+    let scrollTop = scroller.scrollTop;
+    if (anchor !== null) {
+        const row = Math.min(rows - 1, Math.floor(anchor.index / columns));
+        scrollTop = listTop + tops[row] + anchor.within * (tops[row + 1] - tops[row]);
+    }
+    const { first, last } = listWindow(scrollTop, scroller.clientHeight, listTop, tops, LIST_BUFFER_ROWS);
     const from = first * columns, to = Math.min(listing.visible.length, (last + 1) * columns);
     for (const index of [...nodes.keys()]) if (index < from || index >= to) dropNode(index);
     const keptFrom = nodes.size ? Math.min(...nodes.keys()) : Infinity;
@@ -183,7 +241,7 @@ function renderWindow() {
         nodes.set(i, node);
         (i < keptFrom ? head : tail).push(node);
     }
-    const above = first * rowHeight, below = Math.max(0, rows - 1 - last) * rowHeight;
+    const above = tops[first], below = Math.max(0, tops[rows] - tops[last + 1]);
     if (table) {
         listView.top ??= spacerRow();
         listView.bottom ??= spacerRow();
@@ -218,7 +276,7 @@ function renderList() {
     grid.replaceChildren();
     body.replaceChildren();
     grid.style.paddingTop = grid.style.paddingBottom = "";
-    listView.rowHeight = 0;
+    listView.tops = null;
     listView.stale = false;
     const { container } = shownList();
     const scroller = listScroller();
@@ -239,10 +297,12 @@ function initListWindow() {
     const observer = new ResizeObserver(entries => {
         for (const entry of entries) {
             const width = Math.round(entry.contentRect.width);
-            if (entry.target !== list || width === listView.width) continue;
-            listView.width = width;
-            listView.stale = true;
+            if (entry.target === list && width !== listView.width) {
+                listView.width = width;
+                listView.stale = true;
+            }
         }
+        if (window.innerHeight !== listView.viewHeight && list.classList.contains("cards-natural")) listView.stale = true;
         scheduleWindow();
     });
     observer.observe(list);

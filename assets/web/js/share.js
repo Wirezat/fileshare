@@ -65,6 +65,27 @@ function initViewPicker() {
     setFileView(localStorage.getItem("fileshare-view") === "table" ? "table" : "cards");
 }
 
+/* Wires the toggle that shows card previews in their own aspect ratio instead of the fixed crop, and remembers it. */
+function initAspectToggle() {
+    const toggle = $("aspect-toggle");
+    const list = $("file-list");
+    if (!toggle || !list) return;
+    toggle.title = t("share.cards.natural");
+    toggle.setAttribute("aria-label", t("share.cards.natural"));
+    const sync = on => {
+        list.classList.toggle("cards-natural", on);
+        toggle.classList.toggle("active", on);
+        toggle.setAttribute("aria-pressed", String(on));
+        relayoutList();
+    };
+    toggle.addEventListener("click", () => {
+        const on = !list.classList.contains("cards-natural");
+        localStorage.setItem("fileshare-cards-natural", on ? "1" : "0");
+        sync(on);
+    });
+    sync(localStorage.getItem("fileshare-cards-natural") === "1");
+}
+
 // ── Filter & selection ────────────────────────────────
 const selected = new Set();
 
@@ -666,6 +687,7 @@ async function runUploads(run, files, base, ui) {
 // ── Init ──────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
     initViewPicker();
+    initAspectToggle();
     initCrumbDropdowns();
     initFilter();
     initSelection();
