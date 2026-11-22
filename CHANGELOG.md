@@ -39,6 +39,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Photoshop files (psd) show their embedded thumbnail on cards and in the lightbox.
 
+- Office documents in shares with edit access are edited inside the lightbox, which widens to almost the whole window (the whole screen on phones). Closing it after changes says that they are being saved.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

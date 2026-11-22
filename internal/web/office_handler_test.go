@@ -182,6 +182,21 @@ func TestOfficeViewIsReadOnlyAndEmbeddable(t *testing.T) {
 	}
 }
 
+func TestEmbeddedOfficeEditsOnlyInEditShares(t *testing.T) {
+	for mode, want := range map[string]string{config.OfficeEdit: `"mode":"edit"`, config.OfficeView: `"mode":"view"`} {
+		e, _ := withOfficeShare(t, config.FileData{Office: mode}, "https://office.example.com", testSecret)
+
+		rec := get(t, e, "/docs/bericht.docx?view=office&edit=1")
+		body := rec.Body.String()
+		if rec.Code != http.StatusOK || !strings.Contains(body, want) || strings.Contains(body, `class="header"`) {
+			t.Errorf("share %q: status %d, want %s without own header: %s", mode, rec.Code, want, body)
+		}
+		if csp := rec.Header().Get("Content-Security-Policy"); csp != "frame-ancestors 'self'" {
+			t.Errorf("share %q: CSP %q, want embeddable", mode, csp)
+		}
+	}
+}
+
 func TestOfficeViewNeedsOffice(t *testing.T) {
 	e, _ := withOfficeShare(t, config.FileData{Office: config.OfficeOff}, "https://office.example.com", testSecret)
 

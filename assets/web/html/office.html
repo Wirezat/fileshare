@@ -47,7 +47,13 @@
 
     <script src="{{.APIScript}}"></script>
     <script>
-        new DocsAPI.DocEditor("office", {{.Config}});
+        const config = {{.Config}};
+        {{if .Embedded}}
+        config.events = {
+            onDocumentStateChange: e => parent.postMessage({ type: "fileshare-office-state", modified: e.data === true }, location.origin),
+        };
+        {{end}}
+        new DocsAPI.DocEditor("office", config);
 
         function toggleTheme() {
             const dark = !document.documentElement.classList.contains('dark');

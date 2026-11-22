@@ -221,6 +221,7 @@
   "shares.problem.unwritable": "Uploads on, but no write access",
   "settings.access_broken": "Permission checks unavailable – every folder shows as locked. See the log.",
   "share.lightbox.edit": "Edit",
+  "share.office.saving": "Changes are being saved",
   "share.lightbox.download": "Download",
   "share.lightbox.close": "Close",
   "share.lightbox.no_preview": "No preview available",

@@ -1,5 +1,5 @@
 // ── Lightbox ──────────────────────────────────────────
-const lightbox = { entry: null, rendered: true, token: null, returnFocus: null };
+const lightbox = { entry: null, rendered: true, token: null, returnFocus: null, editing: false, modified: false };
 const CARD_PREVIEW_MAX = 1200;
 const CONVERTED_MAX = 2400;
 const SWIPE_MIN = 50;
@@ -225,10 +225,7 @@ function openLightbox(d) {
     $("lightbox-name").textContent = d.name;
     $("lightbox-size").textContent = formatBytes(d.size);
     $("lightbox-download").href = d.href + "?dl=1";
-    const edit = $("lightbox-edit");
-    edit.hidden = !(d.view === "office" && document.querySelector(".file-grid")?.dataset.office === "edit");
-    if (edit.hidden) edit.removeAttribute("href");
-    else edit.href = d.href;
+    $("lightbox-edit").hidden = !(d.view === "office" && document.querySelector(".file-grid")?.dataset.office === "edit");
     const several = lightboxEntries().length > 1;
     $("lightbox-prev").hidden = $("lightbox-next").hidden = !several;
 
@@ -240,10 +237,37 @@ function openLightbox(d) {
     }
 }
 
+/* Switches the lightbox to the wide mode that edits the shown office document; browsing to other files stops
+   until it closes. */
+function editOffice() {
+    const d = lightbox.entry;
+    if (!d || d.view !== "office") return;
+    lightbox.token = {};
+    lightbox.editing = true;
+    lightbox.modified = false;
+    $("lightbox").classList.add("lightbox-wide");
+    $("lightbox-edit").hidden = true;
+    $("lightbox-prev").hidden = $("lightbox-next").hidden = true;
+    const frame = lightboxFrame(d.href + "?view=office&edit=1", d.name, false);
+    $("lightbox-body").replaceChildren(frame);
+    frame.focus();
+}
+
+/* Leaves the editing mode; when the document was changed it tells that the document server saves it now. */
+function endOfficeEdit() {
+    if (!lightbox.editing) return;
+    if (lightbox.modified) {
+        import("/static/ui/js/components/toast.js").then(m => m.showToast({ messageKey: t("share.office.saving") })).catch(() => {});
+    }
+    lightbox.editing = lightbox.modified = false;
+    $("lightbox").classList.remove("lightbox-wide");
+}
+
 /* Closes the lightbox, stops its media and returns focus to where it was. */
 function closeLightbox() {
     const box = $("lightbox");
     if (box.hidden) return;
+    endOfficeEdit();
     lightbox.token = {};
     lightboxHighlighter.cancel();
     $("lightbox-body").querySelectorAll("audio, video").forEach(m => m.pause());
@@ -256,6 +280,7 @@ function closeLightbox() {
 
 /* Moves to the previous (-1) or next (1) visible file, wrapping around. */
 function stepLightbox(dir) {
+    if (lightbox.editing) return;
     const list = lightboxEntries();
     if (!list.length) return;
     const i = list.indexOf(lightbox.entry);
@@ -267,6 +292,12 @@ function initLightbox() {
     const box = $("lightbox");
     if (!box) return;
     $("lightbox-close").addEventListener("click", closeLightbox);
+    $("lightbox-edit").addEventListener("click", editOffice);
+    window.addEventListener("message", e => {
+        if (e.origin === location.origin && e.data?.type === "fileshare-office-state" && lightbox.editing && e.data.modified) {
+            lightbox.modified = true;
+        }
+    });
     $("lightbox-prev").addEventListener("click", () => stepLightbox(-1));
     $("lightbox-next").addEventListener("click", () => stepLightbox(1));
     box.addEventListener("click", e => { if (e.target === box) closeLightbox(); });

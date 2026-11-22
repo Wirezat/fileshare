@@ -42,9 +42,10 @@ type officePage struct {
 	Embedded    bool
 }
 
-// serveOfficeViewer renders the page that embeds the document server editor; embedded gives the read-only
-// viewer without its own header, framable by the share page.
-func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestContext, embedded bool) {
+// serveOfficeViewer renders the page that embeds the document server editor; embedded gives it without its own
+// header, framable by the share page. The editor edits when edit is requested and the share allows editing,
+// else it only shows the document.
+func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *requestContext, embedded, edit bool) {
 	tmpl := s.tpl.office
 
 	scheme := "http"
@@ -58,7 +59,7 @@ func (s *Server) serveOfficeViewer(w http.ResponseWriter, r *http.Request, ctx *
 		Name:     name,
 		Key:      office.DocKey(ctx.diskPath, ctx.fileInfo),
 		URL:      scheme + "://" + r.Host + downloadPath,
-		Edit:     !embedded && ctx.fileData.Office == config.OfficeEdit,
+		Edit:     edit && ctx.fileData.Office == config.OfficeEdit,
 		Callback: scheme + "://" + r.Host + r.URL.EscapedPath() + "?callback=1",
 	}, requestLang(r), ctx.config.OfficeSecret())
 	cfgJSON, err := json.Marshal(cfg)

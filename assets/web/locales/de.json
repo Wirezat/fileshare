@@ -221,6 +221,7 @@
   "shares.problem.unwritable": "Upload an, aber kein Schreibrecht",
   "settings.access_broken": "Rechteprüfung nicht verfügbar – alle Ordner erscheinen gesperrt. Siehe Log.",
   "share.lightbox.edit": "Bearbeiten",
+  "share.office.saving": "Änderungen werden gespeichert",
   "share.lightbox.download": "Herunterladen",
   "share.lightbox.close": "Schließen",
   "share.lightbox.no_preview": "Keine Vorschau verfügbar",

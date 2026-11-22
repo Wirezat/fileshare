@@ -85,7 +85,7 @@ func (s *Server) serveViewVariant(w http.ResponseWriter, r *http.Request, ctx *r
 			http.NotFound(w, r)
 			return
 		}
-		s.serveOfficeViewer(w, r, ctx, true)
+		s.serveOfficeViewer(w, r, ctx, true, r.URL.Query().Get("edit") == "1")
 	default:
 		http.NotFound(w, r)
 	}

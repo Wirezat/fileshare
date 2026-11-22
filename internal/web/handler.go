@@ -139,7 +139,7 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, ctx *requestC
 	case wantsView(r):
 		s.serveViewVariant(w, r, ctx)
 	case officeWanted(r, ctx):
-		s.serveOfficeViewer(w, r, ctx, false)
+		s.serveOfficeViewer(w, r, ctx, false, true)
 	default:
 		s.serveFile(w, r, ctx)
 	}
