@@ -83,6 +83,7 @@ type Server struct {
 	requestLogMu sync.Mutex
 	streamsDone  chan struct{}
 	closeStreams sync.Once
+	aspects      aspectCache
 }
 
 // New parses all page templates under d.Assets and returns a server, or the first parse error.

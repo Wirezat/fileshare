@@ -1,13 +1,17 @@
 package web
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"image"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wirezat/fileshare/internal/config"
 )
@@ -134,5 +138,41 @@ func TestListingIsGzippedWhenAccepted(t *testing.T) {
 	body, _ := io.ReadAll(zr)
 	if !strings.Contains(string(body), `id="entries"`) {
 		t.Error("unpacked listing lacks the entries script")
+	}
+}
+
+func writePNG(t *testing.T, path string, w, h int) {
+	t.Helper()
+	var b bytes.Buffer
+	png.Encode(&b, image.NewGray(image.Rect(0, 0, w, h)))
+	if err := os.WriteFile(path, b.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListingCarriesTheAspectRatioOfPhotos(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "https://office.example.com", testSecret)
+	writePNG(t, filepath.Join(dir, "wide.png"), 300, 100)
+	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o600)
+
+	entries := listingEntries(t, get(t, e, "/docs").Body.String())
+	if got := entries["wide.png"].Ratio; got != 3 {
+		t.Errorf("wide.png has ratio %v, want 3", got)
+	}
+	if got := entries["notes.txt"].Ratio; got != 0 {
+		t.Errorf("notes.txt has ratio %v, want none", got)
+	}
+}
+
+func TestListingRatioFollowsAChangedFile(t *testing.T) {
+	e, dir := withOfficeShare(t, config.FileData{}, "https://office.example.com", testSecret)
+	path := filepath.Join(dir, "photo.png")
+	writePNG(t, path, 300, 100)
+	listingEntries(t, get(t, e, "/docs").Body.String())
+
+	writePNG(t, path, 100, 400)
+	os.Chtimes(path, time.Now(), time.Now().Add(time.Minute))
+	if got := listingEntries(t, get(t, e, "/docs").Body.String())["photo.png"].Ratio; got != 0.25 {
+		t.Errorf("photo.png has ratio %v after the change, want 0.25", got)
 	}
 }

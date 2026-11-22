@@ -18,10 +18,11 @@ const (
 )
 
 type FileInfo struct {
-	Name  string
-	Path  string
-	IsDir bool
-	Size  int64
+	Name    string
+	Path    string
+	IsDir   bool
+	Size    int64
+	ModTime time.Time
 }
 
 func ext(name string) string {

@@ -18,13 +18,14 @@ type requestContext struct {
 
 // ListEntry is one directory entry as the share page script reads it.
 type ListEntry struct {
-	Name     string `json:"name"`
-	Href     string `json:"href"`
-	Size     int64  `json:"size"`
-	Dir      bool   `json:"dir,omitempty"`
-	View     string `json:"view,omitempty"`
-	Icon     string `json:"icon"`
-	Download bool   `json:"dl,omitempty"`
+	Name     string  `json:"name"`
+	Href     string  `json:"href"`
+	Size     int64   `json:"size"`
+	Dir      bool    `json:"dir,omitempty"`
+	View     string  `json:"view,omitempty"`
+	Icon     string  `json:"icon"`
+	Download bool    `json:"dl,omitempty"`
+	Ratio    float64 `json:"ar,omitempty"`
 }
 
 // PageData contains all fields required to render the directory listing template.

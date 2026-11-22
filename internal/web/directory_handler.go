@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wirezat/GoLog"
 	"github.com/Wirezat/fileshare/internal/access"
@@ -65,6 +66,8 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 	}
 
 	files, _ := getFileInfos(ctx.diskPath, fd.Path)
+	entries := listEntries(ctx.subpath, files, officeOn(ctx))
+	s.addAspectRatios(entries, files, ctx.diskPath)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Add("Vary", "Accept-Encoding")
@@ -81,7 +84,7 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 		UploadTime:   fd.UploadTime,
 		DirPath:      relPath,
 		DirName:      dirName,
-		Entries:      listEntries(ctx.subpath, files, officeOn(ctx)),
+		Entries:      entries,
 		ParentDir:    parentDir,
 		HasParentDir: ctx.diskPath != fd.Path,
 		Description:  media.DirDescription(files, fd.Expiration),
@@ -237,23 +240,25 @@ func getFileInfos(dirPath, basePath string) ([]media.FileInfo, error) {
 
 		isDir := entry.IsDir()
 		var size int64
+		var mod time.Time
 		if entry.Type()&fs.ModeSymlink != 0 {
 			if info, err := os.Stat(fullPath); err == nil {
 				isDir = info.IsDir()
-				size = info.Size()
+				size, mod = info.Size(), info.ModTime()
 			}
 		} else if info, err := entry.Info(); err == nil {
-			size = info.Size()
+			size, mod = info.Size(), info.ModTime()
 		}
 		if isDir {
 			size = 0
 		}
 
 		infos = append(infos, media.FileInfo{
-			Name:  entry.Name(),
-			Path:  filepath.Join("/", strings.TrimPrefix(dirPath, basePath), entry.Name()),
-			IsDir: isDir,
-			Size:  size,
+			Name:    entry.Name(),
+			Path:    filepath.Join("/", strings.TrimPrefix(dirPath, basePath), entry.Name()),
+			IsDir:   isDir,
+			Size:    size,
+			ModTime: mod,
 		})
 	}
 	return infos, nil
