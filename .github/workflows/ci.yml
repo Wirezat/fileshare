@@ -63,7 +63,7 @@ jobs:
         run: |
           for arch in amd64 arm64; do
             list="$(tar -tzf dist/fileshare-v0.0.0-linux-$arch.tar.gz)"
-            for f in fileshare-backend assets/web/ui/index.css scripts/fileshare-installer.sh assets/web/js/highlight.min.js; do
+            for f in fileshare-backend assets/web/ui/index.css scripts/fileshare-installer.sh assets/web/js/codemirror/editor.js assets/web/js/highlight.min.js; do
               grep -q "/$f$" <<< "$list" || { echo "$arch tarball misses $f" >&2; exit 1; }
             done
           done

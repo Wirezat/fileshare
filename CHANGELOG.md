@@ -43,6 +43,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Text files in shares with edit access can be saved from the browser (`PUT` on the file, with the `ETag` of the loaded version in `If-Match`). A file changed in the meantime is not overwritten, the upload size limit applies, and the admin statistics count the saves per share.
 
+- Text and source files up to 2 MiB can be edited in the lightbox of shares with edit access: a code editor (CodeMirror 6, self-hosted, loaded on first use) with colors, line numbers, undo and search, saving with the button or Ctrl+S. A file changed in the meantime offers to overwrite it or to reload it, and closing or discarding asks before unsaved changes are lost.
+
 - Pressing Ctrl+F in a share focuses the filter field.
 
 ### Changed

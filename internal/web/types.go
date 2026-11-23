@@ -44,6 +44,7 @@ type PageData struct {
 	AllowZip     bool
 	Office       bool
 	OfficeEdit   bool
+	TextEdit     bool
 	IsEmpty      bool
 	Text         map[string]string
 }

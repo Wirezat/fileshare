@@ -331,6 +331,28 @@ button.crumb-sep-btn[aria-expanded="true"] { color: var(--accent); }
 }
 
 .lightbox-btn[hidden] { display: none; }
+.lightbox-btn:disabled { opacity: 0.4; cursor: default; }
+
+.lightbox-ask {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-control);
+    padding: var(--gap-control) var(--gap-panel, 16px);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.lightbox-ask[hidden] { display: none; }
+.lightbox-ask span { flex: 1; min-width: 12em; }
+
+.lightbox-editor {
+    width: 100%;
+    height: 100%;
+    align-self: stretch;
+    text-align: left;
+    background: var(--bg-card);
+}
 .lightbox-btn:hover { background: var(--glass); color: var(--on-glass); }
 
 .lightbox-btn svg,

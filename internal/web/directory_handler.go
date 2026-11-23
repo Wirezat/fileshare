@@ -93,6 +93,7 @@ func (s *Server) serveDirectory(w http.ResponseWriter, r *http.Request, ctx *req
 		AllowZip:     !fd.NoZip,
 		Office:       officeOn(ctx),
 		OfficeEdit:   officeOn(ctx) && fd.Office == config.OfficeEdit,
+		TextEdit:     fd.Office == config.OfficeEdit,
 		IsEmpty:      len(files) == 0,
 		Text:         s.shareText[requestLang(r)],
 	}); err != nil {

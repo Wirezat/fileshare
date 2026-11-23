@@ -1,5 +1,6 @@
 // ── Lightbox ──────────────────────────────────────────
-const lightbox = { entry: null, rendered: true, token: null, returnFocus: null, editing: false, modified: false };
+const lightbox = { entry: null, rendered: true, token: null, returnFocus: null, editing: false, modified: false, text: null, ask: null };
+const TEXT_EDIT_MAX = 2 * 1024 * 1024;
 const CARD_PREVIEW_MAX = 1200;
 const CONVERTED_MAX = 2400;
 const SWIPE_MIN = 50;
@@ -225,7 +226,7 @@ function openLightbox(d) {
     $("lightbox-name").textContent = d.name;
     $("lightbox-size").textContent = formatBytes(d.size);
     $("lightbox-download").href = d.href + "?dl=1";
-    $("lightbox-edit").hidden = !(d.view === "office" && document.querySelector(".file-grid")?.dataset.office === "edit");
+    $("lightbox-edit").hidden = !editable(d);
     const several = lightboxEntries().length > 1;
     $("lightbox-prev").hidden = $("lightbox-next").hidden = !several;
 
@@ -237,37 +238,185 @@ function openLightbox(d) {
     }
 }
 
-/* Switches the lightbox to the wide mode that edits the shown office document; browsing to other files stops
-   until it closes. */
-function editOffice() {
-    const d = lightbox.entry;
-    if (!d || d.view !== "office") return;
+/* Reports whether entry d can be edited in this share: office documents, and text files up to 2 MiB.
+   @returns {boolean} */
+function editable(d) {
+    const grid = document.querySelector(".file-grid")?.dataset ?? {};
+    if (d.view === "office") return grid.office === "edit";
+    return grid.edit === "text" && TEXT_VIEWS.has(d.view) && d.size <= TEXT_EDIT_MAX;
+}
+
+/* Shows the message of key as a toast of tone. */
+function toast(key, tone = "success") {
+    import("/static/ui/js/components/toast.js").then(m => m.showToast({ tone, messageKey: t(key) })).catch(() => {});
+}
+
+/* Shows the message of messageKey with one button per choice [key, labelKey] in the bar above the lightbox body.
+   @returns {Promise<string | null>} the key of the chosen button, null when the question is dropped */
+function askLightbox(messageKey, choices) {
+    const bar = $("lightbox-ask");
+    lightbox.ask?.(null);
+    return new Promise(resolve => {
+        const done = key => {
+            if (lightbox.ask !== done) return;
+            lightbox.ask = null;
+            bar.hidden = true;
+            resolve(key);
+        };
+        lightbox.ask = done;
+        const buttons = choices.map(([key, labelKey], i) => {
+            const b = Object.assign(document.createElement("button"), {
+                type: "button", className: `btn btn-sm ${i === 0 ? "btn-primary" : "btn-ghost"}`, textContent: t(labelKey),
+            });
+            b.addEventListener("click", () => done(key));
+            return b;
+        });
+        bar.replaceChildren(Object.assign(document.createElement("span"), { textContent: t(messageKey) }), ...buttons);
+        bar.hidden = false;
+        buttons[0].focus();
+    });
+}
+
+/* Switches the lightbox to the wide editing mode, in which browsing to other files stops until editing ends. */
+function enterWide() {
     lightbox.token = {};
     lightbox.editing = true;
     lightbox.modified = false;
     $("lightbox").classList.add("lightbox-wide");
-    $("lightbox-edit").hidden = true;
+    $("lightbox-edit").hidden = $("lightbox-source").hidden = true;
     $("lightbox-prev").hidden = $("lightbox-next").hidden = true;
+}
+
+/* Opens the editor that fits the shown entry. */
+function startEdit() {
+    if (lightbox.entry?.view === "office") editOffice();
+    else editText();
+}
+
+/* Edits the shown office document in the document server. */
+function editOffice() {
+    const d = lightbox.entry;
+    enterWide();
     const frame = lightboxFrame(d.href + "?view=office&edit=1", d.name, false);
     $("lightbox-body").replaceChildren(frame);
     frame.focus();
 }
 
-/* Leaves the editing mode; when the document was changed it tells that the document server saves it now. */
-function endOfficeEdit() {
-    if (!lightbox.editing) return;
-    if (lightbox.modified) {
-        import("/static/ui/js/components/toast.js").then(m => m.showToast({ messageKey: t("share.office.saving") })).catch(() => {});
+/* Loads the shown text file with its entity tag into a code editor. */
+async function editText() {
+    const d = lightbox.entry;
+    enterWide();
+    const token = lightbox.token;
+    showMessage("share.lightbox.loading");
+    try {
+        const [res, cm] = await Promise.all([fetch(d.href, { cache: "no-store" }), import("/static/codemirror/editor.js")]);
+        if (!res.ok) throw new Error(res.statusText);
+        const text = await res.text();
+        if (lightbox.token !== token) return;
+        const host = Object.assign(document.createElement("div"), { className: "lightbox-editor" });
+        $("lightbox-body").replaceChildren(host);
+        const session = { entry: d, etag: res.headers.get("ETag"), dirty: false, saving: false };
+        session.editor = cm.createEditor(host, {
+            text,
+            filename: d.name,
+            dark: document.documentElement.classList.contains("dark"),
+            onSave: () => saveText(),
+            onChange: dirty => {
+                session.dirty = dirty;
+                $("lightbox-save").disabled = !dirty;
+            },
+        });
+        lightbox.text = session;
+        $("lightbox-save").hidden = $("lightbox-discard").hidden = false;
+        $("lightbox-save").disabled = true;
+        session.editor.focus();
+    } catch {
+        if (lightbox.token === token) showMessage("share.edit.load_failed");
     }
+}
+
+/* Replaces the text of the editor with the current version of the file. */
+async function reloadText() {
+    const s = lightbox.text;
+    const res = await fetch(s.entry.href, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.statusText);
+    const text = await res.text();
+    if (lightbox.text !== s) return;
+    s.etag = res.headers.get("ETag");
+    s.editor.reset(text);
+}
+
+/* Saves the edited text; force overwrites a version changed in the meantime. A conflict asks whether to overwrite
+   the other version or to load it. */
+async function saveText(force = false) {
+    const s = lightbox.text;
+    if (!s || s.saving) return;
+    s.saving = true;
+    let conflict = false;
+    try {
+        const etag = force ? (await fetch(s.entry.href, { method: "HEAD", cache: "no-store" })).headers.get("ETag") : s.etag;
+        const sent = s.editor.text();
+        const res = await fetch(s.entry.href, {
+            method: "PUT",
+            headers: { "If-Match": etag ?? "", "Content-Type": "text/plain; charset=utf-8" },
+            body: sent,
+        });
+        if (res.status === 204) {
+            s.etag = res.headers.get("ETag");
+            s.entry.size = new Blob([sent]).size;
+            $("lightbox-size").textContent = formatBytes(s.entry.size);
+            if (s.editor.text() === sent) s.editor.markClean();
+            toast("share.edit.saved");
+        } else if (res.status === 412) {
+            conflict = true;
+        } else {
+            toast(res.status === 413 ? "share.edit.too_large" : "share.edit.save_failed", "danger");
+        }
+    } catch {
+        toast("share.edit.save_failed", "danger");
+    } finally {
+        s.saving = false;
+    }
+    if (!conflict) return;
+    const choice = await askLightbox("share.edit.conflict",
+        [["overwrite", "share.edit.overwrite"], ["reload", "share.edit.reload"], ["cancel", "share.edit.cancel"]]);
+    if (lightbox.text !== s) return;
+    if (choice === "overwrite") saveText(true);
+    else if (choice === "reload") reloadText().catch(() => toast("share.edit.load_failed", "danger"));
+}
+
+/* Resolves true when unsaved text changes may be dropped: there are none, or the user agrees.
+   @returns {Promise<boolean>} */
+async function mayDropText() {
+    if (!lightbox.text?.dirty) return true;
+    return await askLightbox("share.edit.unsaved", [["discard", "share.edit.discard"], ["cancel", "share.edit.cancel"]]) === "discard";
+}
+
+/* Leaves the editing mode; after office changes it tells that the document server saves them now. */
+function endEdit() {
+    if (!lightbox.editing) return;
+    if (lightbox.modified) toast("share.office.saving");
+    lightbox.text?.editor.destroy();
+    lightbox.text = null;
+    lightbox.ask?.(null);
+    $("lightbox-save").hidden = $("lightbox-discard").hidden = true;
     lightbox.editing = lightbox.modified = false;
     $("lightbox").classList.remove("lightbox-wide");
 }
 
-/* Closes the lightbox, stops its media and returns focus to where it was. */
-function closeLightbox() {
+/* Drops the text changes after asking and shows the file read-only again. */
+async function discardEdit() {
+    if (!await mayDropText()) return;
+    const d = lightbox.entry;
+    endEdit();
+    openLightbox(d);
+}
+
+/* Closes the lightbox, stops its media and returns focus to where it was; unsaved text changes are asked about first. */
+async function closeLightbox() {
     const box = $("lightbox");
-    if (box.hidden) return;
-    endOfficeEdit();
+    if (box.hidden || !await mayDropText()) return;
+    endEdit();
     lightbox.token = {};
     lightboxHighlighter.cancel();
     $("lightbox-body").querySelectorAll("audio, video").forEach(m => m.pause());
@@ -292,7 +441,10 @@ function initLightbox() {
     const box = $("lightbox");
     if (!box) return;
     $("lightbox-close").addEventListener("click", closeLightbox);
-    $("lightbox-edit").addEventListener("click", editOffice);
+    $("lightbox-edit").addEventListener("click", startEdit);
+    $("lightbox-save").addEventListener("click", () => saveText());
+    $("lightbox-discard").addEventListener("click", discardEdit);
+    window.addEventListener("beforeunload", e => { if (lightbox.text?.dirty) e.preventDefault(); });
     window.addEventListener("message", e => {
         if (e.origin === location.origin && e.data?.type === "fileshare-office-state" && lightbox.editing && e.data.modified) {
             lightbox.modified = true;
@@ -307,7 +459,9 @@ function initLightbox() {
     });
     document.addEventListener("keydown", e => {
         if (box.hidden) return;
-        if (e.key === "Escape") closeLightbox();
+        if (e.key === "Escape") {
+            if (!e.target.closest?.(".cm-editor, .lightbox-ask")) closeLightbox();
+        }
         else if (e.target.closest?.(".media-seek, input")) return;
         else if (e.key === "ArrowRight") stepLightbox(1);
         else if (e.key === "ArrowLeft") stepLightbox(-1);
