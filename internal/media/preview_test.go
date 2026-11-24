@@ -57,9 +57,9 @@ func TestEncodeThumbnailTakesTheExifThumbnailWhenItIsLargeEnough(t *testing.T) {
 	if err != nil || !centerIsRed(t, out) {
 		t.Errorf("300 px preview: err %v, want the red Exif thumbnail", err)
 	}
-	out, err = EncodeThumbnail(context.Background(), bytes.NewReader(photo), 800)
+	out, err = EncodeThumbnail(context.Background(), bytes.NewReader(photo), 801)
 	if err != nil || centerIsRed(t, out) {
-		t.Errorf("800 px preview: err %v, want the blue photo itself", err)
+		t.Errorf("801 px preview: err %v, want the blue photo itself", err)
 	}
 }
 

@@ -9,10 +9,18 @@ func TestEmbeddedJPEGIsReturnedUnchanged(t *testing.T) {
 	thumb := solidJPEG(400, 200, red)
 	photo := withExifSegment(solidJPEG(1000, 500, blue), tiffWithThumbnail(thumb))
 
-	for edge, want := range map[int]bool{100: false, 200: true, 400: true, 401: false} {
+	for edge, want := range map[int]bool{100: false, 200: true, 400: true, 800: true, 801: false} {
 		got, ok := EmbeddedJPEG(bytes.NewReader(photo), edge)
 		if ok != want || ok && !bytes.Equal(got, thumb) {
 			t.Errorf("edge %d: %d bytes, %v; want %v", edge, len(got), ok, want)
+		}
+	}
+}
+
+func TestSharpEnough(t *testing.T) {
+	for edge, want := range map[int]int{100: 100, 300: 300, 434: 300, 600: 300, 868: 434, ThumbnailMaxEdge: 600, ConvertedMaxEdge: ConvertedMaxEdge} {
+		if got := sharpEnough(edge); got != want {
+			t.Errorf("sharpEnough(%d) = %d, want %d", edge, got, want)
 		}
 	}
 }

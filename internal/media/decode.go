@@ -29,16 +29,16 @@ func FitsDecodeLimit(w, h int) bool {
 }
 
 // EncodeThumbnail decodes the image in src and returns it as a JPEG whose long edge is at most maxEdge,
-// turned upright by its Exif orientation. A preview the file embeds is decoded instead when it is at least maxEdge
-// long, when it is larger than the image itself, or when that cannot be decoded or exceeds FitsDecodeLimit; without one that gives the decode
-// error or ErrTooLarge. A HEIF or AVIF file decodes its thumbnail item under the same size rule. It returns
-// ctx.Err() when ctx ends while waiting for one of the two decode slots.
+// turned upright by its Exif orientation. A preview the file embeds is decoded instead when it is at least
+// sharpEnough(maxEdge) long, when it is larger than the image itself, or when that cannot be decoded or exceeds
+// FitsDecodeLimit; without one that gives the decode error or ErrTooLarge. A HEIF or AVIF file decodes its thumbnail
+// item under the same size rule. It returns ctx.Err() when ctx ends while waiting for one of the two decode slots.
 func EncodeThumbnail(ctx context.Context, src io.ReadSeeker, maxEdge int) ([]byte, error) {
-	if file, ok := heifThumbnailItem(src, maxEdge); ok {
+	if file, ok := heifThumbnailItem(src, sharpEnough(maxEdge)); ok {
 		src = bytes.NewReader(file)
 	}
 	p, hasPreview := findPreview(src)
-	if hasPreview && (max(p.w, p.h) >= maxEdge || p.w*p.h > pixels(src)) {
+	if hasPreview && (max(p.w, p.h) >= sharpEnough(maxEdge) || p.w*p.h > pixels(src)) {
 		return encodePreview(ctx, src, p, maxEdge)
 	}
 	img, err := scaledImage(ctx, src, maxEdge)
