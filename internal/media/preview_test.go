@@ -203,3 +203,51 @@ func TestPSDPreviewFromItsThumbnailResource(t *testing.T) {
 		t.Errorf("err %v, want the red thumbnail", err)
 	}
 }
+
+func TestRawPreviewWinsOverASmallerDecodableImage(t *testing.T) {
+	const w, h = 16, 12
+	preview := solidJPEG(400, 300, red)
+	pixels := 8 + 2 + 9*12 + 4
+	raw := append([]byte("II*\x00\x08\x00\x00\x00"), ifdBytes(
+		testEntry{0x0100, 3, 1, w},
+		testEntry{0x0101, 3, 1, h},
+		testEntry{0x0102, 3, 1, 8},
+		testEntry{0x0103, 3, 1, 1},
+		testEntry{0x0106, 3, 1, 1},
+		testEntry{0x0111, 4, 1, uint32(pixels)},
+		testEntry{0x0117, 4, 1, w * h},
+		testEntry{0x0201, 4, 1, uint32(pixels + w*h)},
+		testEntry{0x0202, 4, 1, uint32(len(preview))})...)
+	raw = append(append(raw, make([]byte, w*h)...), preview...)
+
+	out, err := EncodeThumbnail(context.Background(), bytes.NewReader(raw), 1200)
+	if err != nil || !centerIsRed(t, out) {
+		t.Errorf("err %v, want the red 400x300 preview instead of the 16x12 image", err)
+	}
+}
+
+func TestEncodeThumbnailTurnsTIFFByItsOrientation(t *testing.T) {
+	const w, h = 16, 12
+	pixels := 8 + 2 + 8*12 + 4
+	file := append([]byte("II*\x00\x08\x00\x00\x00"), ifdBytes(
+		testEntry{0x0100, 3, 1, w},
+		testEntry{0x0101, 3, 1, h},
+		testEntry{0x0102, 3, 1, 8},
+		testEntry{0x0103, 3, 1, 1},
+		testEntry{0x0106, 3, 1, 1},
+		testEntry{0x0111, 4, 1, uint32(pixels)},
+		testEntry{0x0112, 3, 1, 6},
+		testEntry{0x0117, 4, 1, w * h})...)
+	file = append(file, make([]byte, w*h)...)
+
+	out, err := EncodeThumbnail(context.Background(), bytes.NewReader(file), 1200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gw, gh := jpegSize(t, out); gw != h || gh != w {
+		t.Errorf("got %dx%d, want %dx%d", gw, gh, h, w)
+	}
+	if ar, ok := AspectRatio(bytes.NewReader(file), "scan.tif"); !ok || ar != float64(h)/w {
+		t.Errorf("AspectRatio = %v, %v; want %v", ar, ok, float64(h)/w)
+	}
+}

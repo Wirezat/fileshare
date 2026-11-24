@@ -229,7 +229,7 @@ func TestFindMP4RefusesUdtaOver16MiB(t *testing.T) {
 
 func TestFindMP4VideoAndAacWithTag(t *testing.T) {
 	picture := append([]byte("\x89PNG"), bytes.Repeat([]byte("x"), 100)...)
-	for _, name := range []string{"clip.mp4", "clip.m4v", "book.m4b", "clip.mov"} {
+	for _, name := range []string{"clip.mp4", "clip.m4v", "book.m4b", "clip.mov", "clip.3gp"} {
 		if got, ok := Find(bytes.NewReader(m4aFile(picture, 100)), name); !ok || !bytes.Equal(got, picture) {
 			t.Errorf("Find(%s) = %d bytes, %v; want the picture", name, len(got), ok)
 		}
@@ -267,6 +267,62 @@ func TestFindMatroskaAttachmentBehindClustersViaSeekHead(t *testing.T) {
 	got, ok := Find(bytes.NewReader(file), "film.mkv")
 	if !ok || !bytes.Equal(got, picture) {
 		t.Fatalf("Find = %d bytes, %v; want the %d-byte picture", len(got), ok, len(picture))
+	}
+}
+
+func asfObject(guid string, payload ...[]byte) []byte {
+	body := bytes.Join(payload, nil)
+	out := binary.LittleEndian.AppendUint64([]byte(guid), uint64(24+len(body)))
+	return append(out, body...)
+}
+
+func utf16z(s string) []byte {
+	var out []byte
+	for _, c := range s + "\x00" {
+		out = binary.LittleEndian.AppendUint16(out, uint16(c))
+	}
+	return out
+}
+
+func asfPictureValue(picType byte, data []byte) []byte {
+	out := binary.LittleEndian.AppendUint32([]byte{picType}, uint32(len(data)))
+	return bytes.Join([][]byte{out, utf16z("image/png"), utf16z("cover"), data}, nil)
+}
+
+func asfFile(objects ...[]byte) []byte {
+	count := binary.LittleEndian.AppendUint32(nil, uint32(len(objects)))
+	return asfObject(asfHeader, append([][]byte{count, {1, 2}}, objects...)...)
+}
+
+func TestFindWMACoverInBothDescriptionObjects(t *testing.T) {
+	le := binary.LittleEndian
+	picture := append([]byte("\x89PNG"), bytes.Repeat([]byte("x"), 100)...)
+	name := utf16z("WM/Picture")
+	value := asfPictureValue(3, picture)
+
+	short := le.AppendUint16(nil, 1)
+	short = le.AppendUint16(short, uint16(len(name)))
+	short = append(short, name...)
+	short = le.AppendUint16(short, 1)
+	short = le.AppendUint16(short, uint16(len(value)))
+	short = append(short, value...)
+
+	library := le.AppendUint16(nil, 1)
+	library = append(library, 0, 0, 0, 0)
+	library = le.AppendUint16(library, uint16(len(name)))
+	library = le.AppendUint16(library, 1)
+	library = le.AppendUint32(library, uint32(len(value)))
+	library = append(append(library, name...), value...)
+	object := asfObject(asfMetadataLibrary, library)
+	extension := asfObject(asfHeaderExtension, make([]byte, 18), le.AppendUint32(nil, uint32(len(object))), object)
+
+	for where, file := range map[string][]byte{
+		"extended content": asfFile(asfObject(asfExtendedContent, short)),
+		"metadata library": asfFile(extension),
+	} {
+		if got, ok := Find(bytes.NewReader(file), "song.wma"); !ok || !bytes.Equal(got, picture) {
+			t.Errorf("Find(wma, %s) = %d bytes, %v; want the picture", where, len(got), ok)
+		}
 	}
 }
 

@@ -18,6 +18,8 @@ var signatures = []signature{
 	{0, "%PDF-", "pdf"},
 	{0, "FUJIFILMCCD-RAW", "raf"},
 	{0, "8BPS", "psd"},
+	{0, "II*\x00", "tif"},
+	{0, "MM\x00*", "tif"},
 	{0, "fLaC", "flac"},
 	{0, "ID3", "mp3"},
 	{0, "\xff\xfb", "mp3"},

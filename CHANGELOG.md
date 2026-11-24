@@ -33,6 +33,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - m4a, m4b and opus files play as audio, m4v as video, and SVG files show as images, also on cards. Audio and video files show their embedded cover (m4a, m4b, aac, mp4, mov, mkv, webm), videos as the picture before playback. Files without an extension are recognized by their content (images, videos, audio, PDF) and open and preview like the format they are.
 
+- bmp, jfif and tif files show as images, 3gp, 3g2 and ogv files as video, and oga, mka and wma files as audio. wma and wmv files show their embedded cover.
+
 - A toggle shows card previews in their own aspect ratio instead of the fixed crop. The cards have their size from the start, also in long folders.
 
 - Camera raw files (dng, cr2, cr3, nef, nrw, arw, orf, rw2, raf, pef, srw) show their embedded preview on cards and in the lightbox, turned upright.

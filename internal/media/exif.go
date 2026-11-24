@@ -16,13 +16,33 @@ const (
 	jpegMarkerExif      = 0xE1
 )
 
-// ExifOrientation returns the Exif orientation (1 to 8) of the JPEG in r, 1 when it has none or an invalid one.
+// ExifOrientation returns the Exif orientation (1 to 8) of the JPEG or TIFF in r, 1 when it has none or an invalid one.
 func ExifOrientation(r io.ReadSeeker) int {
 	t, _, ok := exifTIFF(r)
 	if !ok {
-		return 1
+		return tiffFileOrientation(r)
 	}
 	return tiffOrientation(t)
+}
+
+// tiffFileOrientation returns the orientation tag (1 to 8) of IFD0 of the TIFF file in r, 1 when r is no TIFF file
+// or has none or an invalid one.
+func tiffFileOrientation(r io.ReadSeeker) int {
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return 1
+	}
+	var head [8]byte
+	if _, err := io.ReadFull(r, head[:]); err != nil || (string(head[:4]) != "II*\x00" && string(head[:4]) != "MM\x00*") {
+		return 1
+	}
+	bo, _ := tiffByteOrder(head[:])
+	entries, _, _ := readIFD(r, bo, int64(bo.Uint32(head[4:])))
+	for _, e := range entries {
+		if o := entryValue(bo, e); e.tag == exifTagOrientation && o >= 1 && o <= 8 {
+			return int(o)
+		}
+	}
+	return 1
 }
 
 // tiffOrientation returns the orientation tag (1 to 8) of IFD0 of the TIFF structure t, 1 when it has none

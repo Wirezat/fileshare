@@ -29,9 +29,9 @@ const (
 )
 
 // AspectRatio returns width divided by height of the image or video in r as it is shown, read from its header
-// and chosen by name's extension: jpg, png, gif, webp, heic, heif, avif, svg, mp4, m4v, mov, mkv, webm, psd or a
-// camera raw format; for psd and raw files their largest embedded preview counts.
-// A JPEG's Exif orientation and a HEIF rotation or video track rotation by 90 degrees are applied.
+// and chosen by name's extension: jpg, jfif, png, gif, webp, bmp, tif, heic, heif, avif, svg, mp4, m4v, mov,
+// 3gp, 3g2, mkv, webm, psd or a camera raw format; for psd and raw files their largest embedded preview counts.
+// The Exif orientation of a JPEG or TIFF and a HEIF rotation or video track rotation by 90 degrees are applied.
 // ok is false for any other format or a header without a usable size.
 func AspectRatio(r io.ReadSeeker, name string) (ratio float64, ok bool) {
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
@@ -39,7 +39,7 @@ func AspectRatio(r io.ReadSeeker, name string) (ratio float64, ok bool) {
 	}
 	var w, h float64
 	switch ext(name) {
-	case "jpg", "jpeg", "png", "gif", "webp":
+	case "jpg", "jpeg", "jfif", "png", "gif", "webp", "bmp", "tif", "tiff":
 		cfg, _, err := image.DecodeConfig(r)
 		if err != nil {
 			return 0, false
@@ -52,7 +52,7 @@ func AspectRatio(r io.ReadSeeker, name string) (ratio float64, ok bool) {
 		w, h, ok = heifSize(r)
 	case "svg":
 		w, h, ok = svgSize(r)
-	case "mp4", "m4v", "mov":
+	case "mp4", "m4v", "mov", "3gp", "3g2":
 		w, h, ok = mp4Size(r)
 	case "mkv", "webm":
 		w, h, ok = matroskaSize(r)

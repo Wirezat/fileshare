@@ -12,6 +12,8 @@ import (
 
 	_ "github.com/gen2brain/avif"
 	_ "github.com/gen2brain/heic"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
 )
 
@@ -28,7 +30,7 @@ func FitsDecodeLimit(w, h int) bool {
 
 // EncodeThumbnail decodes the image in src and returns it as a JPEG whose long edge is at most maxEdge,
 // turned upright by its Exif orientation. A preview the file embeds is decoded instead when it is at least maxEdge
-// long, or when the image itself cannot be decoded or exceeds FitsDecodeLimit; without one that gives the decode
+// long, when it is larger than the image itself, or when that cannot be decoded or exceeds FitsDecodeLimit; without one that gives the decode
 // error or ErrTooLarge. A HEIF or AVIF file decodes its thumbnail item under the same size rule. It returns
 // ctx.Err() when ctx ends while waiting for one of the two decode slots.
 func EncodeThumbnail(ctx context.Context, src io.ReadSeeker, maxEdge int) ([]byte, error) {
@@ -36,7 +38,7 @@ func EncodeThumbnail(ctx context.Context, src io.ReadSeeker, maxEdge int) ([]byt
 		src = bytes.NewReader(file)
 	}
 	p, hasPreview := findPreview(src)
-	if hasPreview && max(p.w, p.h) >= maxEdge {
+	if hasPreview && (max(p.w, p.h) >= maxEdge || p.w*p.h > pixels(src)) {
 		return encodePreview(ctx, src, p, maxEdge)
 	}
 	img, err := scaledImage(ctx, src, maxEdge)
@@ -51,6 +53,18 @@ func EncodeThumbnail(ctx context.Context, src io.ReadSeeker, maxEdge int) ([]byt
 		return nil, err
 	}
 	return out.Bytes(), nil
+}
+
+// pixels returns the number of pixels the header of the image in src gives, 0 when it cannot be read.
+func pixels(src io.ReadSeeker) int {
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return 0
+	}
+	cfg, _, err := image.DecodeConfig(src)
+	if err != nil {
+		return 0
+	}
+	return cfg.Width * cfg.Height
 }
 
 // scaledImage decodes the image in src scaled to a long edge of at most maxEdge,

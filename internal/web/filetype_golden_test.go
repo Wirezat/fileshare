@@ -46,9 +46,9 @@ func goldenTypeCases() []typeCase {
 	cases := []typeCase{
 		imageCase("a.jpg", true), imageCase("A.JPG", true), imageCase("a.jpeg", true), imageCase("a.JPEG", true),
 		imageCase("a.png", true), imageCase("a.gif", true), imageCase("a.webp", true), imageCase("a.avif", true),
-		{name: "a.bmp", shownInline: true}, imageCase("a.svg", false),
-		videoCase("a.mp4"), videoCase("a.mov"), videoCase("a.webm"), videoCase("a.mkv"), videoCase("a.avi"), videoCase("a.wmv"), videoCase("a.m4v"),
-		audioCase("a.mp3"), audioCase("a.wav"), audioCase("a.flac"), audioCase("a.aac"), audioCase("a.ogg"), audioCase("a.m4a"), audioCase("a.opus"), audioCase("a.m4b"),
+		imageCase("a.bmp", true), imageCase("a.tif", true), imageCase("a.tiff", true), imageCase("a.jfif", true), imageCase("a.svg", false),
+		videoCase("a.mp4"), videoCase("a.mov"), videoCase("a.webm"), videoCase("a.mkv"), videoCase("a.avi"), videoCase("a.wmv"), videoCase("a.m4v"), videoCase("a.3gp"), videoCase("a.3g2"), videoCase("a.ogv"),
+		audioCase("a.mp3"), audioCase("a.wav"), audioCase("a.flac"), audioCase("a.aac"), audioCase("a.ogg"), audioCase("a.m4a"), audioCase("a.opus"), audioCase("a.m4b"), audioCase("a.oga"), audioCase("a.mka"), audioCase("a.wma"),
 		{name: "a.pdf", inlineOff: true, inlineOn: true, shownInline: true},
 		{name: "A.PDF", inlineOff: true, inlineOn: true, shownInline: true},
 		{name: "résumé.pdf", inlineOff: true, inlineOn: true, shownInline: true},
