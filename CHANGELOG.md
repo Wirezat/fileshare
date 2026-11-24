@@ -57,6 +57,7 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Links to files and folders with `#`, `?` or `%` in their name work. The same goes for the Office viewer and link previews.
 - Long file names on cards scroll on hover.
+- Audio and video files the browser cannot play say so in the lightbox instead of showing a dead player, and their cards have no play button.
 - A locked upload toggle in the admin says why in its tooltip and looks disabled instead of answering a click with an error toast. Locked toggles dim as rounded pills.
 - Browsers revalidate the shared UI files and admin scripts on every use, so an update shows up at once.
 - Built with Go 1.27.4. Go 1.25 gets no more security fixes, and the older build called 14 known-vulnerable standard-library paths (`net/http`, `crypto/tls`, `crypto/x509`, `html/template`).

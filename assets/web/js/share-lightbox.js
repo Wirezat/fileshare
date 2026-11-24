@@ -136,14 +136,19 @@ function lightboxFrame(src, title, sandboxed) {
     return frame;
 }
 
-/* Wraps media with the elements extra and a lightbox media menu.
+/* Wraps media with the elements extra and a lightbox media menu; when media cannot be played, a note replaces the menu.
    @returns {HTMLDivElement} */
 function mediaPlayer(media, extra) {
     const wrap = Object.assign(document.createElement("div"), { className: "lightbox-player" });
     media.className = "lightbox-media";
     media.preload = "metadata";
     media.playsInline = true;
-    wrap.append(...extra, media, createMediaMenu(media, "lightbox", wrap));
+    const menu = createMediaMenu(media, "lightbox", wrap);
+    media.addEventListener("error", () => {
+        menu.remove();
+        if (wrap.isConnected) setNote(t("share.lightbox.unplayable"));
+    });
+    wrap.append(...extra, media, menu);
     return wrap;
 }
 
@@ -500,11 +505,13 @@ function cardPixels(box) {
     return Math.min(CARD_PREVIEW_MAX, Math.ceil(Math.max(box.clientWidth * natural, box.clientHeight) * (window.devicePixelRatio || 1)));
 }
 
-/* Shows the embedded cover at url as poster of video once it has loaded; without a cover the first frame stays. */
+/* Shows the embedded cover at url as poster of video once it has loaded; without a cover the first frame stays.
+   @returns {HTMLImageElement} the image that loads the cover */
 function setVideoPoster(video, url) {
     const cover = new Image();
     cover.addEventListener("load", () => { video.poster = url; });
     cover.src = url;
+    return cover;
 }
 
 /* Gives the preview box of card the aspect ratio w/h of its loaded medium when the listing did not know it
@@ -535,13 +542,17 @@ function previewCard(card, d) {
     }
     if (d.view === "audio") {
         const audio = Object.assign(document.createElement("audio"), { preload: "metadata", src: d.href });
-        box.append(audio, createMediaMenu(audio, "card"));
+        const menu = createMediaMenu(audio, "card");
+        audio.addEventListener("error", () => menu.remove());
+        box.append(audio, menu);
     } else if (d.view === "video") {
         const video = Object.assign(document.createElement("video"), { className: "card-thumb", preload: "metadata", playsInline: true, src: d.href });
-        setVideoPoster(video, `${d.href}?preview=1&size=${cardPixels(box)}`);
+        setVideoPoster(video, `${d.href}?preview=1&size=${cardPixels(box)}`).addEventListener("load", shown);
         video.addEventListener("loadedmetadata", () => setCardRatio(card, box, video.videoWidth, video.videoHeight));
         video.addEventListener("loadeddata", shown);
-        box.append(video, createMediaMenu(video, "card"));
+        const menu = createMediaMenu(video, "card");
+        video.addEventListener("error", () => menu.remove());
+        box.append(video, menu);
     } else if (TEXT_VIEWS.has(d.view)) {
         fetch(d.href + "?preview=1")
             .then(res => res.status === 200 ? res.text() : null)

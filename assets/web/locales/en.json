@@ -245,6 +245,7 @@
   "share.lightbox.rendered": "Rendered",
   "share.lightbox.loading": "Loading…",
   "share.lightbox.failed": "Preview failed.",
+  "share.lightbox.unplayable": "This browser cannot play the file, download it instead",
   "share.lightbox.prev": "Previous file",
   "share.lightbox.next": "Next file",
   "share.cards.natural": "Show previews in their original format",
