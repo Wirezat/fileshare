@@ -41,6 +41,8 @@ Release tags are `v<version>.<codename>`, e.g. `v5.1.0.exodus`. Earlier versions
 
 - Photoshop files (psd) show their embedded thumbnail on cards and in the lightbox.
 
+- Previews embedded in photos and covers of audio and video files are sent as they are when they fit the card. Previews that had to be decoded are kept in memory (up to 64 MB, for 30 minutes after their last use), so opening a share again does not decode every photo anew.
+
 - Office documents in shares with edit access are edited inside the lightbox, which widens to almost the whole window (the whole screen on phones). Closing it after changes says that they are being saved.
 
 - Text files in shares with edit access can be saved from the browser (`PUT` on the file, with the `ETag` of the loaded version in `If-Match`). A file changed in the meantime is not overwritten, the upload size limit applies, and the admin statistics count the saves per share.

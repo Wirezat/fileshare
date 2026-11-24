@@ -84,6 +84,7 @@ type Server struct {
 	streamsDone  chan struct{}
 	closeStreams sync.Once
 	aspects      aspectCache
+	previews     previewCache
 	saveMu       sync.Mutex
 }
 

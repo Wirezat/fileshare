@@ -45,6 +45,11 @@ func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx
 	if notModified(w, r, ctx.fileInfo) {
 		return
 	}
+	key := previewKey{ctx.diskPath, ctx.fileInfo.Size(), ctx.fileInfo.ModTime(), previewSize(r, view)}
+	if jpeg, ok := s.previews.load(key); ok {
+		writeImage(w, jpeg)
+		return
+	}
 	f, err := os.Open(ctx.diskPath)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -58,28 +63,43 @@ func (s *Server) servePreviewVariant(w http.ResponseWriter, r *http.Request, ctx
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		writeJPEG(w, r, f, previewSize(r, view))
+		if jpeg, ok := media.EmbeddedJPEG(f, key.edge); ok {
+			writeImage(w, jpeg)
+			return
+		}
+		s.writeScaled(w, r, f, key)
 	case filetype.ViewAudio, filetype.ViewVideo:
 		pic, ok := cover.Find(f, typedName(ctx))
 		if !ok {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		writeJPEG(w, r, bytes.NewReader(pic), previewSize(r, view))
+		if media.ServableJPEG(pic, key.edge) {
+			writeImage(w, pic)
+			return
+		}
+		s.writeScaled(w, r, bytes.NewReader(pic), key)
 	default:
 		writeFirstLines(w, f)
 	}
 }
 
-// writeJPEG answers with src scaled to a long edge of size, or 204 when it cannot or may not be decoded.
-func writeJPEG(w http.ResponseWriter, r *http.Request, src io.ReadSeeker, size int) {
-	out, err := media.EncodeThumbnail(r.Context(), src, size)
+// writeImage answers with the JPEG data.
+func writeImage(w http.ResponseWriter, data []byte) {
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Write(data)
+}
+
+// writeScaled answers with src scaled to a long edge of key.edge and caches it under key, or answers 204 when src cannot
+// or may not be decoded.
+func (s *Server) writeScaled(w http.ResponseWriter, r *http.Request, src io.ReadSeeker, key previewKey) {
+	out, err := media.EncodeThumbnail(r.Context(), src, key.edge)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	w.Header().Set("Content-Type", "image/jpeg")
-	w.Write(out)
+	s.previews.store(key, out)
+	writeImage(w, out)
 }
 
 // writeFirstLines answers with up to 20 lines from the start of f as plain text, or 204 when f looks binary.

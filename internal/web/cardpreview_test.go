@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
@@ -206,5 +207,49 @@ func TestPreviewSizeAllowsLargerConvertedImages(t *testing.T) {
 	}
 	if got := previewSize(r, filetype.ViewConverted); got != 2400 {
 		t.Errorf("converted preview size = %d, want 2400", got)
+	}
+}
+
+func TestPreviewIsCachedUntilTheFileChanges(t *testing.T) {
+	e, dir := previewEnv(t)
+	path := filepath.Join(dir, "photo.png")
+	writeTestPNG(t, path, 400, 200)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := get(t, e, "/docs/photo.png?preview=1&size=100").Body.Bytes()
+
+	if err := os.WriteFile(path, make([]byte, info.Size()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	os.Chtimes(path, info.ModTime(), info.ModTime())
+	if got := get(t, e, "/docs/photo.png?preview=1&size=100").Body.Bytes(); !bytes.Equal(got, first) {
+		t.Errorf("second request gave %d bytes, want the cached %d", len(got), len(first))
+	}
+	os.Chtimes(path, info.ModTime(), info.ModTime().Add(1e9))
+	if rec := get(t, e, "/docs/photo.png?preview=1&size=100"); rec.Code != http.StatusNoContent {
+		t.Errorf("changed file gave %d, want 204", rec.Code)
+	}
+}
+
+func TestEmbeddedCoverIsServedUnchangedAndNotCached(t *testing.T) {
+	e, dir := previewEnv(t)
+	var pic bytes.Buffer
+	jpeg.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 400, 200)), nil)
+	path := filepath.Join(dir, "song.mp3")
+	os.WriteFile(path, mp3WithCover(pic.Bytes()), 0o600)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := get(t, e, "/docs/song.mp3?preview=1&size=300").Body.Bytes(); !bytes.Equal(got, pic.Bytes()) {
+		t.Errorf("got %d bytes, want the %d of the embedded cover", len(got), pic.Len())
+	}
+	os.WriteFile(path, make([]byte, info.Size()), 0o600)
+	os.Chtimes(path, info.ModTime(), info.ModTime())
+	if rec := get(t, e, "/docs/song.mp3?preview=1&size=300"); rec.Code != http.StatusNoContent {
+		t.Errorf("second request gave %d, want 204: embedded covers are not cached", rec.Code)
 	}
 }
